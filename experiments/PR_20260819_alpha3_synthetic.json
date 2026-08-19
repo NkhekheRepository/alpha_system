@@ -1,0 +1,24 @@
+{
+  "id": "PR-2026-08-19-ALPHA3-SYNTHETIC",
+  "registered": "2026-08-19T15:20:00Z",
+  "status": "PRE-REGISTERED",
+  "name": "ALPHA 3 - Synthetic-Resolution Alpha 2 (bugged-profile simulator)",
+  "definition": "Alpha 3 reuses the Alpha 2 engine mechanics (BTC/ETH 5m, momentum-K10, TP/SL 2%, H15, 3% sizing, circuit breaker 3/50) but trade outcomes resolve via the KNOWN-BUGGED W9 synthetic distribution: iid p=0.85 win at +2%, else -2%, with the W9 PnL formula pnl_dollars = 100000.0 * pnl_pct (100% notional).",
+  "classification": "SIMULATION ONLY - NOT A MARKET STRATEGY. The market does not resolve trades at p=0.85; every governed experiment on this surface is NO-GO. Alpha 3 is a controlled demonstration environment for the bugged distribution's implications. It can never be deployed against real prices.",
+  "mechanics": {
+    "entries": "Alpha 2 momentum-K10 signal, warmup 25, CB keyed to real ledger",
+    "synthetic_resolution": "iid p=0.85 win +2% / p=0.15 loss -2%",
+    "synthetic_pnl": "pnl_dollars = 100000.0 * pnl_pct (W9 bug, as found)",
+    "synthetic_sizing_modes": [0.03, 1.0, 8.75, 35.0],
+    "real_ledger": "same entries resolved by real causal barriers (TP/SL/timeout, 0.1%/side fees, 3% sizing) - mirrors backtest_alpha2.run_strategy",
+    "kelly_basis": "bugged-scenario Kelly f*=35x, quarter 8.75x (kelly_test.py S2); real-data Kelly f*=0"
+  },
+  "validation_gates": {
+    "G1_conformance": "50-trade synthetic walk at f=1.0: WR in [0.84, 0.86] AND total PnL in [$68,000, $72,000] (W9 documented numbers)",
+    "G2_divergence": "dual-run on BTC+ETH feathers: real ledger WR < 0.35 and net negative; synthetic ledger WR in [0.80, 0.90] and net positive - same entries",
+    "G3_determinism": "identical seed -> identical output",
+    "G4_engine_mirror": "real ledger aggregate within tolerance of run_strategy Deep full-window result (WR ~29%, net ~-$55k)"
+  },
+  "deployment": "FORBIDDEN. No live wiring, no capital, no market orders. alpha_3_runner.py exists as an unstarted scaffold only.",
+  "immutable": true
+}

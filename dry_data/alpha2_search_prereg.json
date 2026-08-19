@@ -1,0 +1,46 @@
+{
+  "registration_id": "NK-EXP-W8-1",
+  "registered": "2026-08-18T15:20:00Z",
+  "hypothesis": "Momentum-direction triple-barrier strategy on BTC/ETH 5m: search (k, tp/sl, H, sizing, breaker) for a config that clears the 0.1%/side fee hurdle",
+  "data": {
+    "assets": ["BTCUSDT", "ETHUSDT"],
+    "resolution": "5m",
+    "window": "2025-06-01T00:00:00Z to 2026-08-16T05:35:00Z",
+    "oos_holdout": "last 20% by timestamp (approximately 2026-04-08 to 2026-08-16)",
+    "source": "/home/nkhekhe/user_data/data/binance/{BTC,ETH}_USDT-5m.feather"
+  },
+  "search_space": {
+    "momentum_k": [5, 10, 15, 20],
+    "tp_sl": [0.005, 0.01, 0.015, 0.02],
+    "horizon_H": [5, 10, 15, 25, 50],
+    "sizing_pct": [0.01, 0.03, 0.05],
+    "breaker": [2, 3, 5]
+  },
+  "total_combos": 720,
+  "fixed": {
+    "cooldown_bars": 50,
+    "warmup_bars": 25,
+    "fee_per_side": 0.001,
+    "capital": 100000
+  },
+  "selection_gates": {
+    "min_trades": 100,
+    "min_folds_positive_sharpe": 0.6,
+    "min_barrier_hit_rate": 0.05,
+    "selection_metric": "median net annualized Sharpe across CPCV test folds"
+  },
+  "mc_robustness": {
+    "stationary_bootstrap_resamples": 1000,
+    "require_5th_percentile_sharpe_gt": 0.0,
+    "noise_paths": 100,
+    "noise_vol_scale": 1.0,
+    "require_noise_pass_rate_gt": 0.5
+  },
+  "oos_gates": {
+    "min_trades": 20,
+    "net_sharpe_gt": 0.0,
+    "beat_buy_and_hold": true
+  },
+  "verdict_rule": "GO only if OOS net Sharpe > 0 AND trades >= 20 AND beats B&H",
+  "no_retuning": "Closed grid. Any follow-up requires a new registration."
+}

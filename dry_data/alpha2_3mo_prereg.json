@@ -1,0 +1,57 @@
+{
+  "registration_id": "NK-EXP-W8-4",
+  "registered": "2026-08-18T19:40:00Z",
+  "hypothesis": "On the last 3 months of BTC/ETH 5m data (a down-trending regime), a vol-scaled barrier + z-filter bidirectional momentum config (same family as W8-3) can produce backtest results at least as good as Alpha 1%'s recorded baseline (synthetic doc: 0.00% return, 33.3% WR; plus a real-data Alpha-1-semantics benchmark on the same window).",
+  "relation": "User-demanded 3-month window evaluation. Same search family as W8-3 (vol-scaled barriers + z-filter, 432 combos) re-registered on a NEW data window. W8-1/2/3 all NO-GO at IS stage, so the full-window OOS holdout was never consumed; W8-4 defines its own IS/OOS split inside the 3-month window. Not a retune of any closed grid: new window = new registration.",
+  "data": {
+    "assets": ["BTCUSDT", "ETHUSDT"],
+    "resolution": "5m",
+    "window": "2026-05-16T05:35:00Z to 2026-08-16T05:35:00Z (last 3 months)",
+    "is": "first 80% by time (cutoff 2026-07-28 19:59 UTC, 21,197 bars)",
+    "oos_holdout": "last 20% (2026-07-28 19:59 to 2026-08-16 05:35, 5,300 bars), consumed once at final gate",
+    "source": "/home/nkhekhe/user_data/data/binance/{BTC,ETH}_USDT-5m.feather"
+  },
+  "search_space": {
+    "k_sigma": [0.5, 1.0, 1.5, 2.0],
+    "vol_lookback_N": [25, 50, 100],
+    "horizon_H": [15, 25, 50],
+    "momentum_k": [5, 10, 20],
+    "entry_z": [0.0, 0.5, 1.0, 1.5]
+  },
+  "total_combos": 432,
+  "fixed": {
+    "direction": "both",
+    "pos_pct": 0.03,
+    "max_consec": 3,
+    "cooldown_bars": 50,
+    "warmup_bars": 25,
+    "fee_per_side": 0.001,
+    "capital": 100000,
+    "barrier_type": "std_of_log_returns_scaled_by_sqrt(H)"
+  },
+  "selection_gates": {
+    "min_trades": 100,
+    "min_barrier_hit_rate": 0.05,
+    "min_folds_positive_sharpe": 0.6,
+    "selection_metric": "median net annualized Sharpe across 5 time folds (IS)"
+  },
+  "mc_robustness": {
+    "stationary_bootstrap_resamples": 1000,
+    "require_5th_percentile_sharpe_gt": 0.0,
+    "noise_paths": 100,
+    "noise_vol_scale": 1.0,
+    "require_noise_pass_rate_gt": 0.5
+  },
+  "benchmarks": {
+    "alpha1_synthetic_doc": "backtest_performance_analysis.md: 6-month synthetic sim, 12 trades, 33.3% WR, 0.00% combined return",
+    "alpha1_real_semantics": "long-only unconditional churn (momentum_k=0, direction='long', TP/SL 2%, H=15, 3% size, breaker 3->50) on SAME 3-month window, net 0.1%/side",
+    "buy_and_hold": "BTC+ETH equal split over same window (measured: -20.2% BTC)"
+  },
+  "oos_gates": {
+    "min_trades": 20,
+    "net_sharpe_gt": 0.0,
+    "beat_buy_and_hold": true
+  },
+  "verdict_rule": "GO only if IS gates pass AND MC robustness passes AND OOS net Sharpe > 0 AND trades >= 20 AND beats B&H AND net return >= Alpha-1 real benchmark on the same window. Otherwise NO-GO.",
+  "no_retuning": "Closed grid. Any follow-up requires a new registration."
+}

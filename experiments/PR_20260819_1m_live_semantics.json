@@ -1,0 +1,37 @@
+{
+  "id": "PR-2026-08-19-1M-LIVE-SEMANTICS",
+  "registered": "2026-08-19T15:55:00Z",
+  "status": "PRE-REGISTERED",
+  "objective": "Establish the correct live-granularity expectation for the running bots. The 5m-close backtest was never a valid live comparator (live runners evaluate exits on 60s instantaneous spot prices; Alpha 1 enters LONG unconditionally - no momentum signal - and Alpha 2 uses momentum K=10 on 60s polls = 10-min momentum).",
+  "data": "Binance 1m klines BTC/ETH, 2026-01-01 -> 2026-08-19 (fresh download, cached)",
+  "engine": "runner-mirror on 1m closes: flat -> enter (churn: always long; momentum: sign of close[t]/close[t-K]-1), exit at first 1m close crossing +/-barrier from entry, timeout at bar 75, re-enter next bar; 3% of capital, 0.1%/side fees, circuit breaker 3 losses -> 50-bar cooldown (live semantics)",
+  "grid": {
+    "mode": ["churn", "momentum"],
+    "k": [5, 10, 20],
+    "barrier": [0.01, 0.02, 0.03],
+    "horizon": [75],
+    "n_configs": 18
+  },
+  "live_configs": {
+    "alpha1": {"mode": "churn", "k": null, "barrier": 0.02, "horizon": 75},
+    "alpha2": {"mode": "momentum", "k": 10, "barrier": 0.02, "horizon": 75}
+  },
+  "protocol": {
+    "folds": 4,
+    "split": "chronological equal quarters per symbol",
+    "embargo": 50,
+    "train_folds": [1, 2, 3],
+    "validation_fold": 4,
+    "selection": "rank by median combined net return over folds 1-3 (BTC+ETH shared capital)"
+  },
+  "gates": {
+    "G1_frequency": "every fold >= 20 trades",
+    "G2_persistence": "positive net return on >= 2 of 3 train folds",
+    "G3_oos_validation": "validation fold net return > 0",
+    "G4_fee_hurdle": "validation fold mean per-trade net return > 0.002 (0.2% round-trip margin)",
+    "verdict": "PASS iff G1-G4; else NO-GO"
+  },
+  "caveat": "1m CLOSES still understate live responsiveness (60s polls catch intra-minute crossings the 1m close straddles). If 1m says NO-GO while live keeps winning, residual gap = intra-minute capture or live regime artifact; the 50-trade live milestone decides.",
+  "comparison": "live Alpha 1 4/4 and Alpha 2 3/3 wins vs this distribution's expected WR/net EV",
+  "immutable": true
+}

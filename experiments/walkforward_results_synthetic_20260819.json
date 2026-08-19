@@ -1,0 +1,40 @@
+{
+  "arm": "KNOWN-BUGGED W9 SYNTHETIC (diagnostic only, no implementation authority)",
+  "p_win": 0.85,
+  "win": 0.02,
+  "loss": -0.02,
+  "pnl_formula": "pnl_dollars = 100000.0 * pnl_pct (100% notional, W9 bug)",
+  "n_configs": 108,
+  "fold_trades_per_config": [
+    1250,
+    1242,
+    1245,
+    1141
+  ],
+  "n_passing_train": 108,
+  "train_median_std_across_configs": 34.17655683413759,
+  "train_median_min": 1660.0000000000002,
+  "train_median_max": 1823.9999999999998,
+  "selected": {
+    "momentum_k": 15,
+    "tp": 0.01,
+    "sl": 0.01,
+    "horizon": 30,
+    "direction": "both"
+  },
+  "selected_train_median": 1823.9999999999998,
+  "validation_fold4": {
+    "n": 1141,
+    "wr": 0.8659070990359334,
+    "net_return_pct": 1670.0,
+    "mean_w": 0.014636283961437334
+  },
+  "gates": {
+    "G1": true,
+    "G2": true,
+    "G3": true,
+    "G4": true
+  },
+  "verdict": "PASS-synthetic",
+  "note": "Synthetic stream is parameter-independent: all configs see the same trade distribution; parameter discrimination = 0 by construction."
+}

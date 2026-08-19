@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.dist-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# OS
+*.log
+*.tmp
+
+# Data files (large binary data — commit only metadata, not raw data)
+# 5m and 1m candle data are large; include instructions in docs
+# Instead, keep reference copies or use Git LFS
+user_data/data/binance/*.feather
+
+# Logs (live bot output)
+dry_data/dry_output.log
+dry_data/bidir_output.log
+
+# Environment
+.env
+
+# Charts (regenerated)
+dry_data/*.png
+
+# Large result zips
+user_data/backtest_results/*.zip

@@ -1,0 +1,36 @@
+{
+  "id": "PR-2026-08-19-walkforward-grid",
+  "registered": "2026-08-19T15:00:00Z",
+  "status": "PRE-REGISTERED",
+  "objective": "Find best params for the Alpha momentum family with walk-forward OOS persistence, closing the W8 question (0/1605 full-window NO-GO) with time-windowed evidence",
+  "signal_family": "ts_momentum (K-bar return sign)",
+  "data": "Binance BTC/ETH 5m feathers, full window, causal engine run_strategy",
+  "grid": {
+    "momentum_k": [5, 10, 15, 20, 30, 40],
+    "tp": [0.01, 0.02, 0.03],
+    "sl": [0.01, 0.02, 0.03],
+    "horizon": [10, 15, 30],
+    "direction": ["long", "both"],
+    "n_configs": 108,
+    "fixed": {"pos_pct": 0.03, "max_consec": 3, "cooldown": 50, "warmup": 25, "fees": 0.001, "capital": 100000}
+  },
+  "protocol": {
+    "folds": 4,
+    "fold_split": "chronological equal quarters per symbol",
+    "embargo": "drop first 50 bars of each fold (warmup + margin); no cross-fold state",
+    "train_folds": [1, 2, 3],
+    "validation_fold": 4,
+    "selection": "rank by median combined net-return-pct over folds 1-3 (BTC+ETH shared capital)",
+    "multiplicity_control": "single pre-registered OOS test on fold 4; selection confined to folds 1-3; no re-ranking after validation"
+  },
+  "gates": {
+    "G1_frequency": "every fold >= 20 trades",
+    "G2_persistence": "positive net return on >= 2 of 3 train folds",
+    "G3_oos_validation": "validation fold net return > 0",
+    "G4_fee_hurdle": "validation fold mean per-trade net return > 0.002 (0.2% round-trip fee margin)",
+    "verdict": "PASS iff G1-G4 all hold; else NO-GO"
+  },
+  "no_go_expected": "W8 prior: 0/1605 full-window configs passed; this search adds walk-forward persistence evidence",
+  "kelly_context": "Kelly test 2026-08-19: f*=0 on real Deep distribution; sizing stays fixed 3%",
+  "immutable": true
+}

@@ -1,0 +1,52 @@
+{
+  "registration_id": "NK-EXP-W8-3",
+  "registered": "2026-08-18T16:05:00Z",
+  "hypothesis": "Vol-scaled triple-barrier exits (width = k_sigma * rolling std of 5m returns * sqrt(H)) plus a vol-normalized momentum entry filter (|ret_k|/(vol*sqrt(k)) >= z) on BTC/ETH 5m can clear the 0.1%/side fee hurdle. Fixes two verified failures of W8-1/W8-2: fixed 2% barriers never trigger (0.57% hit rate) and 64% of entries land in the fee-doomed band.",
+  "relation": "New registration after closed W8-1 grid (NO-GO) and W8-2 long-only (NO-GO). Not a retune of either: new barrier mechanics + new entry filter.",
+  "data": {
+    "assets": ["BTCUSDT", "ETHUSDT"],
+    "resolution": "5m",
+    "window": "2025-06-01T00:00:00Z to 2026-08-16T05:35:00Z",
+    "is": "first 80% by time (cutoff 2026-05-19 23:40)",
+    "oos_holdout": "last 20% (2026-05-19 23:40 to 2026-08-16 05:35), consumed once at final gate",
+    "source": "/home/nkhekhe/user_data/data/binance/{BTC,ETH}_USDT-5m.feather"
+  },
+  "search_space": {
+    "k_sigma": [0.5, 1.0, 1.5, 2.0],
+    "vol_lookback_N": [25, 50, 100],
+    "horizon_H": [15, 25, 50],
+    "momentum_k": [5, 10, 20],
+    "entry_z": [0.0, 0.5, 1.0, 1.5]
+  },
+  "total_combos": 432,
+  "fixed": {
+    "direction": "both",
+    "pos_pct": 0.03,
+    "max_consec": 3,
+    "cooldown_bars": 50,
+    "warmup_bars": 25,
+    "fee_per_side": 0.001,
+    "capital": 100000,
+    "barrier_type": "std_of_log_returns_scaled_by_sqrt(H)"
+  },
+  "selection_gates": {
+    "min_trades": 100,
+    "min_barrier_hit_rate": 0.05,
+    "min_folds_positive_sharpe": 0.6,
+    "selection_metric": "median net annualized Sharpe across 5 time folds (IS)"
+  },
+  "mc_robustness": {
+    "stationary_bootstrap_resamples": 1000,
+    "require_5th_percentile_sharpe_gt": 0.0,
+    "noise_paths": 100,
+    "noise_vol_scale": 1.0,
+    "require_noise_pass_rate_gt": 0.5
+  },
+  "oos_gates": {
+    "min_trades": 20,
+    "net_sharpe_gt": 0.0,
+    "beat_buy_and_hold": true
+  },
+  "verdict_rule": "GO only if IS gates pass AND OOS net Sharpe > 0 AND trades >= 20 AND beats B&H.",
+  "no_retuning": "Closed grid. Any follow-up requires a new registration."
+}

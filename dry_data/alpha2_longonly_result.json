@@ -1,0 +1,22 @@
+{
+  "registration": "NK-EXP-W8-2",
+  "is": {
+    "trades": 7348,
+    "wins": 2136,
+    "folds": [
+      -30.49463669669227,
+      -30.73439232444599,
+      -27.46949086838157,
+      -29.470093648073238,
+      -30.65444291808734
+    ],
+    "median_sharpe": -30.49463669669227,
+    "pos_folds": 0.0,
+    "barrier_hit_rate": 0.028170930865541646,
+    "net_pnl": -40516.587998400406,
+    "net_return_pct": -40.516587998400404
+  },
+  "oos": null,
+  "verdict": "NO-GO at IS stage",
+  "oos_consumed": false
+}

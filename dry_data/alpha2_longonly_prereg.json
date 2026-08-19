@@ -1,0 +1,40 @@
+{
+  "registration_id": "NK-EXP-W8-2",
+  "registered": "2026-08-18T15:45:00Z",
+  "hypothesis": "Long-only momentum-10 triple-barrier on BTC/ETH 5m at deployed params (TP/SL 2%, H=15, 3% sizing, breaker 3->50) clears the 0.1%/side fee hurdle.",
+  "relation": "Post-hoc direction restriction of NK-EXP-W8-1 (closed bidirectional grid, NO-GO). New registration required by intake rule; evaluated as SINGLE hypothesis, not a grid.",
+  "data": {
+    "assets": ["BTCUSDT", "ETHUSDT"],
+    "resolution": "5m",
+    "window": "2025-06-01T00:00:00Z to 2026-08-16T05:35:00Z",
+    "is": "first 80% by time (cutoff 2026-05-19 23:40)",
+    "oos_holdout": "last 20% (2026-05-19 23:40 to 2026-08-16 05:35)",
+    "source": "/home/nkhekhe/user_data/data/binance/{BTC,ETH}_USDT-5m.feather"
+  },
+  "fixed_params": {
+    "momentum_k": 10,
+    "tp": 0.02,
+    "sl": 0.02,
+    "horizon": 15,
+    "pos_pct": 0.03,
+    "max_consec": 3,
+    "cooldown_bars": 50,
+    "warmup_bars": 25,
+    "direction": "long",
+    "fee_per_side": 0.001,
+    "capital": 100000
+  },
+  "selection_gates": {
+    "min_trades": 100,
+    "min_barrier_hit_rate": 0.05,
+    "min_folds_positive_sharpe": 0.6,
+    "selection_metric": "median net annualized Sharpe across 5 time folds (IS)"
+  },
+  "oos_gates": {
+    "min_trades": 20,
+    "net_sharpe_gt": 0.0,
+    "beat_buy_and_hold": true
+  },
+  "verdict_rule": "GO only if IS gates pass AND OOS net Sharpe > 0 AND trades >= 20 AND beats B&H.",
+  "no_retuning": "Single hypothesis. Any follow-up requires a new registration."
+}

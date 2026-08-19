@@ -1,0 +1,152 @@
+{
+  "generated": "2026-08-19",
+  "config": "DEEP (TP2%/SL2%/H15/K10/fees0.1%/3%pos)",
+  "scenarios": {
+    "s1_real": {
+      "label": "Deep REAL causal (29% WR, fees in)",
+      "kelly_formula": {
+        "p": 0.2899867499526784,
+        "b": 0.004571530760400566,
+        "a": 0.00473591475283224,
+        "f_star": -94.08051409707538
+      },
+      "kelly_numeric": {
+        "f_star": 0.0,
+        "growth": 0.0
+      },
+      "stats": {
+        "n_trades": 10566,
+        "wr": 0.2899867499526784,
+        "mean_w": -0.0020368788780882204,
+        "net_pnl": -55181.230319671675
+      },
+      "mc": {
+        "0.0": {
+          "median_final": 1.0,
+          "p05_final": 1.0,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "0.01": {
+          "median_final": 0.8063114299890554,
+          "p05_final": 0.7978000795695053,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "0.02": {
+          "median_final": 0.6501088657288194,
+          "p05_final": 0.6364563387528258,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "0.03": {
+          "median_final": 0.5241430306137365,
+          "p05_final": 0.5077192393394682,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0095,
+          "ruin_p_dd90": 0.0
+        },
+        "0.05": {
+          "median_final": 0.34065802547636415,
+          "p05_final": 0.3230539183619978,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 1.0,
+          "ruin_p_dd90": 0.0
+        },
+        "0.1": {
+          "median_final": 0.11591735727521799,
+          "p05_final": 0.10424649730290644,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 1.0,
+          "ruin_p_dd90": 0.0
+        },
+        "1.0": {
+          "median_final": 3.5904843879856834e-10,
+          "p05_final": 1.243269309420674e-10,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 1.0,
+          "ruin_p_dd90": 0.0
+        }
+      }
+    },
+    "s2_bugged": {
+      "label": "Known-bugged W9 synthetic assumption (84-86% WR, iid +/-2%)",
+      "kelly_formula": {
+        "p=0.84": {
+          "b": 0.02,
+          "a": 0.02,
+          "f_star": 34.0
+        },
+        "p=0.85": {
+          "b": 0.02,
+          "a": 0.02,
+          "f_star": 35.0
+        },
+        "p=0.86": {
+          "b": 0.02,
+          "a": 0.02,
+          "f_star": 36.0
+        }
+      },
+      "mc_fractions": [
+        0.0,
+        0.03,
+        1.0,
+        8.75,
+        35.0
+      ],
+      "mc": {
+        "0.0": {
+          "median_final": 1.0,
+          "p05_final": 1.0,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "0.03": {
+          "median_final": 84.30984572046462,
+          "p05_final": 78.45291558613074,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "1.0": {
+          "median_final": 1000000000000000.0,
+          "p05_final": 1000000000000000.0,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "8.75": {
+          "median_final": 1000000000000000.0,
+          "p05_final": 1000000000000000.0,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        },
+        "35.0": {
+          "median_final": 1000000000000000.0,
+          "p05_final": 1000000000000000.0,
+          "median_maxdd": 0.0,
+          "p95_maxdd": 0.0,
+          "ruin_p50": 0.0,
+          "ruin_p_dd90": 0.0
+        }
+      }
+    }
+  }
+}
