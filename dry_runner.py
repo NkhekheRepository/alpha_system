@@ -219,6 +219,14 @@ def run_cycle(state):
                 else:
                     state['total_losses'] += 1
                     state['consecutive_losses'] += 1
+                    if state['consecutive_losses'] >= RC.max_consecutive_losses:
+                        state['cooldown_remaining'] = COOLDOWN
+                        state['consecutive_losses'] = 0
+                        print(f"  [{now.strftime('%H:%M:%S')}] CIRCUIT BREAKER: {COOLDOWN}-bar cooldown")
+                        try:
+                            notify_circuit_breaker(state)
+                        except Exception:
+                            pass
                 trade = {
                     'symbol': s, 'direction': direction,
                     'entry_price': entry, 'exit_price': exit_p,
@@ -235,7 +243,9 @@ def run_cycle(state):
                 except Exception:
                     pass
     for s in ASSETS:
-        if s not in state['open_positions'] and s in prices:
+        if s not in state['open_positions'] and s in prices \
+                and state['cooldown_remaining'] == 0 \
+                and state['consecutive_losses'] < RC.max_consecutive_losses:
             ph = state['price_history'].setdefault(s, [])
             ph.append(prices[s])
             if len(ph) > 200:
