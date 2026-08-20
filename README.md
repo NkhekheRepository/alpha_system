@@ -47,6 +47,19 @@ journalctl --user -u alpha1-dry-runner -f
 Both units use `Restart=always` (30s backoff, 10 bursts/600s limit) so the bots
 self-heal on crash, and linger ensures they start at boot before any login.
 
+### Telegram command bots
+
+Two long-polling Telegram bots (`/status`, `/positions`, `/trades`, `/pnl`,
+`/equity`, `/tradechart`) answer for each runner. Run them always-on too:
+
+```bash
+cp systemd/alpha1-tg-bot.service systemd/alpha2-tg-bot.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now alpha1-tg-bot.service alpha2-tg-bot.service
+# @Nkhekhe_bot  → Alpha 1%  (commands read dry_data/dry_state.json)
+# @LetapataBot  → Alpha 2%  (commands read dry_data/bidir_state.json)
+```
+
 ## Documentation
 
 - Full system architecture: See `SYSTEM_DOCUMENTATION.md`
