@@ -1,0 +1,16 @@
+[Unit]
+Description=Alpha 2% Bidirectional Dry Runner (momentum paper, live triple-barrier exits)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nkhekhe/alpha_system
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/bidir_runner.py --signal momentum
+Restart=always
+RestartSec=30
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Install]
+WantedBy=default.target

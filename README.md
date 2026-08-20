@@ -27,6 +27,26 @@ python3 dry_runner.py --status
 python3 bidir_runner.py --status
 ```
 
+### Always-On (systemd, survives reboots)
+
+```bash
+# Install units (adjust paths if not /home/nkhekhe/alpha_system)
+mkdir -p ~/.config/systemd/user
+cp systemd/alpha1-dry-runner.service systemd/alpha2-bidir-runner.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now alpha1-dry-runner.service alpha2-bidir-runner.service
+
+# Require user services to start on boot without login
+loginctl enable-linger $USER
+
+# Status / logs
+systemctl --user status alpha1-dry-runner alpha2-bidir-runner
+journalctl --user -u alpha1-dry-runner -f
+```
+
+Both units use `Restart=always` (30s backoff, 10 bursts/600s limit) so the bots
+self-heal on crash, and linger ensures they start at boot before any login.
+
 ## Documentation
 
 - Full system architecture: See `SYSTEM_DOCUMENTATION.md`

@@ -1,0 +1,16 @@
+[Unit]
+Description=Alpha 1% Dry Runner (long-only paper, live triple-barrier exits)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nkhekhe/alpha_system
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/dry_runner.py
+Restart=always
+RestartSec=30
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Install]
+WantedBy=default.target
