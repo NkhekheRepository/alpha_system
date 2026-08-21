@@ -49,7 +49,7 @@
       "entry_price": 75022.01,
       "quantity": 0.0006398122364356807,
       "notional": 48.0,
-      "age": 6,
+      "age": 5,
       "tp_price": 76522.45019999999,
       "sl_price": 73521.5698,
       "entry_time": "2026-08-21T04:58:20.195888"
@@ -60,7 +60,7 @@
       "entry_price": 2353.74,
       "quantity": 0.020393076550511105,
       "notional": 48.0,
-      "age": 6,
+      "age": 5,
       "tp_price": 2400.8147999999997,
       "sl_price": 2306.6652,
       "entry_time": "2026-08-21T04:58:21.030748"
@@ -98,7 +98,7 @@
   "total_trades": 2,
   "total_wins": 1,
   "total_losses": 1,
-  "last_update": "2026-08-21T05:04:29.579163",
+  "last_update": "2026-08-21T05:03:27.109536",
   "start_time": "2026-08-21T04:28:40.309944",
   "start_capital": 100.0,
   "stake_pct": 0.01,

@@ -195,7 +195,7 @@ def run_cycle(state, rng):
             del state['open_positions'][s]
             win = rng.random() < P_WIN
             pct = WIN_PCT if win else LOSS_PCT
-            exit_p = entry * (1 + pct)
+            exit_p = entry * (1 + pct * (1 if direction == 'long' else -1))
             resolve = 'win' if win else 'loss'
             close_reason = 'SYNTH_WIN' if win else 'SYNTH_LOSS'
         else:

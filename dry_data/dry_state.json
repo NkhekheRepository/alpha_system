@@ -2,7 +2,7 @@
   "capital": 100756.79047106062,
   "equity": 100756.79047106062,
   "peak_equity": 100835.12499910442,
-  "effective_equity": 100764.91657092751,
+  "effective_equity": 100775.96496204525,
   "trades": [
     {
       "symbol": "BTCUSDT",
@@ -782,7 +782,22 @@
         74824.91,
         74851.42,
         74899.99,
-        74804.63
+        74804.63,
+        75039.61,
+        75039.61
+      ]
+    },
+    "ETHUSDT": {
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "entry_price": 2354.54,
+      "quantity": 1.283776752202901,
+      "entry_time": "2026-08-21T05:02:45.799172",
+      "tp_price": 2401.6308,
+      "sl_price": 2307.4492,
+      "price_path": [
+        2354.54,
+        2355.73
       ]
     }
   },
@@ -1016,17 +1031,18 @@
       2315.65,
       2340.75,
       2355.33,
-      2346.35
+      2346.35,
+      2354.54
     ]
   },
   "daily_pnl": 0.0,
   "consecutive_losses": 0,
-  "cooldown_remaining": 32,
+  "cooldown_remaining": 0,
   "total_trades": 63,
   "total_wins": 39,
   "total_losses": 24,
   "max_drawdown": 0.0010997834237515358,
-  "last_update": "2026-08-21T04:29:44.166897",
+  "last_update": "2026-08-21T05:03:47.589017",
   "start_time": "2026-08-17T13:03:31.812454",
   "last_daily_summary": "2026-08-20T14:25:09.983695"
 }
