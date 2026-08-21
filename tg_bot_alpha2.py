@@ -102,7 +102,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Synthetic-resolution paper trading (SIM ONLY)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
-        "Resolve: p=0.85 ±2% flip\n"
+        "Exits: TP/SL ±2% market | TIMEOUT bar 75 (market price)\n"
         "Staking: 1% margin × 48x lev = $48/trade (compounds, 100 USDT base)\n"
         "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
@@ -160,10 +160,10 @@ def build_status_text(state, live=False):
 
     header = "🟢 LIVE — auto-updating every 30s" if live else "🛑 SIMULATION ONLY — NO CAPITAL"
     return (
-        f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC)</b>\n"
+        f"🎲 <b>ALPHA 3% — DRY MODE (A1/2 ENGINE @ 48x)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Resolve: p=0.85 ±2% flip\n"
+        f"Exits: TP/SL ±2% market barriers | TIMEOUT bar 75\n"
         f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${100*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
         f"💰 <b>Portfolio</b>\n"
         f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"
@@ -220,11 +220,11 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"Resolves → WIN ${entry*1.02:,.2f} / LOSS ${entry*0.98:,.2f}\n"
+            f"TIMEOUT at bar 75 → exits at market price\n"
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
-    msg += "━━━━━━━━━━━━━━━━━\n🛑 SIMULATION ONLY — NO CAPITAL\nFinal PnL resolves via p=0.85 flip, not market close"
+    msg += "━━━━━━━━━━━━━━━━━\n🛑 SIMULATION ONLY — NO CAPITAL"
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def cmd_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):

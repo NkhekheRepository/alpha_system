@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """ALPHA 3 DRY MODE RUNNER - synthetic-resolution paper trading. SIMULATION ONLY.
 
-Alpha 2 engine mechanics (BTC/ETH 60s polls, momentum-K10 direction, H15 hold,
-circuit breaker 3 losses -> 50-bar cooldown) with FULL TRIPLE-BARRIER exits:
-market TP +2% / SL -2% evaluated every poll; if no barrier hit by bar H, the
-exit resolves via the KNOWN-BUGGED W9 synthetic flip (iid p=0.85 +/-2%).
-Staking: margin fraction of current equity (compounding) x leverage multiplier
-(--stake 0.01 = $1, --leverage 48) on a 100 USDT synthetic base.
+FULL Alpha 1/2 engine alignment (BTC/ETH 60s polls, momentum-K10 direction,
+H75 hold, circuit breaker 3 losses -> 50-bar cooldown) with FULL TRIPLE-BARRIER
+exits: market TP +2% / SL -2% evaluated every poll; TIMEOUT at bar 75 exits at
+the last MARKET price. No synthetic resolution - identical to Alpha 1/2.
+The only difference from Alpha 1/2: staking = margin fraction of current equity
+(compounding) x leverage multiplier (--stake 0.01 = $1, --leverage 48) on a
+100 USDT synthetic base.
 
 NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
 forbidden by protocol (PR-2026-08-19-ALPHA3-SYNTHETIC).
@@ -55,12 +56,9 @@ ASSETS = ['BTCUSDT', 'ETHUSDT']
 API = 'https://api.binance.com/api/v3'
 INTERVAL = 60
 
-P_WIN = 0.85
-WIN_PCT = 0.02
-LOSS_PCT = -0.02
 K = 10
-H = 15
-WARMUP = K + 5
+H = 75
+WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
@@ -146,7 +144,7 @@ def momentum_direction(ph):
     return 'long' if ph[-1] > ph[-1 - K] else 'short'
 
 
-def run_cycle(state, rng):
+def run_cycle(state):
     now = datetime.utcnow()
     ts = now.strftime('%H:%M:%S')
 
@@ -193,11 +191,9 @@ def run_cycle(state, rng):
             if pos['age'] < H:
                 continue
             del state['open_positions'][s]
-            win = rng.random() < P_WIN
-            pct = WIN_PCT if win else LOSS_PCT
-            exit_p = entry * (1 + pct * (1 if direction == 'long' else -1))
-            resolve = 'win' if win else 'loss'
-            close_reason = 'SYNTH_WIN' if win else 'SYNTH_LOSS'
+            close_reason, exit_p, resolve = 'TIMEOUT', last, 'market'
+            pct = ((exit_p - entry) / entry if direction == 'long'
+                   else (entry - exit_p) / entry)
         else:
             del state['open_positions'][s]
         pnl_d = pos['quantity'] * ((exit_p - entry) if direction == 'long'
@@ -234,8 +230,7 @@ def run_cycle(state, rng):
         print(f"  [{ts}] CLOSED {s} {direction.upper()}: {close_reason} | "
               f"PnL {pct:+.2%} (${pnl_d:+,.2f}) | Equity ${state['equity']:,.2f}")
         emoji = '🟢' if pnl_d > 0 else '🔴'
-        how = (f"{close_reason} barrier hit (market)" if resolve == 'market'
-               else f"{close_reason} (p=0.85 flip at bar {H})")
+        how = f"{close_reason} (market exit at bar {pos['age']})"
         _notify(f"{emoji} <b>CLOSED {s} {direction.upper()} — ALPHA 3 DRY</b>\n"
                 f"Exit: {how}\n"
                 f"Entry: ${entry:,.2f} → Exit: ${exit_p:,.2f}\n"
@@ -266,12 +261,12 @@ def run_cycle(state, rng):
                 }
                 print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} | "
                       f"stake ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} x {state['leverage']:g}x) "
-                      f"| TP ${tp_p:,.2f} SL ${sl_p:,.2f} | flip fallback bar {H}")
+                      f"| TP ${tp_p:,.2f} SL ${sl_p:,.2f} | TIMEOUT bar {H}")
                 _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market barriers)\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
-                        f"Fallback: p=0.85 ±2% flip at bar {H}\n"
+                        f"Timeout: bar {H} at market price\n"
                         f"Equity: ${state['equity']:,.2f}\n"
                         f"🛑 SIMULATION ONLY")
 
@@ -304,9 +299,6 @@ def main():
                     help='Leverage multiplier on margin')
     args = ap.parse_args()
 
-    import numpy as np
-    rng = np.random.default_rng(args.seed)
-
     if args.status:
         s = load_state(args.stake, args.leverage)
         wr = 100*s['total_wins']/s['total_trades'] if s['total_trades'] else 0.0
@@ -318,12 +310,12 @@ def main():
     state = load_state(args.stake, args.leverage)
     stake = state['capital'] * args.stake * args.leverage
     print("=" * 60)
-    print("  ALPHA 3 DRY MODE RUNNER - SYNTHETIC RESOLUTION")
+    print("  ALPHA 3 DRY MODE RUNNER - ALPHA 1/2 ENGINE @ LEVERAGED STAKE")
     print("  SIMULATION ONLY - NOT A MARKET STRATEGY - NO CAPITAL")
     print("=" * 60)
     print(f"  Assets:   BTC + ETH (60s polls)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Exits:    TP/SL +/-2% market barriers | flip fallback (p={P_WIN}) at bar {H}")
+    print(f"  Exits:    TP/SL +/-2% market barriers | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")
@@ -343,7 +335,7 @@ def main():
     while running:
         cycle += 1
         try:
-            state = run_cycle(state, rng)
+            state = run_cycle(state)
             save_state(state)
             if args.once:
                 print("  Single cycle done.")
