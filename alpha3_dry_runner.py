@@ -18,6 +18,31 @@ import requests
 sys.path.insert(0, '/home/nkhekhe')
 sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
+from notify import send_message, notify_daily_summary
+
+
+def _notify(text):
+    try:
+        send_message(text, bot='alpha2')
+    except Exception:
+        pass
+
+
+def check_daily_summary(state):
+    now = datetime.utcnow()
+    last = state.get('last_daily_summary')
+    if last is None:
+        state['last_daily_summary'] = now.isoformat()
+        return False
+    try:
+        last_dt = datetime.fromisoformat(last)
+        hours = (now - last_dt).total_seconds() / 3600
+        if hours >= 24:
+            state['last_daily_summary'] = now.isoformat()
+            return True
+    except Exception:
+        pass
+    return False
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'alpha3_state.json'
@@ -160,6 +185,10 @@ def run_cycle(state, rng):
                 state['cooldown_remaining'] = COOLDOWN
                 state['consecutive_losses'] = 0
                 print(f"  [{ts}] CIRCUIT BREAKER: {COOLDOWN}-bar cooldown")
+                _notify(f"🛑 <b>CIRCUIT BREAKER — ALPHA 3 DRY</b>\n"
+                        f"3 consecutive losses → {COOLDOWN}-bar cooldown\n"
+                        f"Equity: ${state['equity']:,.2f}\n"
+                        f"🛑 SIMULATION ONLY")
         trade = {
             'symbol': s, 'direction': pos['direction'],
             'entry_price': pos['entry_price'], 'exit_price': exit_p,
@@ -172,6 +201,14 @@ def run_cycle(state, rng):
         log_trade(trade, state)
         print(f"  [{ts}] CLOSED {s} {pos['direction'].upper()}: {reason} | "
               f"PnL {pct:+.2%} (${pnl_d:+,.0f}) | Equity ${state['equity']:,.0f}")
+        emoji = '🟢' if pnl_d > 0 else '🔴'
+        _notify(f"{emoji} <b>CLOSED {s} {pos['direction'].upper()} — ALPHA 3 DRY</b>\n"
+                f"Resolve: {'WIN' if win else 'LOSS'} (p=0.85 flip)\n"
+                f"Entry: ${pos['entry_price']:,.2f} → Exit: ${exit_p:,.2f}\n"
+                f"PnL: {pct:+.2%} (${pnl_d:+,.0f})\n"
+                f"Equity: ${state['equity']:,.2f} | Trades: {state['total_trades']} "
+                f"({state['total_wins']}W/{state['total_losses']}L)\n"
+                f"🛑 SIMULATION ONLY")
 
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
@@ -189,8 +226,20 @@ def run_cycle(state, rng):
                 }
                 print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} "
                       f"(resolves in {H} bars)")
+                _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
+                        f"Entry: ${prices[s]:,.2f}\n"
+                        f"Hold: {H} bars (~{H} min) → p=0.85 ±2% flip\n"
+                        f"Stake at f={state['f_mode']}: ±${state['f_mode']*2000:,.0f}\n"
+                        f"Equity: ${state['equity']:,.2f}\n"
+                        f"🛑 SIMULATION ONLY")
 
     log_equity(state)
+    if check_daily_summary(state):
+        print(f"  [{ts}] DAILY SUMMARY SENT")
+        try:
+            notify_daily_summary(state, bot='alpha2')
+        except Exception:
+            pass
     return state
 
 
