@@ -40,7 +40,8 @@ def load_state():
                 return json.load(f)
         except Exception:
             pass
-    return {'equity': 100000, 'capital': 100000, 'peak_equity': 100000,
+    return {'equity': 100, 'capital': 100, 'peak_equity': 100,
+            'start_capital': 100, 'stake_pct': 0.3,
             'trades': [], 'open_positions': {}, 'total_trades': 0,
             'total_wins': 0, 'total_losses': 0, 'cooldown_remaining': 0,
             'last_update': None, 'start_time': None, 'simulation': 'alpha3'}
@@ -64,14 +65,13 @@ def calc_unrealized(state, prices):
     positions = state.get('open_positions', {})
     unrealized_total = 0.0
     details = []
-    f_mode = state.get('f_mode', 10)
     for sym, pos in positions.items():
         if sym not in prices:
             continue
         current = prices[sym]
         entry = pos['entry_price']
+        qty = pos.get('quantity', 0.0)
         direction = pos.get('direction', 'long')
-        qty = (f_mode * 100000.0) / entry
         if direction == 'short':
             pnl_d = (entry - current) * qty
             pnl_pct = (entry - current) / entry * 100
@@ -102,8 +102,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Synthetic-resolution paper trading (SIM ONLY)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
-        "Resolve: p=0.85 ±2% | PnL = f×100000×pct\n"
-        "Mode: f=10.0 (±$20,000 per trade)\n"
+        "Resolve: p=0.85 ±2% flip\n"
+        "Staking: 30% of equity per trade (compounds, 100 USDT base)\n"
         "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
         "/status — Full dashboard\n"
@@ -119,9 +119,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def build_status_text(state, live=False):
+    base = state.get('start_capital', 100000.0)
     equity = state['equity']
-    pnl = equity - 100000
-    pnl_pct = pnl / 100000 * 100
+    pnl = equity - base
+    pnl_pct = pnl / base * 100
     total = state['total_trades']
     wins = state['total_wins']
     losses = state['total_losses']
@@ -131,10 +132,10 @@ def build_status_text(state, live=False):
     effective = equity + unrealized_total
     dd = (state['peak_equity'] - effective) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
     cooldown = state.get('cooldown_remaining', 0)
-    f_mode = state.get('f_mode', '?')
+    stake_pct = state.get('stake_pct', 0.3)
     last = state.get('last_update', 'N/A')
     total_pnl = pnl + unrealized_total
-    total_pnl_pct = total_pnl / 100000 * 100
+    total_pnl_pct = total_pnl / base * 100
 
     positions = state.get('open_positions', {})
     pos_lines = ""
@@ -142,16 +143,17 @@ def build_status_text(state, live=False):
         for d in unrealized_details:
             pos_lines += f"  {d}\n"
         for sym, pos in positions.items():
-            base = sym.replace('USDT', '')
+            base_s = sym.replace('USDT', '')
             entry = pos['entry_price']
             age = pos.get('age', 0)
-            pos_lines += (f"     {base}: bar {age}/15 | resolves → "
+            stake = pos.get('notional', 0)
+            pos_lines += (f"     {base_s}: bar {age}/15 | stake ${stake:,.0f} | resolves → "
                           f"+2% (${entry*1.02:,.2f}) / −2% (${entry*0.98:,.2f})\n")
     elif positions:
         for sym, pos in positions.items():
-            base = sym.replace('USDT', '')
+            base_s = sym.replace('USDT', '')
             direction = pos.get('direction', 'long').upper()
-            pos_lines += f"  {base}: {direction} @ ${pos['entry_price']:,.2f}\n"
+            pos_lines += f"  {base_s}: {direction} @ ${pos['entry_price']:,.2f}\n"
     else:
         pos_lines = "  No open positions\n"
 
@@ -160,10 +162,10 @@ def build_status_text(state, live=False):
         f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Resolve: p=0.85 ±2% | PnL = f×100000×pct\n"
-        f"Sizing mode: f={f_mode}\n\n"
+        f"Resolve: p=0.85 ±2% flip\n"
+        f"Staking: {stake_pct*100:g}% of equity per trade (compounds)\n\n"
         f"💰 <b>Portfolio</b>\n"
-        f"Equity: ${equity:,.2f}\n"
+        f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"
         f"Realized: ${pnl:+,.2f} ({pnl_pct:+.2f}%)\n"
         f"Unrealized: ${unrealized_total:+,.2f}\n"
         f"<b>Total P&L: ${total_pnl:+,.2f} ({total_pnl_pct:+.2f}%)</b>\n"
@@ -193,7 +195,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not positions:
         await update.message.reply_text("🎯 No open positions", parse_mode='HTML')
         return
-    f_mode = state.get('f_mode', 10)
+    stake_pct = state.get('stake_pct', 0.3)
     msg = "🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b>\n━━━━━━━━━━━━━━━━━\n"
     for sym, pos in positions.items():
         base = sym.replace('USDT', '')
@@ -202,8 +204,8 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current = prices.get(sym, entry)
         age = pos.get('age', 0)
         remaining = max(0, 15 - age)
-        notional = f_mode * 100000.0
-        qty = notional / entry
+        notional = pos.get('notional', pos.get('quantity', 0) * entry)
+        qty = pos.get('quantity', 0)
         if direction == 'short':
             pnl_d = (entry - current) * qty
             pnl_pct = (entry - current) / entry * 100
@@ -215,7 +217,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{emoji} <b>{base}/USDT</b> — {direction.upper()}\n"
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
-            f"Notional: ${notional:,.0f} ({qty:.6f} {base} @ f={f_mode})\n"
+            f"Stake: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% of equity\n"
             f"Resolves → WIN ${entry*1.02:,.2f} / LOSS ${entry*0.98:,.2f}\n"
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
@@ -247,8 +249,9 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
     state = load_state()
+    base = state.get('start_capital', 100000.0)
     equity = state['equity']
-    pnl = equity - 100000
+    pnl = equity - base
     total = state['total_trades']
     wins = state['total_wins']
     losses = state['total_losses']
@@ -256,18 +259,18 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     recent = state.get('trades', [])[-10:]
     trade_lines = ""
     for t in reversed(recent):
-        base = t['symbol'].replace('USDT', '')
+        base_s = t['symbol'].replace('USDT', '')
         emoji = '🟢' if t['pnl_dollars'] > 0 else '🔴'
-        trade_lines += (f"  {emoji} {base} {t.get('direction','long').upper()} "
-                        f"{t['reason']} | {t['pnl_pct']:+.2%} (${t['pnl_dollars']:+,.0f})\n")
+        trade_lines += (f"  {emoji} {base_s} {t.get('direction','long').upper()} "
+                        f"{t['reason']} | {t['pnl_pct']:+.2%} (${t['pnl_dollars']:+,.2f})\n")
     if not trade_lines:
         trade_lines = "  No trades yet\n"
     msg = (
         f"💰 <b>P&L — ALPHA 3% DRY MODE</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"🛑 SIMULATION ONLY — NO CAPITAL\n\n"
-        f"Equity: ${equity:,.2f}\n"
-        f"<b>Total P&L: ${pnl:+,.2f} ({pnl/100000*100:+.2f}%)</b>\n\n"
+        f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"
+        f"<b>Total P&L: ${pnl:+,.2f} ({pnl/base*100:+.2f}%)</b>\n\n"
         f"📈 <b>Stats</b>\n"
         f"Total: {total} | Wins: {wins} | Losses: {losses}\n"
         f"Win Rate: {wr:.1f}%\n\n"

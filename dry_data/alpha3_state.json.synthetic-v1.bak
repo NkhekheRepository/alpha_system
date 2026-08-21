@@ -1,0 +1,124 @@
+{
+  "capital": 100000.0,
+  "equity": 100000.0,
+  "effective_equity": 100000.0,
+  "peak_equity": 120000.0,
+  "max_drawdown": 0.16666666666666666,
+  "price_history": {
+    "BTCUSDT": [
+      73915.45,
+      73910.36,
+      73848.01,
+      73831.93,
+      73862.0,
+      73904.37,
+      73927.81,
+      73955.0,
+      73935.48,
+      73934.0,
+      73977.02,
+      73945.99,
+      73970.0,
+      74176.58,
+      74259.43,
+      74868.72,
+      75436.65
+    ],
+    "ETHUSDT": [
+      2344.0,
+      2344.67,
+      2341.85,
+      2341.77,
+      2343.67,
+      2344.47,
+      2345.01,
+      2345.86,
+      2345.54,
+      2346.69,
+      2345.88,
+      2344.62,
+      2346.71,
+      2352.82,
+      2353.91,
+      2365.21,
+      2374.38
+    ]
+  },
+  "open_positions": {
+    "BTCUSDT": {
+      "symbol": "BTCUSDT",
+      "direction": "long",
+      "entry_price": 75436.65,
+      "age": 5,
+      "entry_time": "2026-08-21T01:48:53.028358"
+    },
+    "ETHUSDT": {
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "entry_price": 2374.38,
+      "age": 5,
+      "entry_time": "2026-08-21T01:48:53.791821"
+    }
+  },
+  "trades": [
+    {
+      "symbol": "BTCUSDT",
+      "direction": "long",
+      "entry_price": 74259.43,
+      "exit_price": 75744.61859999999,
+      "resolve": "win",
+      "pnl_pct": 0.02,
+      "pnl_dollars": 20000.0,
+      "reason": "SYNTH_WIN",
+      "entry_time": "2026-08-21T01:18:00.840397",
+      "exit_time": "2026-08-21T01:33:22.315055"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "entry_price": 2353.91,
+      "exit_price": 2306.8318,
+      "resolve": "loss",
+      "pnl_pct": -0.02,
+      "pnl_dollars": -20000.0,
+      "reason": "SYNTH_LOSS",
+      "entry_time": "2026-08-21T01:18:00.841458",
+      "exit_time": "2026-08-21T01:33:22.402859"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "direction": "long",
+      "entry_price": 74868.72,
+      "exit_price": 76366.0944,
+      "resolve": "win",
+      "pnl_pct": 0.02,
+      "pnl_dollars": 20000.0,
+      "reason": "SYNTH_WIN",
+      "entry_time": "2026-08-21T01:33:22.402997",
+      "exit_time": "2026-08-21T01:48:51.441968"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "entry_price": 2365.21,
+      "exit_price": 2317.9058,
+      "resolve": "loss",
+      "pnl_pct": -0.02,
+      "pnl_dollars": -20000.0,
+      "reason": "SYNTH_LOSS",
+      "entry_time": "2026-08-21T01:33:22.403015",
+      "exit_time": "2026-08-21T01:48:52.260134"
+    }
+  ],
+  "daily_pnl": 0.0,
+  "consecutive_losses": 1,
+  "cooldown_remaining": 0,
+  "total_trades": 4,
+  "total_wins": 2,
+  "total_losses": 2,
+  "last_update": "2026-08-21T01:53:59.221748",
+  "start_time": "2026-08-21T01:04:10.779632",
+  "f_mode": 10.0,
+  "banner": "SIMULATION ONLY - NOT A MARKET STRATEGY",
+  "last_daily_summary": "2026-08-21T01:39:41.083560"
+}

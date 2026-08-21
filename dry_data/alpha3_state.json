@@ -1,0 +1,29 @@
+{
+  "capital": 100.0,
+  "equity": 100.0,
+  "effective_equity": 100.0,
+  "peak_equity": 100.0,
+  "max_drawdown": 0.0,
+  "price_history": {
+    "BTCUSDT": [
+      74803.28
+    ],
+    "ETHUSDT": [
+      2359.86
+    ]
+  },
+  "open_positions": {},
+  "trades": [],
+  "daily_pnl": 0.0,
+  "consecutive_losses": 0,
+  "cooldown_remaining": 0,
+  "total_trades": 0,
+  "total_wins": 0,
+  "total_losses": 0,
+  "last_update": "2026-08-21T02:38:17.956841",
+  "start_time": "2026-08-21T02:38:16.991964",
+  "start_capital": 100.0,
+  "stake_pct": 0.3,
+  "banner": "SIMULATION ONLY - NOT A MARKET STRATEGY",
+  "last_daily_summary": "2026-08-21T02:38:17.956811"
+}

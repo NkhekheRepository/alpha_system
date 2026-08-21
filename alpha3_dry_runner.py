@@ -3,8 +3,9 @@
 
 Alpha 2 engine mechanics (BTC/ETH 60s polls, momentum-K10 direction, H15 hold,
 circuit breaker 3 losses -> 50-bar cooldown) but every exit resolves via the
-KNOWN-BUGGED W9 synthetic distribution: iid p=0.85 win +2% / p=0.15 loss -2%,
-PnL booked additively as pnl_dollars = f * 100000.0 * pnl_pct.
+KNOWN-BUGGED W9 synthetic distribution: iid p=0.85 win +2% / p=0.15 loss -2%.
+Staking matches Alpha 1/2 structure (fraction of current equity, compounding)
+via --stake (default 0.3 = 30% per trade) on a 100 USDT synthetic base.
 
 NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
 forbidden by protocol (PR-2026-08-19-ALPHA3-SYNTHETIC).
@@ -18,7 +19,7 @@ import requests
 sys.path.insert(0, '/home/nkhekhe')
 sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
-from notify import send_message, notify_daily_summary
+from notify import send_message
 
 
 def _notify(text):
@@ -61,7 +62,8 @@ H = 15
 WARMUP = K + 5
 MAX_CONSEC = 3
 COOLDOWN = 50
-CAP = 100000.0
+CAP = 100.0
+STAKE_PCT = 0.3
 
 
 def default_state():
@@ -72,18 +74,19 @@ def default_state():
         'daily_pnl': 0.0, 'consecutive_losses': 0, 'cooldown_remaining': 0,
         'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
         'last_update': None, 'start_time': datetime.utcnow().isoformat(),
-        'f_mode': None, 'banner': 'SIMULATION ONLY - NOT A MARKET STRATEGY',
+        'start_capital': CAP, 'stake_pct': None,
+        'banner': 'SIMULATION ONLY - NOT A MARKET STRATEGY',
     }
 
 
-def load_state(f_mode):
+def load_state(stake_pct):
     state = default_state()
-    state['f_mode'] = f_mode
+    state['stake_pct'] = stake_pct
     if STATE_FILE.exists():
         try:
             with open(STATE_FILE, 'r') as fh:
                 saved = json.load(fh)
-            if saved.get('f_mode') == f_mode:
+            if saved.get('stake_pct') == stake_pct:
                 state.update(saved)
             for _sym, _pos in state['open_positions'].items():
                 if isinstance(_pos, dict) and 'age' not in _pos:
@@ -168,7 +171,7 @@ def run_cycle(state, rng):
         win = rng.random() < P_WIN
         pct = WIN_PCT if win else LOSS_PCT
         exit_p = pos['entry_price'] * (1 + pct)
-        pnl_d = state['f_mode'] * 100000.0 * pct
+        pnl_d = pos['quantity'] * (exit_p - pos['entry_price'])
         state['equity'] += pnl_d
         state['peak_equity'] = max(state['peak_equity'], state['equity'])
         dd = (state['peak_equity'] - state['equity']) / state['peak_equity']
@@ -219,27 +222,38 @@ def run_cycle(state, rng):
                 state['price_history'][s] = ph[-200:]
             d = momentum_direction(state['price_history'][s])
             if d is not None and len(state['price_history'][s]) >= WARMUP:
+                pos_val = state['capital'] * state['stake_pct']
+                qty = pos_val / prices[s]
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
-                    'entry_price': prices[s], 'age': 0,
+                    'entry_price': prices[s], 'quantity': qty,
+                    'notional': pos_val, 'age': 0,
                     'entry_time': datetime.utcnow().isoformat(),
                 }
-                print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} "
-                      f"(resolves in {H} bars)")
+                print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} | "
+                      f"stake ${pos_val:,.2f} ({state['stake_pct']*100:g}% of equity) "
+                      f"| resolves in {H} bars")
                 _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
                         f"Entry: ${prices[s]:,.2f}\n"
+                        f"Stake: ${pos_val:,.2f} ({state['stake_pct']*100:g}% of equity)\n"
                         f"Hold: {H} bars (~{H} min) → p=0.85 ±2% flip\n"
-                        f"Stake at f={state['f_mode']}: ±${state['f_mode']*2000:,.0f}\n"
                         f"Equity: ${state['equity']:,.2f}\n"
                         f"🛑 SIMULATION ONLY")
 
     log_equity(state)
     if check_daily_summary(state):
         print(f"  [{ts}] DAILY SUMMARY SENT")
-        try:
-            notify_daily_summary(state, bot='alpha2')
-        except Exception:
-            pass
+        wr = 100*state['total_wins']/state['total_trades'] if state['total_trades'] else 0.0
+        base = state.get('start_capital', CAP)
+        _notify(f"📊 <b>DAILY SUMMARY — ALPHA 3 DRY</b>\n"
+                f"━━━━━━━━━━━━━━━━━\n"
+                f"💰 Equity: ${state['equity']:,.2f} (base ${base:,.0f})\n"
+                f"PnL: ${state['equity']-base:+,.2f} ({(state['equity']-base)/base*100:+.2f}%)\n"
+                f"Max DD: {state['max_drawdown']*100:.2f}%\n\n"
+                f"📈 Trades: {state['total_trades']} "
+                f"({state['total_wins']}W/{state['total_losses']}L, WR {wr:.1f}%)\n\n"
+                f"⚡ Cooldown: {state['cooldown_remaining']} bars\n"
+                f"🛑 SIMULATION ONLY")
     return state
 
 
@@ -249,32 +263,32 @@ def main():
     ap.add_argument('--status', action='store_true', help='Show status')
     ap.add_argument('--interval', type=int, default=INTERVAL, help='Poll seconds')
     ap.add_argument('--seed', type=int, default=1, help='RNG seed')
-    ap.add_argument('--f', type=float, default=10.0,
-                    choices=[0.03, 1.0, 8.75, 35.0, 10.0],
-                    help='Synthetic sizing mode (notional multiplier)')
+    ap.add_argument('--stake', type=float, default=STAKE_PCT,
+                    help='Fraction of equity staked per trade')
     args = ap.parse_args()
 
     import numpy as np
     rng = np.random.default_rng(args.seed)
 
     if args.status:
-        s = load_state(args.f)
+        s = load_state(args.stake)
         wr = 100*s['total_wins']/s['total_trades'] if s['total_trades'] else 0.0
-        print(f"Alpha3 DRY (SIM) f={args.f} | equity ${s['equity']:,.2f} | "
+        print(f"Alpha3 DRY (SIM) stake={args.stake*100:g}% | equity ${s['equity']:,.2f} | "
               f"trades {s['total_trades']} ({s['total_wins']}W/{s['total_losses']}L, WR {wr:.1f}%) | "
               f"open {list(s['open_positions'].keys())} | cooldown {s['cooldown_remaining']}")
         return
 
-    state = load_state(args.f)
+    state = load_state(args.stake)
+    stake = state['capital'] * args.stake
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - SYNTHETIC RESOLUTION")
     print("  SIMULATION ONLY - NOT A MARKET STRATEGY - NO CAPITAL")
     print("=" * 60)
     print(f"  Assets:   BTC + ETH (60s polls)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Resolve:  iid p={P_WIN} +/-2% | PnL = f * 100000 * pct")
-    print(f"  Mode:     f={args.f} (per-trade PnL +/-${args.f*2000:,.0f})")
-    print(f"  Capital:  ${CAP:,.0f} (synthetic)")
+    print(f"  Resolve:  iid p={P_WIN} +/-2%")
+    print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
+    print(f"  Staking:  {args.stake*100:g}% of equity = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")
     print("=" * 60)
     sys.stdout.flush()
