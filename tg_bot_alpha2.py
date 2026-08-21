@@ -17,7 +17,7 @@ sys.path.insert(0, '/home/nkhekhe/alpha_system')
 from notify import generate_equity_chart, generate_trade_chart
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system')
-STATE_FILE = DATA_DIR / 'alpha3_state.json'
+STATE_FILE = DATA_DIR / 'dry_data' / 'alpha3_state.json'
 
 load_dotenv('/home/nkhekhe/alpha_system/.env')
 
