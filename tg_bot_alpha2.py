@@ -50,6 +50,40 @@ def check_chat(update: Update) -> bool:
         return False
     return str(update.effective_chat.id) == CHAT_ID
 
+def get_prices():
+    prices = {}
+    for sym in ['BTCUSDT', 'ETHUSDT']:
+        try:
+            r = requests.get(f"{API}/ticker/price", params={'symbol': sym}, timeout=5)
+            prices[sym] = float(r.json()['price'])
+        except Exception:
+            pass
+    return prices
+
+def calc_unrealized(state, prices):
+    positions = state.get('open_positions', {})
+    unrealized_total = 0.0
+    details = []
+    f_mode = state.get('f_mode', 10)
+    for sym, pos in positions.items():
+        if sym not in prices:
+            continue
+        current = prices[sym]
+        entry = pos['entry_price']
+        direction = pos.get('direction', 'long')
+        qty = (f_mode * 100000.0) / entry
+        if direction == 'short':
+            pnl_d = (entry - current) * qty
+            pnl_pct = (entry - current) / entry * 100
+        else:
+            pnl_d = (current - entry) * qty
+            pnl_pct = (current - entry) / entry * 100
+        unrealized_total += pnl_d
+        base = sym.replace('USDT', '')
+        emoji = '🟢' if pnl_d >= 0 else '🔴'
+        details.append(f"{emoji} <b>{base}</b> {direction.upper()}: ${current:,.2f} vs ${entry:,.2f} → {pnl_pct:+.2f}% (${pnl_d:+,.2f})")
+    return unrealized_total, details
+
 async def error_handler(update, context):
     logger.error(f"Handler error: {context.error}", exc_info=context.error)
     try:
@@ -87,35 +121,53 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def build_status_text(state, live=False):
     equity = state['equity']
     pnl = equity - 100000
+    pnl_pct = pnl / 100000 * 100
     total = state['total_trades']
     wins = state['total_wins']
     losses = state['total_losses']
     wr = wins / total * 100 if total > 0 else 0
-    dd = (state['peak_equity'] - equity) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
+    prices = get_prices()
+    unrealized_total, unrealized_details = calc_unrealized(state, prices)
+    effective = equity + unrealized_total
+    dd = (state['peak_equity'] - effective) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
     cooldown = state.get('cooldown_remaining', 0)
     f_mode = state.get('f_mode', '?')
     last = state.get('last_update', 'N/A')
+    total_pnl = pnl + unrealized_total
+    total_pnl_pct = total_pnl / 100000 * 100
+
     positions = state.get('open_positions', {})
     pos_lines = ""
-    if positions:
+    if unrealized_details:
+        for d in unrealized_details:
+            pos_lines += f"  {d}\n"
         for sym, pos in positions.items():
             base = sym.replace('USDT', '')
-            d = pos.get('direction', 'long').upper()
+            entry = pos['entry_price']
             age = pos.get('age', 0)
-            pos_lines += f"  {base}: {d} @ ${pos['entry_price']:,.2f} | bar {age}/{15}\n"
+            pos_lines += (f"     {base}: bar {age}/15 | resolves → "
+                          f"+2% (${entry*1.02:,.2f}) / −2% (${entry*0.98:,.2f})\n")
+    elif positions:
+        for sym, pos in positions.items():
+            base = sym.replace('USDT', '')
+            direction = pos.get('direction', 'long').upper()
+            pos_lines += f"  {base}: {direction} @ ${pos['entry_price']:,.2f}\n"
     else:
         pos_lines = "  No open positions\n"
+
     header = "🟢 LIVE — auto-updating every 30s" if live else "🛑 SIMULATION ONLY — NO CAPITAL"
     return (
         f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Resolve: p=0.85 ±2% | PnL = f×100000×pct\n\n"
+        f"Resolve: p=0.85 ±2% | PnL = f×100000×pct\n"
+        f"Sizing mode: f={f_mode}\n\n"
         f"💰 <b>Portfolio</b>\n"
         f"Equity: ${equity:,.2f}\n"
-        f"P&L: ${pnl:+,.2f} ({pnl/100000*100:+.2f}%)\n"
-        f"Max DD: {dd:.2f}%\n"
-        f"Sizing mode: f={f_mode}\n\n"
+        f"Realized: ${pnl:+,.2f} ({pnl_pct:+.2f}%)\n"
+        f"Unrealized: ${unrealized_total:+,.2f}\n"
+        f"<b>Total P&L: ${total_pnl:+,.2f} ({total_pnl_pct:+.2f}%)</b>\n"
+        f"Drawdown: {dd:.2f}%\n\n"
         f"📈 <b>Performance</b>\n"
         f"Trades: {total} ({wins}W / {losses}L)\n"
         f"Win Rate: {wr:.1f}%\n\n"
@@ -136,25 +188,39 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
     state = load_state()
+    prices = get_prices()
     positions = state.get('open_positions', {})
     if not positions:
         await update.message.reply_text("🎯 No open positions", parse_mode='HTML')
         return
+    f_mode = state.get('f_mode', 10)
     msg = "🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b>\n━━━━━━━━━━━━━━━━━\n"
     for sym, pos in positions.items():
         base = sym.replace('USDT', '')
-        direction = pos.get('direction', 'long').upper()
+        direction = pos.get('direction', 'long')
         entry = pos['entry_price']
+        current = prices.get(sym, entry)
         age = pos.get('age', 0)
         remaining = max(0, 15 - age)
+        notional = f_mode * 100000.0
+        qty = notional / entry
+        if direction == 'short':
+            pnl_d = (entry - current) * qty
+            pnl_pct = (entry - current) / entry * 100
+        else:
+            pnl_d = (current - entry) * qty
+            pnl_pct = (current - entry) / entry * 100
+        emoji = '🟢' if pnl_d >= 0 else '🔴'
         msg += (
-            f"🎲 <b>{base}/USDT</b> — {direction}\n"
-            f"Entry: ${entry:,.2f}\n"
-            f"Hold: bar {age}/15 (resolves in ~{remaining} min)\n"
-            f"Outcome: p=0.85 → +2% / −2% | ±${state.get('f_mode', 10)*2000:,.0f}\n"
+            f"{emoji} <b>{base}/USDT</b> — {direction.upper()}\n"
+            f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
+            f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
+            f"Notional: ${notional:,.0f} ({qty:.6f} {base} @ f={f_mode})\n"
+            f"Resolves → WIN ${entry*1.02:,.2f} / LOSS ${entry*0.98:,.2f}\n"
+            f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
-    msg += "━━━━━━━━━━━━━━━━━\n🛑 SIMULATION ONLY — NO CAPITAL"
+    msg += "━━━━━━━━━━━━━━━━━\n🛑 SIMULATION ONLY — NO CAPITAL\nFinal PnL resolves via p=0.85 flip, not market close"
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def cmd_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
