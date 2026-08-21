@@ -241,6 +241,7 @@ def run_cycle(state):
 
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
+                and state['cooldown_remaining'] == 0 \
                 and state['consecutive_losses'] < MAX_CONSEC:
             ph = state['price_history'].setdefault(s, [])
             ph.append(prices[s])
