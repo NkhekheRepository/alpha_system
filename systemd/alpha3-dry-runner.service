@@ -1,0 +1,14 @@
+[Unit]
+Description=Alpha 3% Dry Mode Runner (synthetic resolution, SIM ONLY - no capital)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nkhekhe/alpha_system
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha3_dry_runner.py --f 10.0
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+"""ALPHA 3 DRY MODE RUNNER - synthetic-resolution paper trading. SIMULATION ONLY.
+
+Alpha 2 engine mechanics (BTC/ETH 60s polls, momentum-K10 direction, H15 hold,
+circuit breaker 3 losses -> 50-bar cooldown) but every exit resolves via the
+KNOWN-BUGGED W9 synthetic distribution: iid p=0.85 win +2% / p=0.15 loss -2%,
+PnL booked additively as pnl_dollars = f * 100000.0 * pnl_pct.
+
+NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
+forbidden by protocol (PR-2026-08-19-ALPHA3-SYNTHETIC).
+"""
+
+import sys, os, json, csv, time, signal, argparse
+from pathlib import Path
+from datetime import datetime
+import requests
+
+sys.path.insert(0, '/home/nkhekhe')
+sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
+sys.path.insert(0, '/home/nkhekhe/alpha_system')
+
+DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
+STATE_FILE = DATA_DIR / 'alpha3_state.json'
+TRADE_LOG = DATA_DIR / 'alpha3_trades.csv'
+EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
+
+ASSETS = ['BTCUSDT', 'ETHUSDT']
+API = 'https://api.binance.com/api/v3'
+INTERVAL = 60
+
+P_WIN = 0.85
+WIN_PCT = 0.02
+LOSS_PCT = -0.02
+K = 10
+H = 15
+WARMUP = K + 5
+MAX_CONSEC = 3
+COOLDOWN = 50
+CAP = 100000.0
+
+
+def default_state():
+    return {
+        'capital': CAP, 'equity': CAP, 'effective_equity': CAP,
+        'peak_equity': CAP, 'max_drawdown': 0.0,
+        'price_history': {}, 'open_positions': {}, 'trades': [],
+        'daily_pnl': 0.0, 'consecutive_losses': 0, 'cooldown_remaining': 0,
+        'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
+        'last_update': None, 'start_time': datetime.utcnow().isoformat(),
+        'f_mode': None, 'banner': 'SIMULATION ONLY - NOT A MARKET STRATEGY',
+    }
+
+
+def load_state(f_mode):
+    state = default_state()
+    state['f_mode'] = f_mode
+    if STATE_FILE.exists():
+        try:
+            with open(STATE_FILE, 'r') as fh:
+                saved = json.load(fh)
+            if saved.get('f_mode') == f_mode:
+                state.update(saved)
+            for _sym, _pos in state['open_positions'].items():
+                if isinstance(_pos, dict) and 'age' not in _pos:
+                    _pos['age'] = 0
+        except Exception:
+            pass
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return state
+
+
+def save_state(state):
+    state['last_update'] = datetime.utcnow().isoformat()
+    with open(STATE_FILE, 'w') as fh:
+        json.dump(state, fh, indent=2, default=str)
+
+
+def log_trade(trade, state):
+    new = not TRADE_LOG.exists()
+    with open(TRADE_LOG, 'a', newline='') as fh:
+        w = csv.writer(fh)
+        if new:
+            w.writerow(['time', 'symbol', 'dir', 'entry', 'exit', 'resolve',
+                        'pnl_pct', 'pnl_dollar', 'reason', 'equity', 'trades', 'wr'])
+        w.writerow([trade['exit_time'], trade['symbol'], trade['direction'],
+                    f"{trade['entry_price']:.2f}", f"{trade['exit_price']:.2f}",
+                    trade['resolve'], f"{trade['pnl_pct']:.4f}",
+                    f"{trade['pnl_dollars']:.2f}", trade['reason'],
+                    f"{state['equity']:.2f}", state['total_trades'],
+                    f"{100*state['total_wins']/state['total_trades']:.1f}"])
+
+
+def log_equity(state):
+    new = not EQUITY_LOG.exists()
+    with open(EQUITY_LOG, 'a', newline='') as fh:
+        w = csv.writer(fh)
+        if new:
+            w.writerow(['time', 'equity', 'trades', 'wr', 'cooldown'])
+        wr = 100*state['total_wins']/state['total_trades'] if state['total_trades'] else 0.0
+        w.writerow([datetime.utcnow().isoformat(), f"{state['equity']:.2f}",
+                    state['total_trades'], f"{wr:.1f}", state['cooldown_remaining']])
+
+
+def get_price(symbol):
+    try:
+        r = requests.get(f"{API}/ticker/price", params={'symbol': symbol}, timeout=5)
+        return float(r.json()['price'])
+    except Exception:
+        return None
+
+
+def momentum_direction(ph):
+    if len(ph) < K + 1:
+        return None
+    return 'long' if ph[-1] > ph[-1 - K] else 'short'
+
+
+def run_cycle(state, rng):
+    now = datetime.utcnow()
+    ts = now.strftime('%H:%M:%S')
+
+    if state['cooldown_remaining'] > 0:
+        state['cooldown_remaining'] -= 1
+        print(f"  [{ts}] Cooldown: {state['cooldown_remaining']} remaining")
+        log_equity(state)
+        return state
+
+    prices = {}
+    for s in ASSETS:
+        p = get_price(s)
+        if p is not None:
+            prices[s] = p
+    if not prices:
+        print(f"  [{ts}] No prices, skip")
+        return state
+
+    for s in list(state['open_positions'].keys()):
+        pos = state['open_positions'][s]
+        pos['age'] += 1
+        if pos['age'] < H:
+            continue
+        del state['open_positions'][s]
+        win = rng.random() < P_WIN
+        pct = WIN_PCT if win else LOSS_PCT
+        exit_p = pos['entry_price'] * (1 + pct)
+        pnl_d = state['f_mode'] * 100000.0 * pct
+        state['equity'] += pnl_d
+        state['peak_equity'] = max(state['peak_equity'], state['equity'])
+        dd = (state['peak_equity'] - state['equity']) / state['peak_equity']
+        state['max_drawdown'] = max(state['max_drawdown'], dd)
+        state['total_trades'] += 1
+        reason = 'SYNTH_WIN' if win else 'SYNTH_LOSS'
+        if pnl_d > 0:
+            state['total_wins'] += 1
+            state['consecutive_losses'] = 0
+        else:
+            state['total_losses'] += 1
+            state['consecutive_losses'] += 1
+            if state['consecutive_losses'] >= MAX_CONSEC:
+                state['cooldown_remaining'] = COOLDOWN
+                state['consecutive_losses'] = 0
+                print(f"  [{ts}] CIRCUIT BREAKER: {COOLDOWN}-bar cooldown")
+        trade = {
+            'symbol': s, 'direction': pos['direction'],
+            'entry_price': pos['entry_price'], 'exit_price': exit_p,
+            'resolve': 'win' if win else 'loss', 'pnl_pct': pct,
+            'pnl_dollars': pnl_d, 'reason': reason,
+            'entry_time': pos['entry_time'],
+            'exit_time': datetime.utcnow().isoformat(),
+        }
+        state['trades'].append(trade)
+        log_trade(trade, state)
+        print(f"  [{ts}] CLOSED {s} {pos['direction'].upper()}: {reason} | "
+              f"PnL {pct:+.2%} (${pnl_d:+,.0f}) | Equity ${state['equity']:,.0f}")
+
+    for s in ASSETS:
+        if s not in state['open_positions'] and s in prices \
+                and state['consecutive_losses'] < MAX_CONSEC:
+            ph = state['price_history'].setdefault(s, [])
+            ph.append(prices[s])
+            if len(ph) > 200:
+                state['price_history'][s] = ph[-200:]
+            d = momentum_direction(state['price_history'][s])
+            if d is not None and len(state['price_history'][s]) >= WARMUP:
+                state['open_positions'][s] = {
+                    'symbol': s, 'direction': d,
+                    'entry_price': prices[s], 'age': 0,
+                    'entry_time': datetime.utcnow().isoformat(),
+                }
+                print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} "
+                      f"(resolves in {H} bars)")
+
+    log_equity(state)
+    return state
+
+
+def main():
+    ap = argparse.ArgumentParser(description='Alpha 3 Dry Mode Runner (SIM ONLY)')
+    ap.add_argument('--once', action='store_true', help='Single cycle')
+    ap.add_argument('--status', action='store_true', help='Show status')
+    ap.add_argument('--interval', type=int, default=INTERVAL, help='Poll seconds')
+    ap.add_argument('--seed', type=int, default=1, help='RNG seed')
+    ap.add_argument('--f', type=float, default=10.0,
+                    choices=[0.03, 1.0, 8.75, 35.0, 10.0],
+                    help='Synthetic sizing mode (notional multiplier)')
+    args = ap.parse_args()
+
+    import numpy as np
+    rng = np.random.default_rng(args.seed)
+
+    if args.status:
+        s = load_state(args.f)
+        wr = 100*s['total_wins']/s['total_trades'] if s['total_trades'] else 0.0
+        print(f"Alpha3 DRY (SIM) f={args.f} | equity ${s['equity']:,.2f} | "
+              f"trades {s['total_trades']} ({s['total_wins']}W/{s['total_losses']}L, WR {wr:.1f}%) | "
+              f"open {list(s['open_positions'].keys())} | cooldown {s['cooldown_remaining']}")
+        return
+
+    state = load_state(args.f)
+    print("=" * 60)
+    print("  ALPHA 3 DRY MODE RUNNER - SYNTHETIC RESOLUTION")
+    print("  SIMULATION ONLY - NOT A MARKET STRATEGY - NO CAPITAL")
+    print("=" * 60)
+    print(f"  Assets:   BTC + ETH (60s polls)")
+    print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
+    print(f"  Resolve:  iid p={P_WIN} +/-2% | PnL = f * 100000 * pct")
+    print(f"  Mode:     f={args.f} (per-trade PnL +/-${args.f*2000:,.0f})")
+    print(f"  Capital:  ${CAP:,.0f} (synthetic)")
+    print(f"  Interval: {args.interval}s")
+    print("=" * 60)
+    sys.stdout.flush()
+
+    running = True
+
+    def handler(sig, frame):
+        nonlocal running
+        print("\n  Shutting down...")
+        running = False
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGTERM, handler)
+
+    cycle = 0
+    while running:
+        cycle += 1
+        try:
+            state = run_cycle(state, rng)
+            save_state(state)
+            if args.once:
+                print("  Single cycle done.")
+                break
+            time.sleep(args.interval)
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"  ERROR cycle {cycle}: {e}")
+            time.sleep(30)
+    save_state(state)
+    print(f"  Stopped. Equity: ${state['equity']:,.2f} | Trades: {state['total_trades']}")
+
+
+if __name__ == '__main__':
+    main()

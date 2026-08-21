@@ -105,16 +105,15 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
     await update.message.reply_text(
-        "🤖 <b>Alpha 3% Synthetic Simulator</b>\n\n"
-        "Simulation: continuous synthetic walk\n"
-        "Sizing modes: f in {0.03, 1.0, 8.75, 35.0, 10.0}\n"
-        "Formula: pnl_dollars = f × 100000.0 × pnl_pct\n"
-        "SIM-ONLY: Deployment forbidden by protocol\n\n"
+        "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
+        "Synthetic-resolution paper trading (SIM ONLY)\n"
+        "Engine: momentum-K10, H15 hold, CB 3/50\n"
+        "Resolve: p=0.85 ±2% | PnL = f×100000×pct\n"
+        "Mode: f=10.0 (±$20,000 per trade)\n"
+        "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
-        "/status — Simulation status\n"
-        "/pnl — Recent P&L summary\n"
-        "/live — Live simulation stats\n"
-        "/stop — Stop simulation (no-op, SIM-ONLY)\n"
+        "/status — Live dry-mode dashboard\n"
+        "/pnl — P&L + recent trades\n"
         "/help — Command list",
         parse_mode='HTML'
     )
@@ -122,17 +121,47 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
-    # Alpha 3 simulation status
-    params = (
-        f"🤖 <b>Alpha 3% Synthetic Simulator</b>\n"
-        f"📊 Win Probability: {P_WIN:.2f}\n"
-        f"📉 Loss Amount: {LOSS:.2f}\n"
-        f"💰 Sizing Modes: f={SYNTH_SIZING[0]:.2f}, f={SYNTH_SIZING[1]:.2f}, f={SYNTH_SIZING[2]:.2f}, f={SYNTH_SIZING[3]:.2f}, f={SYNTH_SIZING[4]:.2f}\n"
-        f"💡 Formula: pnl_dollars = f × 100000.0 × pnl_pct\n"
-        f"📡 Simulation: running continuously\n"
-        f"🛡️ SIM-ONLY: Deployment forbidden by protocol"
+    state = load_state()
+    equity = state['equity']
+    pnl = equity - 100000
+    total = state['total_trades']
+    wins = state['total_wins']
+    losses = state['total_losses']
+    wr = wins / total * 100 if total > 0 else 0
+    dd = (state['peak_equity'] - equity) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
+    cooldown = state.get('cooldown_remaining', 0)
+    f_mode = state.get('f_mode', '?')
+    last = state.get('last_update', 'N/A')
+    positions = state.get('open_positions', {})
+    pos_lines = ""
+    if positions:
+        for sym, pos in positions.items():
+            base = sym.replace('USDT', '')
+            d = pos.get('direction', 'long').upper()
+            age = pos.get('age', 0)
+            pos_lines += f"  {base}: {d} @ ${pos['entry_price']:,.2f} | bar {age}/{15}\n"
+    else:
+        pos_lines = "  No open positions\n"
+    msg = (
+        f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC)</b>\n"
+        f"━━━━━━━━━━━━━━━━━\n"
+        f"🛑 SIMULATION ONLY — NO CAPITAL\n"
+        f"Resolve: p=0.85 ±2% | PnL = f×100000×pct\n\n"
+        f"💰 <b>Portfolio</b>\n"
+        f"Equity: ${equity:,.2f}\n"
+        f"P&L: ${pnl:+,.2f} ({pnl/100000*100:+.2f}%)\n"
+        f"Max DD: {dd:.2f}%\n"
+        f"Sizing mode: f={f_mode}\n\n"
+        f"📈 <b>Performance</b>\n"
+        f"Trades: {total} ({wins}W / {losses}L)\n"
+        f"Win Rate: {wr:.1f}%\n\n"
+        f"🎯 <b>Open Positions</b>\n{pos_lines}"
+        f"⚡ <b>Risk State</b>\n"
+        f"Cooldown: {cooldown} bars\n"
+        f"Circuit Breaker: {'ON (paused)' if cooldown > 0 else 'OFF'}\n"
+        f"Last Update: {last}"
     )
-    await update.message.reply_text(params, parse_mode='HTML')
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
@@ -193,24 +222,34 @@ async def cmd_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
-    # Alpha 3 simulation P&L
-    # synthetic: pnl_dollars = f * 100000.0 * pnl_pct with p=0.85
-    # typical 50-trade walk at f=1.0: WR ~85-86%, PnL ~+$72k
-    # at f=10.0: PnL ~+$720k (same WR, 10x PnL)
-    # SIM-ONLY: Deployment forbidden
-    await update.message.reply_text(
-        "💰 <b>P&L SUMMARY — ALPHA 3% SIM-ONLY</b>\n\n"
-        "Formula: pnl_dollars = f × 100000.0 × pnl_pct\n"
-        "p = 0.85 win, p = 0.15 loss (±2%)\n"
-        "SIZING MODES: f in {0.03, 1.0, 8.75, 35.0, 10.0}\n"
-        "SIM-ONLY: Deployment forbidden by protocol\n\n"
-        "Typical 50-trade walk (f=1.0):\n"
-        "  WR ~85-86%, PnL ~+$72,000\n"
-        "Typical 50-trade walk (f=10.0):\n"
-        "  WR ~85-86%, PnL ~+$720,000\n"
-        "SIM-ONLY: No real capital at risk",
-        parse_mode='HTML'
+    state = load_state()
+    equity = state['equity']
+    pnl = equity - 100000
+    total = state['total_trades']
+    wins = state['total_wins']
+    losses = state['total_losses']
+    wr = wins / total * 100 if total > 0 else 0
+    recent = state.get('trades', [])[-10:]
+    trade_lines = ""
+    for t in reversed(recent):
+        base = t['symbol'].replace('USDT', '')
+        emoji = '🟢' if t['pnl_dollars'] > 0 else '🔴'
+        trade_lines += (f"  {emoji} {base} {t.get('direction','long').upper()} "
+                        f"{t['reason']} | {t['pnl_pct']:+.2%} (${t['pnl_dollars']:+,.0f})\n")
+    if not trade_lines:
+        trade_lines = "  No trades yet\n"
+    msg = (
+        f"💰 <b>P&L — ALPHA 3% DRY MODE</b>\n"
+        f"━━━━━━━━━━━━━━━━━\n"
+        f"🛑 SIMULATION ONLY — NO CAPITAL\n\n"
+        f"Equity: ${equity:,.2f}\n"
+        f"<b>Total P&L: ${pnl:+,.2f} ({pnl/100000*100:+.2f}%)</b>\n\n"
+        f"📈 <b>Stats</b>\n"
+        f"Total: {total} | Wins: {wins} | Losses: {losses}\n"
+        f"Win Rate: {wr:.1f}%\n\n"
+        f"📜 <b>Recent Trades</b>\n{trade_lines}"
     )
+    await update.message.reply_text(msg, parse_mode='HTML')
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def cmd_equity(update: Update, context: ContextTypes.DEFAULT_TYPE):
