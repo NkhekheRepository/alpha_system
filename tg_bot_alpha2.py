@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from telegram import Update, BotCommand, MenuButtonDefault
 from telegram.ext import Application, CommandHandler, ContextTypes
 
+sys.path.insert(0, '/home/nkhekhe/alpha_system')
+from notify import generate_equity_chart, generate_trade_chart
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system')
 STATE_FILE = DATA_DIR / 'alpha3_state.json'
@@ -70,16 +72,19 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Mode: f=10.0 (±$20,000 per trade)\n"
         "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
-        "/status — Live dry-mode dashboard\n"
-        "/pnl — P&L + recent trades\n"
+        "/status — Full dashboard\n"
+        "/positions — Open positions with bar countdown\n"
+        "/trades — Last 10 trades\n"
+        "/pnl — P&L summary\n"
+        "/equity — Equity curve chart\n"
+        "/tradechart — Trade P&L chart\n"
+        "/live — Start live dashboard (auto-updates every 30s)\n"
+        "/stop — Stop live dashboard\n"
         "/help — Command list",
         parse_mode='HTML'
     )
 
-async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not check_chat(update):
-        return
-    state = load_state()
+def build_status_text(state, live=False):
     equity = state['equity']
     pnl = equity - 100000
     total = state['total_trades']
@@ -100,10 +105,11 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pos_lines += f"  {base}: {d} @ ${pos['entry_price']:,.2f} | bar {age}/{15}\n"
     else:
         pos_lines = "  No open positions\n"
-    msg = (
+    header = "🟢 LIVE — auto-updating every 30s" if live else "🛑 SIMULATION ONLY — NO CAPITAL"
+    return (
         f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
-        f"🛑 SIMULATION ONLY — NO CAPITAL\n"
+        f"{header}\n"
         f"Resolve: p=0.85 ±2% | PnL = f×100000×pct\n\n"
         f"💰 <b>Portfolio</b>\n"
         f"Equity: ${equity:,.2f}\n"
@@ -119,7 +125,12 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Circuit Breaker: {'ON (paused)' if cooldown > 0 else 'OFF'}\n"
         f"Last Update: {last}"
     )
-    await update.message.reply_text(msg, parse_mode='HTML')
+
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    state = load_state()
+    await update.message.reply_text(build_status_text(state), parse_mode='HTML')
 
 async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
@@ -198,28 +209,100 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode='HTML')
 
+async def cmd_equity(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    chart = generate_equity_chart(
+        equity_file=DATA_DIR / 'dry_data' / 'alpha3_equity.csv',
+        chart_path=DATA_DIR / 'dry_data' / 'alpha3_equity_chart.png',
+    )
+    if chart:
+        with open(chart, 'rb') as f:
+            await update.message.reply_photo(photo=f, caption="📊 Equity Curve — Alpha 3% Dry (SIM)")
+    else:
+        await update.message.reply_text("📊 Not enough data for chart (need 2+ data points)")
+
+async def cmd_tradechart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    chart = generate_trade_chart(
+        state_file=STATE_FILE,
+        chart_path=DATA_DIR / 'dry_data' / 'alpha3_trade_chart.png',
+    )
+    if chart:
+        with open(chart, 'rb') as f:
+            await update.message.reply_photo(photo=f, caption="📈 Trade P&L Chart — Alpha 3% Dry (SIM)")
+    else:
+        await update.message.reply_text("📈 Not enough trades for chart (need 2+)")
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode — Commands</b>\n\n"
         "/start — Welcome message\n"
-        "/status — Live dry-mode dashboard\n"
-        "/positions — Open positions (bar countdown)\n"
-        "/trades — Last 10 resolved trades\n"
-        "/pnl — P&L summary + recent trades\n"
+        "/status — Full dashboard\n"
+        "/positions — Open positions with bar countdown\n"
+        "/trades — Last 10 trades\n"
+        "/pnl — P&L summary\n"
+        "/equity — Equity curve chart\n"
+        "/tradechart — Trade P&L chart\n"
+        "/live — Start live dashboard (auto-updates every 30s)\n"
+        "/stop — Stop live dashboard\n"
         "/help — This message\n\n"
         "🛑 SIMULATION ONLY — NO CAPITAL",
         parse_mode='HTML'
     )
 
+live_messages = {}
+
+async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    chat_id = update.effective_chat.id
+    state = load_state()
+    sent = await update.message.reply_text(
+        build_status_text(state, live=True), parse_mode='HTML')
+    msg_id = sent.message_id
+
+    async def auto_edit(context: ContextTypes.DEFAULT_TYPE):
+        try:
+            s = load_state()
+            await context.bot.edit_message_text(
+                chat_id=chat_id, message_id=msg_id,
+                text=build_status_text(s, live=True), parse_mode='HTML'
+            )
+        except Exception as e:
+            logger.error(f"Auto-edit error: {e}")
+
+    job = context.job_queue.run_repeating(
+        auto_edit, interval=30, first=35, chat_id=chat_id
+    )
+    live_messages[chat_id] = {"msg_id": msg_id, "job": job}
+
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    chat_id = update.effective_chat.id
+    if chat_id in live_messages:
+        job = live_messages[chat_id]["job"]
+        job.schedule_removal()
+        del live_messages[chat_id]
+        await update.message.reply_text("✅ Live dashboard stopped.", parse_mode='HTML')
+    else:
+        await update.message.reply_text("ℹ️ No live dashboard running.", parse_mode='HTML')
+
 async def post_init(app: Application):
     await app.bot.set_my_commands([
-        BotCommand("start", "Welcome — Alpha 3 dry mode"),
-        BotCommand("status", "Live dry-mode dashboard"),
-        BotCommand("positions", "Open positions (bar countdown)"),
-        BotCommand("trades", "Last 10 resolved trades"),
-        BotCommand("pnl", "P&L summary + recent trades"),
+        BotCommand("start", "Welcome message"),
+        BotCommand("status", "Full dashboard"),
+        BotCommand("positions", "Open positions with bar countdown"),
+        BotCommand("trades", "Last 10 trades"),
+        BotCommand("pnl", "P&L summary"),
+        BotCommand("equity", "Equity curve chart"),
+        BotCommand("tradechart", "Trade P&L chart"),
+        BotCommand("live", "Start live dashboard (auto-updates every 30s)"),
+        BotCommand("stop", "Stop live dashboard"),
         BotCommand("help", "Command list"),
     ])
     await app.bot.set_chat_menu_button(
@@ -239,6 +322,10 @@ def main():
     app.add_handler(CommandHandler("positions", cmd_positions))
     app.add_handler(CommandHandler("trades", cmd_trades))
     app.add_handler(CommandHandler("pnl", cmd_pnl))
+    app.add_handler(CommandHandler("equity", cmd_equity))
+    app.add_handler(CommandHandler("tradechart", cmd_tradechart))
+    app.add_handler(CommandHandler("live", cmd_live))
+    app.add_handler(CommandHandler("stop", cmd_stop))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_error_handler(error_handler)
 
