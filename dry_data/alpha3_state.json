@@ -6,10 +6,12 @@
   "max_drawdown": 0.0,
   "price_history": {
     "BTCUSDT": [
-      74421.46
+      74830.0,
+      74787.5
     ],
     "ETHUSDT": [
-      2345.8
+      2345.57,
+      2345.23
     ]
   },
   "open_positions": {},
@@ -20,11 +22,11 @@
   "total_trades": 0,
   "total_wins": 0,
   "total_losses": 0,
-  "last_update": "2026-08-21T03:03:49.781803",
-  "start_time": "2026-08-21T03:03:48.742021",
+  "last_update": "2026-08-21T04:29:42.839615",
+  "start_time": "2026-08-21T04:28:40.309944",
   "start_capital": 100.0,
-  "stake_pct": 0.0075,
+  "stake_pct": 0.01,
   "leverage": 48.0,
   "banner": "SIMULATION ONLY - NOT A MARKET STRATEGY",
-  "last_daily_summary": "2026-08-21T03:03:49.781764"
+  "last_daily_summary": "2026-08-21T04:28:41.395557"
 }

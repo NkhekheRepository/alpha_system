@@ -2,10 +2,11 @@
 """ALPHA 3 DRY MODE RUNNER - synthetic-resolution paper trading. SIMULATION ONLY.
 
 Alpha 2 engine mechanics (BTC/ETH 60s polls, momentum-K10 direction, H15 hold,
-circuit breaker 3 losses -> 50-bar cooldown) but every exit resolves via the
-KNOWN-BUGGED W9 synthetic distribution: iid p=0.85 win +2% / p=0.15 loss -2%.
-Staking matches Alpha 1/2 structure (fraction of current equity, compounding)
-via --stake (default 0.3 = 30% per trade) on a 100 USDT synthetic base.
+circuit breaker 3 losses -> 50-bar cooldown) with FULL TRIPLE-BARRIER exits:
+market TP +2% / SL -2% evaluated every poll; if no barrier hit by bar H, the
+exit resolves via the KNOWN-BUGGED W9 synthetic flip (iid p=0.85 +/-2%).
+Staking: margin fraction of current equity (compounding) x leverage multiplier
+(--stake 0.01 = $1, --leverage 48) on a 100 USDT synthetic base.
 
 NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
 forbidden by protocol (PR-2026-08-19-ALPHA3-SYNTHETIC).
@@ -63,7 +64,7 @@ WARMUP = K + 5
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
-STAKE_PCT = 0.0075
+STAKE_PCT = 0.01
 LEVERAGE = 48.0
 
 
@@ -165,21 +166,47 @@ def run_cycle(state, rng):
         return state
 
     for s in list(state['open_positions'].keys()):
+        if s not in prices:
+            continue
         pos = state['open_positions'][s]
         pos['age'] += 1
-        if pos['age'] < H:
-            continue
-        del state['open_positions'][s]
-        win = rng.random() < P_WIN
-        pct = WIN_PCT if win else LOSS_PCT
-        exit_p = pos['entry_price'] * (1 + pct)
-        pnl_d = pos['quantity'] * (exit_p - pos['entry_price'])
+        direction = pos['direction']
+        entry = pos['entry_price']
+        tp = pos['tp_price']
+        sl = pos['sl_price']
+        last = prices[s]
+        close_reason = None
+        exit_p = None
+        resolve = None
+        pct = None
+        if direction == 'long':
+            if last >= tp:
+                close_reason, exit_p, resolve, pct = 'TP', tp, 'market', (tp - entry) / entry
+            elif last <= sl:
+                close_reason, exit_p, resolve, pct = 'SL', sl, 'market', (sl - entry) / entry
+        else:
+            if last <= tp:
+                close_reason, exit_p, resolve, pct = 'TP', tp, 'market', (entry - tp) / entry
+            elif last >= sl:
+                close_reason, exit_p, resolve, pct = 'SL', sl, 'market', (entry - sl) / entry
+        if close_reason is None:
+            if pos['age'] < H:
+                continue
+            del state['open_positions'][s]
+            win = rng.random() < P_WIN
+            pct = WIN_PCT if win else LOSS_PCT
+            exit_p = entry * (1 + pct)
+            resolve = 'win' if win else 'loss'
+            close_reason = 'SYNTH_WIN' if win else 'SYNTH_LOSS'
+        else:
+            del state['open_positions'][s]
+        pnl_d = pos['quantity'] * ((exit_p - entry) if direction == 'long'
+                                   else (entry - exit_p))
         state['equity'] += pnl_d
         state['peak_equity'] = max(state['peak_equity'], state['equity'])
         dd = (state['peak_equity'] - state['equity']) / state['peak_equity']
         state['max_drawdown'] = max(state['max_drawdown'], dd)
         state['total_trades'] += 1
-        reason = 'SYNTH_WIN' if win else 'SYNTH_LOSS'
         if pnl_d > 0:
             state['total_wins'] += 1
             state['consecutive_losses'] = 0
@@ -195,22 +222,24 @@ def run_cycle(state, rng):
                         f"Equity: ${state['equity']:,.2f}\n"
                         f"🛑 SIMULATION ONLY")
         trade = {
-            'symbol': s, 'direction': pos['direction'],
-            'entry_price': pos['entry_price'], 'exit_price': exit_p,
-            'resolve': 'win' if win else 'loss', 'pnl_pct': pct,
-            'pnl_dollars': pnl_d, 'reason': reason,
+            'symbol': s, 'direction': direction,
+            'entry_price': entry, 'exit_price': exit_p,
+            'resolve': resolve, 'pnl_pct': pct,
+            'pnl_dollars': pnl_d, 'reason': close_reason,
             'entry_time': pos['entry_time'],
             'exit_time': datetime.utcnow().isoformat(),
         }
         state['trades'].append(trade)
         log_trade(trade, state)
-        print(f"  [{ts}] CLOSED {s} {pos['direction'].upper()}: {reason} | "
-              f"PnL {pct:+.2%} (${pnl_d:+,.0f}) | Equity ${state['equity']:,.0f}")
+        print(f"  [{ts}] CLOSED {s} {direction.upper()}: {close_reason} | "
+              f"PnL {pct:+.2%} (${pnl_d:+,.2f}) | Equity ${state['equity']:,.2f}")
         emoji = '🟢' if pnl_d > 0 else '🔴'
-        _notify(f"{emoji} <b>CLOSED {s} {pos['direction'].upper()} — ALPHA 3 DRY</b>\n"
-                f"Resolve: {'WIN' if win else 'LOSS'} (p=0.85 flip)\n"
-                f"Entry: ${pos['entry_price']:,.2f} → Exit: ${exit_p:,.2f}\n"
-                f"PnL: {pct:+.2%} (${pnl_d:+,.0f})\n"
+        how = (f"{close_reason} barrier hit (market)" if resolve == 'market'
+               else f"{close_reason} (p=0.85 flip at bar {H})")
+        _notify(f"{emoji} <b>CLOSED {s} {direction.upper()} — ALPHA 3 DRY</b>\n"
+                f"Exit: {how}\n"
+                f"Entry: ${entry:,.2f} → Exit: ${exit_p:,.2f}\n"
+                f"PnL: {pct:+.2%} (${pnl_d:+,.2f})\n"
                 f"Equity: ${state['equity']:,.2f} | Trades: {state['total_trades']} "
                 f"({state['total_wins']}W/{state['total_losses']}L)\n"
                 f"🛑 SIMULATION ONLY")
@@ -226,19 +255,23 @@ def run_cycle(state, rng):
             if d is not None and len(state['price_history'][s]) >= WARMUP:
                 pos_val = state['capital'] * state['stake_pct'] * state['leverage']
                 qty = pos_val / prices[s]
+                tp_p = prices[s] * (0.98 if d == 'short' else 1.02)
+                sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
                     'entry_price': prices[s], 'quantity': qty,
                     'notional': pos_val, 'age': 0,
+                    'tp_price': tp_p, 'sl_price': sl_p,
                     'entry_time': datetime.utcnow().isoformat(),
                 }
                 print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} | "
                       f"stake ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} x {state['leverage']:g}x) "
-                      f"| resolves in {H} bars")
+                      f"| TP ${tp_p:,.2f} SL ${sl_p:,.2f} | flip fallback bar {H}")
                 _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
                         f"Entry: ${prices[s]:,.2f}\n"
+                        f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market barriers)\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
-                        f"Hold: {H} bars (~{H} min) → p=0.85 ±2% flip\n"
+                        f"Fallback: p=0.85 ±2% flip at bar {H}\n"
                         f"Equity: ${state['equity']:,.2f}\n"
                         f"🛑 SIMULATION ONLY")
 
@@ -290,7 +323,7 @@ def main():
     print("=" * 60)
     print(f"  Assets:   BTC + ETH (60s polls)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Resolve:  iid p={P_WIN} +/-2%")
+    print(f"  Exits:    TP/SL +/-2% market barriers | flip fallback (p={P_WIN}) at bar {H}")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")

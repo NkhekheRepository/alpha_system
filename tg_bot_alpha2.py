@@ -41,7 +41,7 @@ def load_state():
         except Exception:
             pass
     return {'equity': 100, 'capital': 100, 'peak_equity': 100,
-            'start_capital': 100, 'stake_pct': 0.0075, 'leverage': 48,
+            'start_capital': 100, 'stake_pct': 0.01, 'leverage': 48,
             'trades': [], 'open_positions': {}, 'total_trades': 0,
             'total_wins': 0, 'total_losses': 0, 'cooldown_remaining': 0,
             'last_update': None, 'start_time': None, 'simulation': 'alpha3'}
@@ -103,7 +103,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Synthetic-resolution paper trading (SIM ONLY)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
         "Resolve: p=0.85 ±2% flip\n"
-        "Staking: 0.75% margin × 48x lev = $36/trade (compounds, 100 USDT base)\n"
+        "Staking: 1% margin × 48x lev = $48/trade (compounds, 100 USDT base)\n"
         "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
         "/status — Full dashboard\n"
@@ -132,7 +132,7 @@ def build_status_text(state, live=False):
     effective = equity + unrealized_total
     dd = (state['peak_equity'] - effective) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
     cooldown = state.get('cooldown_remaining', 0)
-    stake_pct = state.get('stake_pct', 0.0075)
+    stake_pct = state.get('stake_pct', 0.01)
     lev = state.get('leverage', 48)
     last = state.get('last_update', 'N/A')
     total_pnl = pnl + unrealized_total
@@ -196,7 +196,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not positions:
         await update.message.reply_text("🎯 No open positions", parse_mode='HTML')
         return
-    stake_pct = state.get('stake_pct', 0.0075)
+    stake_pct = state.get('stake_pct', 0.01)
     lev = state.get('leverage', 48)
     msg = "🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b>\n━━━━━━━━━━━━━━━━━\n"
     for sym, pos in positions.items():
