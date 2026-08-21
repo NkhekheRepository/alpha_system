@@ -63,7 +63,8 @@ WARMUP = K + 5
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
-STAKE_PCT = 0.01
+STAKE_PCT = 0.0025
+LEVERAGE = 48.0
 
 
 def default_state():
@@ -74,19 +75,20 @@ def default_state():
         'daily_pnl': 0.0, 'consecutive_losses': 0, 'cooldown_remaining': 0,
         'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
         'last_update': None, 'start_time': datetime.utcnow().isoformat(),
-        'start_capital': CAP, 'stake_pct': None,
+        'start_capital': CAP, 'stake_pct': None, 'leverage': None,
         'banner': 'SIMULATION ONLY - NOT A MARKET STRATEGY',
     }
 
 
-def load_state(stake_pct):
+def load_state(stake_pct, leverage):
     state = default_state()
     state['stake_pct'] = stake_pct
+    state['leverage'] = leverage
     if STATE_FILE.exists():
         try:
             with open(STATE_FILE, 'r') as fh:
                 saved = json.load(fh)
-            if saved.get('stake_pct') == stake_pct:
+            if saved.get('stake_pct') == stake_pct and saved.get('leverage') == leverage:
                 state.update(saved)
             for _sym, _pos in state['open_positions'].items():
                 if isinstance(_pos, dict) and 'age' not in _pos:
@@ -222,7 +224,7 @@ def run_cycle(state, rng):
                 state['price_history'][s] = ph[-200:]
             d = momentum_direction(state['price_history'][s])
             if d is not None and len(state['price_history'][s]) >= WARMUP:
-                pos_val = state['capital'] * state['stake_pct']
+                pos_val = state['capital'] * state['stake_pct'] * state['leverage']
                 qty = pos_val / prices[s]
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
@@ -231,11 +233,11 @@ def run_cycle(state, rng):
                     'entry_time': datetime.utcnow().isoformat(),
                 }
                 print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} | "
-                      f"stake ${pos_val:,.2f} ({state['stake_pct']*100:g}% of equity) "
+                      f"stake ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} x {state['leverage']:g}x) "
                       f"| resolves in {H} bars")
                 _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
                         f"Entry: ${prices[s]:,.2f}\n"
-                        f"Stake: ${pos_val:,.2f} ({state['stake_pct']*100:g}% of equity)\n"
+                        f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
                         f"Hold: {H} bars (~{H} min) → p=0.85 ±2% flip\n"
                         f"Equity: ${state['equity']:,.2f}\n"
                         f"🛑 SIMULATION ONLY")
@@ -264,22 +266,24 @@ def main():
     ap.add_argument('--interval', type=int, default=INTERVAL, help='Poll seconds')
     ap.add_argument('--seed', type=int, default=1, help='RNG seed')
     ap.add_argument('--stake', type=float, default=STAKE_PCT,
-                    help='Fraction of equity staked per trade')
+                    help='Margin fraction of equity per trade')
+    ap.add_argument('--leverage', type=float, default=LEVERAGE,
+                    help='Leverage multiplier on margin')
     args = ap.parse_args()
 
     import numpy as np
     rng = np.random.default_rng(args.seed)
 
     if args.status:
-        s = load_state(args.stake)
+        s = load_state(args.stake, args.leverage)
         wr = 100*s['total_wins']/s['total_trades'] if s['total_trades'] else 0.0
-        print(f"Alpha3 DRY (SIM) stake={args.stake*100:g}% | equity ${s['equity']:,.2f} | "
+        print(f"Alpha3 DRY (SIM) stake={args.stake*100:g}% x {args.leverage:g}x | equity ${s['equity']:,.2f} | "
               f"trades {s['total_trades']} ({s['total_wins']}W/{s['total_losses']}L, WR {wr:.1f}%) | "
               f"open {list(s['open_positions'].keys())} | cooldown {s['cooldown_remaining']}")
         return
 
-    state = load_state(args.stake)
-    stake = state['capital'] * args.stake
+    state = load_state(args.stake, args.leverage)
+    stake = state['capital'] * args.stake * args.leverage
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - SYNTHETIC RESOLUTION")
     print("  SIMULATION ONLY - NOT A MARKET STRATEGY - NO CAPITAL")
@@ -288,7 +292,7 @@ def main():
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
     print(f"  Resolve:  iid p={P_WIN} +/-2%")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
-    print(f"  Staking:  {args.stake*100:g}% of equity = ${stake:,.2f}/trade (compounding)")
+    print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")
     print("=" * 60)
     sys.stdout.flush()
