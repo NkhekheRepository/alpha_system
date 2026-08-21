@@ -63,7 +63,7 @@ WARMUP = K + 5
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
-STAKE_PCT = 0.3
+STAKE_PCT = 0.01
 
 
 def default_state():

@@ -41,7 +41,7 @@ def load_state():
         except Exception:
             pass
     return {'equity': 100, 'capital': 100, 'peak_equity': 100,
-            'start_capital': 100, 'stake_pct': 0.3,
+            'start_capital': 100, 'stake_pct': 0.01,
             'trades': [], 'open_positions': {}, 'total_trades': 0,
             'total_wins': 0, 'total_losses': 0, 'cooldown_remaining': 0,
             'last_update': None, 'start_time': None, 'simulation': 'alpha3'}
@@ -103,7 +103,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Synthetic-resolution paper trading (SIM ONLY)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
         "Resolve: p=0.85 ±2% flip\n"
-        "Staking: 30% of equity per trade (compounds, 100 USDT base)\n"
+        "Staking: 1% of equity per trade (compounds, 100 USDT base)\n"
         "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
         "/status — Full dashboard\n"
