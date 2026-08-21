@@ -36,7 +36,7 @@ OUT = Path('/home/nkhekhe/alpha_system/experiments/alpha3_results_20260819.json'
 P_WIN = 0.85
 WIN = 0.02
 LOSS = -0.02
-SYNTH_SIZING = [0.03, 1.0, 8.75, 35.0]
+SYNTH_SIZING = [0.03, 1.0, 8.75, 35.0, 10.0]
 
 K = 10
 TP = 0.02
