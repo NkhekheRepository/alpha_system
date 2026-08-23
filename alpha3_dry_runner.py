@@ -23,6 +23,13 @@ sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
 from notify import send_message
 
+DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
+if DEMO_LIVE:
+    try:
+        from demo_trader import place_market_order, close_position_market
+    except Exception:
+        DEMO_LIVE = False
+
 
 def _notify(text):
     try:
@@ -245,6 +252,16 @@ def run_cycle(state, rng):
                 f"PnL: {pct:+.2%} (${pnl_d:+,.2f})\n"
                 f"Equity: ${state['equity']:,.2f} | Trades: {state['total_trades']} "
                 f"({state['total_wins']}W/{state['total_losses']}L)")
+        if DEMO_LIVE and close_reason in ('TP','SL','SYNTH_WIN','SYNTH_LOSS','TIMEOUT'):
+            try:
+                side = 'SELL' if direction == 'long' else 'BUY'
+                order, err = place_market_order(s, side, pos['quantity'], reduce_only=True)
+                if order:
+                    _notify(f"📡 Demo close {s}: {side} {pos['quantity']:.6f} filled")
+                elif err:
+                    _notify(f"⚠️ Demo close {s} failed: {err}")
+            except Exception as e:
+                _notify(f"⚠️ Demo close {s} exception: {e}")
 
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
@@ -273,6 +290,16 @@ def run_cycle(state, rng):
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
                         f"Resolve: iid p={P_WIN} ±2% at bar {H}\n"
                         f"Equity: ${state['equity']:,.2f}")
+                if DEMO_LIVE:
+                    try:
+                        side = 'BUY' if d == 'long' else 'SELL'
+                        order, err = place_market_order(s, side, qty)
+                        if order:
+                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ market")
+                        elif err:
+                            _notify(f"⚠️ Demo open {s} failed: {err}")
+                    except Exception as e:
+                        _notify(f"⚠️ Demo open {s} exception: {e}")
 
     log_equity(state)
     if check_daily_summary(state):
