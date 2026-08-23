@@ -249,12 +249,18 @@ def generate_equity_chart(equity_file=None, chart_path=None):
     ax.set_facecolor('#16213e')
 
     ax.plot(times, equities, color='#00d4ff', linewidth=2, label='Equity')
-    ax.axhline(y=100000, color='#ffffff', linestyle='--', alpha=0.3, label='Starting Capital')
+    base = equities[0]
+    ax.axhline(y=base, color='#ffffff', linestyle='--', alpha=0.3, label='Starting Capital')
 
-    ax.fill_between(times, equities, 100000, where=[e >= 100000 for e in equities],
+    ax.fill_between(times, equities, base, where=[e >= base for e in equities],
                      color='#00ff88', alpha=0.2)
-    ax.fill_between(times, equities, 100000, where=[e < 100000 for e in equities],
+    ax.fill_between(times, equities, base, where=[e < base for e in equities],
                      color='#ff4444', alpha=0.2)
+
+    lo = min(equities + [base])
+    hi = max(equities + [base])
+    pad = max((hi - lo) * 0.15, hi * 0.02, 1e-9)
+    ax.set_ylim(lo - pad, hi + pad)
 
     ax.set_title('Equity Curve', color='white', fontsize=14, fontweight='bold')
     ax.set_ylabel('Equity ($)', color='white', fontsize=12)
