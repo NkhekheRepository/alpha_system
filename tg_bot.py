@@ -21,6 +21,7 @@ from notify import (
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'dry_state.json'
+CMD_FILE = DATA_DIR / 'alpha1_cmd.json'
 
 load_dotenv('/home/nkhekhe/alpha_system/.env')
 
@@ -112,9 +113,27 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/pnl — P&L summary\n"
         "/equity — Equity chart\n"
         "/tradechart — Trade chart\n"
+        "/stop — Pause new trade entries\n"
+        "/resume — Resume trading\n"
         "/help — Command list",
         parse_mode='HTML'
     )
+
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    CMD_FILE.write_text(json.dumps({'action': 'stop', 'ts': datetime.utcnow().isoformat()}))
+    await update.message.reply_text(
+        "\U0001F534 <b>Trading PAUSED</b>\nNo new entries will open. Open positions still resolve normally.",
+        parse_mode='HTML')
+
+async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    CMD_FILE.write_text(json.dumps({'action': 'start', 'ts': datetime.utcnow().isoformat()}))
+    await update.message.reply_text(
+        "\U0001F7E2 <b>Trading ACTIVE</b>\nNew entries resume on next cycle.",
+        parse_mode='HTML')
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
@@ -178,6 +197,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📋 <b>Recent Trades</b>\n{trade_lines}"
         f"⚡ <b>Risk State</b>\n"
         f"Cooldown: {cooldown} bars\n"
+        f"Trading: {'\U0001F7E2 ACTIVE' if state.get('trading_enabled', True) else '\U0001F534 PAUSED'}\n"
         f"Circuit Breaker: {'ON (paused)' if cooldown > 0 else 'OFF'}\n"
         f"━━━━━━━━━━━━━━━━━"
     )
@@ -484,6 +504,8 @@ async def post_init(app: Application):
         BotCommand("pnl", "P&L summary with unrealized"),
         BotCommand("equity", "Equity curve chart"),
         BotCommand("tradechart", "Trade P&L chart"),
+        BotCommand("stop", "Pause new trade entries"),
+        BotCommand("resume", "Resume trading"),
         BotCommand("help", "Command list"),
     ])
     await app.bot.set_chat_menu_button(
@@ -505,6 +527,8 @@ def main():
     app.add_handler(CommandHandler("pnl", cmd_pnl))
     app.add_handler(CommandHandler("equity", cmd_equity))
     app.add_handler(CommandHandler("tradechart", cmd_tradechart))
+    app.add_handler(CommandHandler("stop", cmd_stop))
+    app.add_handler(CommandHandler("resume", cmd_resume))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_error_handler(error_handler)
 

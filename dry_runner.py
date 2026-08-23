@@ -22,12 +22,13 @@ sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
 from nkhekhe_quant_core.alpha_engine.labeling import AlphaTripleBarrierConfig, run_triple_barrier
 from nkhekhe_quant_core.alpha_engine.risk import PositionSizingConfig, RiskGovernor
-from notify import notify_trade_open, notify_trade_close, notify_circuit_breaker, notify_daily_summary
+from notify import notify_trade_open, notify_trade_close, notify_circuit_breaker, notify_daily_summary, send_message
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'dry_state.json'
 TRADE_LOG = DATA_DIR / 'dry_trades.csv'
 EQUITY_LOG = DATA_DIR / 'dry_equity.csv'
+CMD_FILE = DATA_DIR / 'alpha1_cmd.json'
 
 TB = AlphaTripleBarrierConfig(upper_barrier=0.02, lower_barrier=0.02, vertical_horizon=75, direction='long')
 RC = PositionSizingConfig(max_position_pct=0.03, max_daily_loss_pct=0.10, max_consecutive_losses=3, kelly_fraction=0.25, kelly_cap=0.5, stoploss_pct=0.15, max_signals_per_day=50)
@@ -46,6 +47,7 @@ def load_state():
         'daily_pnl': 0.0, 'consecutive_losses': 0, 'cooldown_remaining': 0,
         'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
         'max_drawdown': 0.0, 'last_update': None,
+        'trading_enabled': True,
         'start_time': datetime.utcnow().isoformat(),
         'last_daily_summary': None,
     }
@@ -70,6 +72,29 @@ def save_state(state):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(STATE_FILE, 'w') as f:
         json.dump(state, f, indent=2, default=str)
+
+def _notify(text):
+    try:
+        send_message(text, bot='alpha1')
+    except Exception:
+        pass
+
+def check_commands(state):
+    try:
+        if CMD_FILE.exists():
+            action = json.loads(CMD_FILE.read_text()).get('action')
+            ts = datetime.utcnow().strftime('%H:%M:%S')
+            if action == 'stop' and state.get('trading_enabled', True):
+                state['trading_enabled'] = False
+                print(f"  [{ts}] TRADING PAUSED via Telegram")
+                _notify("\U0001F534 <b>TRADING PAUSED</b> - Alpha 1%: no new entries. Open positions still resolve.")
+            elif action == 'start' and not state.get('trading_enabled', True):
+                state['trading_enabled'] = True
+                print(f"  [{ts}] TRADING RESUMED via Telegram")
+                _notify("\U0001F7E2 <b>TRADING RESUMED</b> - Alpha 1% active.")
+            CMD_FILE.unlink()
+    except Exception:
+        pass
 
 def get_price(symbol):
     try:
@@ -142,6 +167,7 @@ def check_daily_summary(state):
     return False
 
 def run_cycle(state):
+    check_commands(state)
     now = datetime.utcnow()
     if state['total_trades'] > 0 and state['total_trades'] % 100 == 0:
         state['daily_pnl'] = 0.0
@@ -250,7 +276,7 @@ def run_cycle(state):
             ph.append(prices[s])
             if len(ph) > 200:
                 state['price_history'][s] = ph[-200:]
-            if len(state['price_history'][s]) >= TB.vertical_horizon + 10:
+            if state.get('trading_enabled', True) and len(state['price_history'][s]) >= TB.vertical_horizon + 10:
                 pos_val = state['capital'] * RC.max_position_pct
                 qty = pos_val / prices[s]
                 state['open_positions'][s] = {
@@ -301,6 +327,7 @@ def show_status():
     dd = (peak - effective) / peak * 100 if peak > 0 else 0
     print("="*70)
     print("  DRY MODE STATUS")
+    print(f"  Trading: {'ON' if s.get('trading_enabled', True) else 'PAUSED'}")
     print("="*70)
     print(f"  Started:     {s.get('start_time','N/A')}")
     print(f"  Last update: {s.get('last_update','N/A')}")

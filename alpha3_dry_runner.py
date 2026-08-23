@@ -31,6 +31,24 @@ def _notify(text):
         pass
 
 
+def check_commands(state):
+    try:
+        if CMD_FILE.exists():
+            action = json.loads(CMD_FILE.read_text()).get('action')
+            ts = datetime.utcnow().strftime('%H:%M:%S')
+            if action == 'stop' and state.get('trading_enabled', True):
+                state['trading_enabled'] = False
+                print(f"  [{ts}] TRADING PAUSED via Telegram")
+                _notify("\U0001F534 <b>TRADING PAUSED</b> - Alpha 3%: no new entries. Open positions still resolve.")
+            elif action == 'start' and not state.get('trading_enabled', True):
+                state['trading_enabled'] = True
+                print(f"  [{ts}] TRADING RESUMED via Telegram")
+                _notify("\U0001F7E2 <b>TRADING RESUMED</b> - Alpha 3% active.")
+            CMD_FILE.unlink()
+    except Exception:
+        pass
+
+
 def check_daily_summary(state):
     now = datetime.utcnow()
     last = state.get('last_daily_summary')
@@ -51,6 +69,7 @@ DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'alpha3_state.json'
 TRADE_LOG = DATA_DIR / 'alpha3_trades.csv'
 EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
+CMD_FILE = DATA_DIR / 'alpha3_cmd.json'
 
 ASSETS = ['BTCUSDT', 'ETHUSDT']
 API = 'https://api.binance.com/api/v3'
@@ -77,6 +96,7 @@ def default_state():
         'daily_pnl': 0.0, 'consecutive_losses': 0, 'cooldown_remaining': 0,
         'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
         'last_update': None, 'start_time': datetime.utcnow().isoformat(),
+        'trading_enabled': True,
         'start_capital': CAP, 'stake_pct': None, 'leverage': None,
         'banner': '',
     }
@@ -148,6 +168,7 @@ def momentum_direction(ph):
 
 
 def run_cycle(state, rng):
+    check_commands(state)
     now = datetime.utcnow()
     ts = now.strftime('%H:%M:%S')
 
@@ -230,7 +251,7 @@ def run_cycle(state, rng):
             if len(ph) > 200:
                 state['price_history'][s] = ph[-200:]
             d = momentum_direction(state['price_history'][s])
-            if d is not None and len(state['price_history'][s]) >= WARMUP:
+            if state.get('trading_enabled', True) and d is not None and len(state['price_history'][s]) >= WARMUP:
                 pos_val = state['capital'] * state['stake_pct'] * state['leverage']
                 qty = pos_val / prices[s]
                 state['open_positions'][s] = {
@@ -286,7 +307,7 @@ def main():
         wr = 100*s['total_wins']/s['total_trades'] if s['total_trades'] else 0.0
         print(f"Alpha3 DRY (SIM) stake={args.stake*100:g}% x {args.leverage:g}x | equity ${s['equity']:,.2f} | "
               f"trades {s['total_trades']} ({s['total_wins']}W/{s['total_losses']}L, WR {wr:.1f}%) | "
-              f"open {list(s['open_positions'].keys())} | cooldown {s['cooldown_remaining']}")
+              f"open {list(s['open_positions'].keys())} | cooldown {s['cooldown_remaining']} | trading {'ON' if s.get('trading_enabled', True) else 'PAUSED'}")
         return
 
     state = load_state(args.stake, args.leverage)
