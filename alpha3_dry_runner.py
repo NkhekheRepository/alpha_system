@@ -6,7 +6,7 @@ polls, momentum-K10 direction) with EVERY exit resolved by the KNOWN-BUGGED W9
 coin flip: iid p=0.85 win +2% / p=0.15 loss -2%, held H=15 bars, exit price
 mirrored per direction. No market barriers. Circuit breaker 3 losses -> 50-bar
 cooldown (hardened: immediate fire + entry guard). Staking: margin fraction of
-current equity (compounding) x leverage (--stake 0.01 = $1, --leverage 48) on a
+current equity (compounding) x leverage (--stake 0.03 = $3, --leverage 50) on a
 100 USDT synthetic base.
 
 NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
@@ -81,8 +81,8 @@ WARMUP = K + 5
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
-STAKE_PCT = 0.01
-LEVERAGE = 48.0
+STAKE_PCT = 0.03
+LEVERAGE = 50.0
 P_WIN = 0.85
 WIN_PCT = 0.02
 LOSS_PCT = -0.02
