@@ -5,6 +5,29 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
+## v2.0 — `a3-v2.0-flip` (current)
+
+**Identity**: Pure synthetic flip resolution (W9 bugged-profile revert). No market barriers.
+
+| Parameter | Value |
+|-----------|-------|
+| Base capital | $100 USDT (synthetic) |
+| Margin/trade | 1% of equity ($1.00), compounding |
+| Leverage | 48x |
+| Notional/trade | $48.00 |
+| Signal | momentum-K10 (`ph[-1] > ph[-11]` → long else short) |
+| Warmup | 15 polls (K+5) |
+| Hold horizon | H = 15 bars (15 min @ 60s polls) |
+| Exit — every trade | Coin flip `p=0.85` → +2% / −2%; exit price mirrored for shorts; no TP/SL/TIMEOUT |
+| Flip/RNG | numpy default_rng(seed=1), deterministic per seed |
+| Circuit breaker | 3 consecutive losses → 50-bar cooldown (hardened: immediate-fire + entry guard) |
+| Expected returns | +0.672%/trade by construction (~+29%/day at 38 trades/day; MC median 30d ≈ +$67.8k) |
+
+Ledger: CONTINUOUS from v1.0 era (no reset — carried positions flip-resolved on first cycle).
+Prior TB snapshot preserved at `a3-v1.0-triple-barrier` tag + `alpha3_*.v10-tb.bak`.
+
+---
+
 ## v1.0 — `a3-v1.0-triple-barrier` (commit c8c983a lineage)
 
 **Identity**: Alpha 1/2 engine clone at leveraged stake. No synthetic elements.
