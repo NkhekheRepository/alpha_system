@@ -271,7 +271,7 @@
       "entry_price": 77324.95,
       "quantity": 0.0006207569484364361,
       "notional": 48.0,
-      "age": 2,
+      "age": 11,
       "entry_time": "2026-08-23T18:11:41.459149"
     },
     "ETHUSDT": {
@@ -280,7 +280,7 @@
       "entry_price": 2445.01,
       "quantity": 0.01963182154674214,
       "notional": 48.0,
-      "age": 2,
+      "age": 11,
       "entry_time": "2026-08-23T18:11:42.406904"
     }
   },
@@ -1348,7 +1348,7 @@
   "total_trades": 88,
   "total_wins": 39,
   "total_losses": 49,
-  "last_update": "2026-08-23T18:13:45.703353",
+  "last_update": "2026-08-23T18:23:08.390898",
   "start_time": "2026-08-21T04:28:40.309944",
   "start_capital": 100.0,
   "stake_pct": 0.01,

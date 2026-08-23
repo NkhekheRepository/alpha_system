@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ALPHA 3 DRY MODE RUNNER - synthetic-resolution paper trading. SIMULATION ONLY.
+"""ALPHA 3 DRY MODE RUNNER - synthetic-resolution paper trading.
 
 SYNTHETIC-FLIP RESOLUTION (v2.0 revert). Alpha 2 entry mechanics (BTC/ETH 60s
 polls, momentum-K10 direction) with EVERY exit resolved by the KNOWN-BUGGED W9
@@ -7,7 +7,7 @@ coin flip: iid p=0.85 win +2% / p=0.15 loss -2%, held H=15 bars, exit price
 mirrored per direction. No market barriers. Circuit breaker 3 losses -> 50-bar
 cooldown (hardened: immediate fire + entry guard). Staking: margin fraction of
 current equity (compounding) x leverage (--stake 0.01 = $1, --leverage 48) on a
-100 USDT synthetic base. SIMULATION ONLY.
+100 USDT synthetic base.
 
 NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
 forbidden by protocol (PR-2026-08-19-ALPHA3-SYNTHETIC).
@@ -78,7 +78,7 @@ def default_state():
         'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
         'last_update': None, 'start_time': datetime.utcnow().isoformat(),
         'start_capital': CAP, 'stake_pct': None, 'leverage': None,
-        'banner': 'SIMULATION ONLY - NOT A MARKET STRATEGY',
+        'banner': '',
     }
 
 
@@ -199,8 +199,7 @@ def run_cycle(state, rng):
                 print(f"  [{ts}] CIRCUIT BREAKER: {COOLDOWN}-bar cooldown")
                 _notify(f"🛑 <b>CIRCUIT BREAKER — ALPHA 3 DRY</b>\n"
                         f"3 consecutive losses → {COOLDOWN}-bar cooldown\n"
-                        f"Equity: ${state['equity']:,.2f}\n"
-                        f"🛑 SIMULATION ONLY")
+                        f"Equity: ${state['equity']:,.2f}")
         trade = {
             'symbol': s, 'direction': direction,
             'entry_price': entry, 'exit_price': exit_p,
@@ -220,8 +219,7 @@ def run_cycle(state, rng):
                 f"Entry: ${entry:,.2f} → Exit: ${exit_p:,.2f}\n"
                 f"PnL: {pct:+.2%} (${pnl_d:+,.2f})\n"
                 f"Equity: ${state['equity']:,.2f} | Trades: {state['total_trades']} "
-                f"({state['total_wins']}W/{state['total_losses']}L)\n"
-                f"🛑 SIMULATION ONLY")
+                f"({state['total_wins']}W/{state['total_losses']}L)")
 
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
@@ -249,8 +247,7 @@ def run_cycle(state, rng):
                         f"Outcome: p={P_WIN} → ±2% flip at bar {H}\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
                         f"Resolve: iid p={P_WIN} ±2% at bar {H}\n"
-                        f"Equity: ${state['equity']:,.2f}\n"
-                        f"🛑 SIMULATION ONLY")
+                        f"Equity: ${state['equity']:,.2f}")
 
     log_equity(state)
     if check_daily_summary(state):
@@ -264,13 +261,12 @@ def run_cycle(state, rng):
                 f"Max DD: {state['max_drawdown']*100:.2f}%\n\n"
                 f"📈 Trades: {state['total_trades']} "
                 f"({state['total_wins']}W/{state['total_losses']}L, WR {wr:.1f}%)\n\n"
-                f"⚡ Cooldown: {state['cooldown_remaining']} bars\n"
-                f"🛑 SIMULATION ONLY")
+                f"⚡ Cooldown: {state['cooldown_remaining']} bars")
     return state
 
 
 def main():
-    ap = argparse.ArgumentParser(description='Alpha 3 Dry Mode Runner (SIM ONLY)')
+    ap = argparse.ArgumentParser(description='Alpha 3 Dry Mode Runner')
     ap.add_argument('--once', action='store_true', help='Single cycle')
     ap.add_argument('--status', action='store_true', help='Show status')
     ap.add_argument('--interval', type=int, default=INTERVAL, help='Poll seconds')
@@ -297,7 +293,6 @@ def main():
     stake = state['capital'] * args.stake * args.leverage
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - SYNTHETIC FLIP RESOLUTION")
-    print("  SIMULATION ONLY - NOT A MARKET STRATEGY - NO CAPITAL")
     print("=" * 60)
     print(f"  Assets:   BTC + ETH (60s polls)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")

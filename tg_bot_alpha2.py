@@ -100,11 +100,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
-        "Synthetic-resolution paper trading (SIM ONLY)\n"
+        "Synthetic-resolution paper trading\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
         "Resolve: p=0.85 ±2% flip at bar 15\n"
         "Staking: 1% margin × 48x lev = $48/trade (compounds, 100 USDT base)\n"
-        "🛑 NO CAPITAL — deployment forbidden\n\n"
         "Commands:\n"
         "/status — Full dashboard\n"
         "/positions — Open positions with bar countdown\n"
@@ -158,7 +157,7 @@ def build_status_text(state, live=False):
     else:
         pos_lines = "  No open positions\n"
 
-    header = "🟢 LIVE — auto-updating every 30s" if live else "🛑 SIMULATION ONLY — NO CAPITAL"
+    header = "🟢 LIVE — auto-updating every 30s" if live else "DRY MODE"
     return (
         f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC FLIP)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
@@ -224,7 +223,6 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
-    msg += "━━━━━━━━━━━━━━━━━\n🛑 SIMULATION ONLY — NO CAPITAL"
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def cmd_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,7 +268,6 @@ async def cmd_pnl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
         f"💰 <b>P&L — ALPHA 3% DRY MODE</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
-        f"🛑 SIMULATION ONLY — NO CAPITAL\n\n"
         f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"
         f"<b>Total P&L: ${pnl:+,.2f} ({pnl/base*100:+.2f}%)</b>\n\n"
         f"📈 <b>Stats</b>\n"
@@ -320,8 +317,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/tradechart — Trade P&L chart\n"
         "/live — Start live dashboard (auto-updates every 30s)\n"
         "/stop — Stop live dashboard\n"
-        "/help — This message\n\n"
-        "🛑 SIMULATION ONLY — NO CAPITAL",
+        "/help — This message",
         parse_mode='HTML'
     )
 
