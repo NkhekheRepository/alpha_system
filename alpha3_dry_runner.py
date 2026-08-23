@@ -112,6 +112,8 @@ def load_state(stake_pct, leverage):
                 saved = json.load(fh)
             if saved.get('stake_pct') == stake_pct and saved.get('leverage') == leverage:
                 state.update(saved)
+            if abs(state['capital'] - state['equity']) > 1e-9:
+                state['capital'] = state['equity']
             for _sym, _pos in state['open_positions'].items():
                 if isinstance(_pos, dict) and 'age' not in _pos:
                     _pos['age'] = 0
