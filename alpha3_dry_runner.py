@@ -294,7 +294,8 @@ def main():
     ap.add_argument('--once', action='store_true', help='Single cycle')
     ap.add_argument('--status', action='store_true', help='Show status')
     ap.add_argument('--interval', type=int, default=INTERVAL, help='Poll seconds')
-    ap.add_argument('--seed', type=int, default=1, help='RNG seed')
+    ap.add_argument('--seed', type=int, default=None,
+                    help='RNG seed (default: OS entropy; fixed seed reproduces a run)')
 
     ap.add_argument('--stake', type=float, default=STAKE_PCT,
                     help='Margin fraction of equity per trade')
@@ -304,6 +305,7 @@ def main():
 
     import numpy as np
     rng = np.random.default_rng(args.seed)
+    print(f"  RNG seed:  {args.seed if args.seed is not None else 'OS-entropy (non-repeating)'}")
 
     if args.status:
         s = load_state(args.stake, args.leverage)
