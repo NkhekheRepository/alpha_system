@@ -1,6 +1,6 @@
 {
-  "capital": 100.0,
-  "equity": 98.18207551634366,
+  "capital": 98.18207551634367,
+  "equity": 98.18207551634367,
   "effective_equity": 100.0,
   "peak_equity": 102.73207669944075,
   "max_drawdown": 0.04703555628161158,
@@ -133,7 +133,9 @@
       77232.99,
       77298.83,
       77324.95,
-      77393.05
+      77393.05,
+      77336.3,
+      77328.01
     ],
     "ETHUSDT": [
       2345.57,
@@ -263,27 +265,29 @@
       2443.58,
       2444.82,
       2445.01,
-      2447.34
+      2447.34,
+      2447.07,
+      2448.14
     ]
   },
   "open_positions": {
     "ETHUSDT": {
       "symbol": "ETHUSDT",
       "direction": "long",
-      "entry_price": 2447.34,
-      "quantity": 0.019613130991198605,
-      "notional": 48.0,
-      "age": 14,
-      "entry_time": "2026-08-23T18:27:26.723024"
+      "entry_price": 2448.14,
+      "quantity": 0.019438510970714487,
+      "notional": 47.58819624784496,
+      "age": 4,
+      "entry_time": "2026-08-23T18:58:35.461130"
     },
     "BTCUSDT": {
       "symbol": "BTCUSDT",
       "direction": "long",
-      "entry_price": 77393.05,
-      "quantity": 0.00062021072951641,
-      "notional": 48.0,
-      "age": 13,
-      "entry_time": "2026-08-23T18:28:33.927467"
+      "entry_price": 77328.01,
+      "quantity": 0.0006094479380478686,
+      "notional": 47.12739624784496,
+      "age": 3,
+      "entry_time": "2026-08-23T18:59:38.660961"
     }
   },
   "trades": [
@@ -1366,15 +1370,63 @@
       "reason": "SYNTH_LOSS",
       "entry_time": "2026-08-23T18:11:41.459149",
       "exit_time": "2026-08-23T18:28:31.370577"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "entry_price": 2447.34,
+      "exit_price": 2496.2868000000003,
+      "resolve": "win",
+      "pnl_pct": 0.02,
+      "pnl_dollars": 0.9600000000000032,
+      "reason": "SYNTH_WIN",
+      "entry_time": "2026-08-23T18:27:26.723024",
+      "exit_time": "2026-08-23T18:43:06.441456"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "direction": "long",
+      "entry_price": 77393.05,
+      "exit_price": 75845.189,
+      "resolve": "loss",
+      "pnl_pct": -0.02,
+      "pnl_dollars": -0.9600000000000026,
+      "reason": "SYNTH_LOSS",
+      "entry_time": "2026-08-23T18:28:33.927467",
+      "exit_time": "2026-08-23T18:44:09.366673"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "entry_price": 2447.07,
+      "exit_price": 2496.0114000000003,
+      "resolve": "win",
+      "pnl_pct": 0.02,
+      "pnl_dollars": 0.9600000000000031,
+      "reason": "SYNTH_WIN",
+      "entry_time": "2026-08-23T18:43:07.314929",
+      "exit_time": "2026-08-23T18:58:34.091237"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "direction": "long",
+      "entry_price": 77336.3,
+      "exit_price": 75789.57400000001,
+      "resolve": "loss",
+      "pnl_pct": -0.02,
+      "pnl_dollars": -0.959999999999997,
+      "reason": "SYNTH_LOSS",
+      "entry_time": "2026-08-23T18:44:10.175141",
+      "exit_time": "2026-08-23T18:59:37.741267"
     }
   ],
   "daily_pnl": 0.0,
   "consecutive_losses": 1,
   "cooldown_remaining": 0,
-  "total_trades": 90,
-  "total_wins": 40,
-  "total_losses": 50,
-  "last_update": "2026-08-23T18:42:05.129163",
+  "total_trades": 94,
+  "total_wins": 42,
+  "total_losses": 52,
+  "last_update": "2026-08-23T19:02:43.801915",
   "start_time": "2026-08-21T04:28:40.309944",
   "trading_enabled": true,
   "start_capital": 100.0,
