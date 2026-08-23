@@ -230,6 +230,9 @@ def run_cycle(state):
         del state['open_positions'][s]
         pnl_d = pos['quantity'] * ((exit_p - entry) if direction == 'long'
                                    else (entry - exit_p))
+        fee = pos['quantity'] * (entry + exit_p) * FEE_RATE
+        pnl_d -= fee
+        pct = pnl_d / (pos['quantity'] * entry) if entry and pos['quantity'] else 0.0
         state['capital'] += pnl_d
         state['equity'] = state['capital']
         state['peak_equity'] = max(state['peak_equity'], state['equity'])

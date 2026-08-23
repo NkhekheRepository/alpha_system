@@ -34,6 +34,7 @@ TB = AlphaTripleBarrierConfig(upper_barrier=0.02, lower_barrier=0.02, vertical_h
 RC = PositionSizingConfig(max_position_pct=0.03, max_daily_loss_pct=0.10, max_consecutive_losses=3, kelly_fraction=0.25, kelly_cap=0.5, stoploss_pct=0.15, max_signals_per_day=50)
 COOLDOWN = 50
 CAP = 100000.0
+FEE_RATE = 0.0002  # 0.02% taker to match demo futures
 INTERVAL = 60
 ASSETS = ['BTCUSDT', 'ETHUSDT']
 API = 'https://api.binance.com/api/v3'
@@ -228,10 +229,12 @@ def run_cycle(state):
                     pnl_d = pos['quantity'] * (entry - exit_p)
                 else:
                     pnl_d = pos['quantity'] * (exit_p - entry)
+                fee = pos['quantity'] * (entry + exit_p) * FEE_RATE
+                pnl_d -= fee
                 if direction == 'short':
-                    pnl_pct = (entry - exit_p) / entry if entry else 0.0
+                    pnl_pct = pnl_d / (pos['quantity'] * entry) if entry and pos['quantity'] else 0.0
                 else:
-                    pnl_pct = (exit_p - entry) / entry if entry else 0.0
+                    pnl_pct = pnl_d / (pos['quantity'] * entry) if entry and pos['quantity'] else 0.0
                 state['capital'] += pnl_d
                 state['equity'] = state['capital']
                 state['effective_equity'] = state['capital']
