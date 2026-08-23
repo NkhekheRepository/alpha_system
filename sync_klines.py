@@ -9,7 +9,8 @@ import pandas as pd
 import requests
 
 OUT = Path('/home/nkhekhe/user_data/data/binance')
-API = 'https://api.binance.com/api/v3/klines'
+from binance_config import BINANCE_API_BASE
+API = f'{BINANCE_API_BASE}/api/v3/klines'
 SYMBOLS = ['BTCUSDT', 'ETHUSDT']
 INTERVALS = ['1m', '5m']
 COLS = ['date', 'open', 'high', 'low', 'close', 'volume']

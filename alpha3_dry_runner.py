@@ -72,7 +72,8 @@ EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
 CMD_FILE = DATA_DIR / 'alpha3_cmd.json'
 
 ASSETS = ['BTCUSDT', 'ETHUSDT']
-API = 'https://api.binance.com/api/v3'
+from binance_config import BINANCE_API_BASE
+API = f'{BINANCE_API_BASE}/api/v3'
 INTERVAL = 60
 
 K = 10
@@ -326,6 +327,8 @@ def main():
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")
+    from binance_config import BINANCE_API_BASE, USE_TESTNET
+    print(f"  Binance:  {'TESTNET' if USE_TESTNET else 'MAINNET'} ({BINANCE_API_BASE})")
     print("=" * 60)
     sys.stdout.flush()
 

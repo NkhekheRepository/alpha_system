@@ -36,7 +36,8 @@ COOLDOWN = 50
 CAP = 100000.0
 INTERVAL = 60
 ASSETS = ['BTCUSDT', 'ETHUSDT']
-API = 'https://api.binance.com/api/v3'
+from binance_config import BINANCE_API_BASE
+API = f'{BINANCE_API_BASE}/api/v3'
 
 def load_state():
     default = {
@@ -382,6 +383,8 @@ def main():
     print(f"  Params:   TP=2% | SL=2% | H=75")
     print(f"  Capital:  ${CAP:,.0f}")
     print(f"  Interval: {args.interval}s")
+    from binance_config import BINANCE_API_BASE, USE_TESTNET
+    print(f"  Binance:  {'TESTNET' if USE_TESTNET else 'MAINNET'} ({BINANCE_API_BASE})")
     print()
     running = True
     def handler(sig, frame):
