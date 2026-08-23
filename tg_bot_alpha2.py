@@ -86,6 +86,27 @@ def calc_unrealized(state, prices):
         details.append(f"{emoji} <b>{base}</b> {direction.upper()}: ${current:,.2f} vs ${entry:,.2f} → {pnl_pct:+.2f}% (${pnl_d:+,.2f})")
     return unrealized_total, details
 
+def fetch_testnet_orders():
+    """Fetch real open orders from Binance Testnet (if keys valid)."""
+    try:
+        import hmac, hashlib, time as _t
+        from binance_config import BINANCE_API_BASE, ACTIVE_API_KEY, ACTIVE_API_SECRET, USE_TESTNET
+        if not USE_TESTNET or not ACTIVE_API_KEY or not ACTIVE_API_SECRET:
+            return None, "Testnet keys not configured"
+        base = BINANCE_API_BASE
+        ts = int(_t.time() * 1000)
+        qs = f'timestamp={ts}'
+        sig = hmac.new(ACTIVE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        h = {'X-MBX-APIKEY': ACTIVE_API_KEY}
+        r = requests.get(f'{base}/api/v3/openOrders', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
+        if r.status_code == 200:
+            orders = r.json()
+            return orders, None
+        else:
+            return None, f"Testnet API {r.status_code}: {r.json().get('msg','')}"
+    except Exception as e:
+        return None, str(e)
+
 async def error_handler(update, context):
     logger.error(f"Handler error: {context.error}", exc_info=context.error)
     try:
@@ -119,7 +140,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='HTML'
     )
 
-async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
     CMD_FILE.write_text(json.dumps({'action': 'stop', 'ts': datetime.utcnow().isoformat()}))
@@ -175,14 +196,27 @@ def build_status_text(state, live=False):
     else:
         pos_lines = "  No open positions\n"
 
+    # Testnet sync status
+    try:
+        from binance_config import BINANCE_API_BASE, USE_TESTNET
+        net_label = f"TESTNET ({BINANCE_API_BASE})" if USE_TESTNET else f"MAINNET ({BINANCE_API_BASE})"
+        orders, err = fetch_testnet_orders()
+        if orders is not None:
+            testnet_line = f"🔗 Synced to {net_label} | Testnet orders: {len(orders)} open"
+        elif "not configured" in (err or ""):
+            testnet_line = f"🔗 Price feed: {net_label} (paper positions above)"
+        else:
+            testnet_line = f"🔗 {net_label} | Testnet auth: {err} — paper positions above"
+    except Exception:
+        testnet_line = "🔗 Paper trading (dry mode)"
     header = "🟢 LIVE — auto-updating every 30s" if live else "DRY MODE"
     return (
-        f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC FLIP)</b>\n"
+        f"🎲 <b>ALPHA 3% — DRY MODE</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Resolve: every exit = coin flip p=0.85 ±2% at bar 15\n"
+        f"{testnet_line}\n"
         f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${100*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
-        f"💰 <b>Portfolio</b>\n"
+        f"💰 <b>Portfolio (Paper)</b>\n"
         f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"
         f"Realized: ${pnl:+,.2f} ({pnl_pct:+.2f}%)\n"
         f"Unrealized: ${unrealized_total:+,.2f}\n"
@@ -191,7 +225,7 @@ def build_status_text(state, live=False):
         f"📈 <b>Performance</b>\n"
         f"Trades: {total} ({wins}W / {losses}L)\n"
         f"Win Rate: {wr:.1f}%\n\n"
-        f"🎯 <b>Open Positions</b>\n{pos_lines}"
+        f"🎯 <b>Open Positions (Paper, synced to testnet price)</b>\n{pos_lines}"
         f"⚡ <b>Risk State</b>\n"
         f"Trading: {'\U0001F7E2 ACTIVE' if state.get('trading_enabled', True) else '\U0001F534 PAUSED'}\n"
         f"Cooldown: {cooldown} bars\n"
@@ -211,12 +245,30 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = load_state()
     prices = get_prices()
     positions = state.get('open_positions', {})
+    # Fetch real testnet orders for sync display
+    t_orders, t_err = fetch_testnet_orders()
+    from binance_config import BINANCE_API_BASE, USE_TESTNET
+    net_tag = f"TESTNET ({BINANCE_API_BASE})" if USE_TESTNET else f"MAINNET ({BINANCE_API_BASE})"
+    testnet_section = ""
+    if t_orders is not None:
+        if len(t_orders) == 0:
+            testnet_section = f"\n🔗 <b>Testnet Exchange</b> ({net_tag}): No open orders\n"
+        else:
+            testnet_section = f"\n🔗 <b>Testnet Exchange</b> ({net_tag}): {len(t_orders)} open order(s)\n"
+            for o in t_orders[:5]:
+                testnet_section += f"  {o.get('symbol')} {o.get('side')} {o.get('type')} @ {o.get('price')} qty {o.get('origQty')}\n"
+    else:
+        if "not configured" in (t_err or ""):
+            testnet_section = f"\n🔗 Price feed: {net_tag} | Paper positions above\n"
+        else:
+            testnet_section = f"\n🔗 {net_tag} | Testnet sync: {t_err} — showing paper positions\n"
+
     if not positions:
-        await update.message.reply_text("🎯 No open positions", parse_mode='HTML')
+        await update.message.reply_text(f"🎯 No paper open positions{testnet_section}", parse_mode='HTML')
         return
     stake_pct = state.get('stake_pct', 0.03)
     lev = state.get('leverage', 50)
-    msg = "🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b>\n━━━━━━━━━━━━━━━━━\n"
+    msg = f"🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b> (synced to {net_tag})\n━━━━━━━━━━━━━━━━━\n"
     for sym, pos in positions.items():
         base = sym.replace('USDT', '')
         direction = pos.get('direction', 'long')
@@ -242,6 +294,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
+    msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 
 async def cmd_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -383,15 +436,15 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def post_init(app: Application):
     await app.bot.set_my_commands([
         BotCommand("start", "Welcome message"),
-        BotCommand("status", "Full dashboard"),
-        BotCommand("positions", "Open positions with bar countdown"),
+        BotCommand("status", "Full dashboard (synced to testnet)"),
+        BotCommand("positions", "Open positions + testnet sync"),
         BotCommand("trades", "Last 10 trades"),
         BotCommand("pnl", "P&L summary"),
         BotCommand("equity", "Equity curve chart"),
         BotCommand("tradechart", "Trade P&L chart"),
         BotCommand("live", "Start live dashboard (auto-updates every 30s)"),
         BotCommand("stop", "Stop live dashboard"),
-        BotCommand("stop", "Pause new trade entries"),
+        BotCommand("pause", "Pause new trade entries"),
         BotCommand("resume", "Resume trading"),
         BotCommand("help", "Command list"),
     ])
@@ -416,7 +469,7 @@ def main():
     app.add_handler(CommandHandler("tradechart", cmd_tradechart))
     app.add_handler(CommandHandler("live", cmd_live))
     app.add_handler(CommandHandler("stop", cmd_stop))
-    app.add_handler(CommandHandler("stop", cmd_stop))
+    app.add_handler(CommandHandler("pause", cmd_pause))
     app.add_handler(CommandHandler("resume", cmd_resume))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_error_handler(error_handler)

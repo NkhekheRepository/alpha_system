@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
-from telegram import Update, BotCommand, MenuButtonCommands, MenuButtonDefault
+from telegram import Update, BotCommand, MenuButtonDefault
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
@@ -119,7 +119,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='HTML'
     )
 
-async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_pause(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
     CMD_FILE.write_text(json.dumps({'action': 'stop', 'ts': datetime.utcnow().isoformat()}))
@@ -504,7 +504,9 @@ async def post_init(app: Application):
         BotCommand("pnl", "P&L summary with unrealized"),
         BotCommand("equity", "Equity curve chart"),
         BotCommand("tradechart", "Trade P&L chart"),
-        BotCommand("stop", "Pause new trade entries"),
+        BotCommand("live", "Start live dashboard (auto-updates every 30s)"),
+        BotCommand("stop", "Stop live dashboard"),
+        BotCommand("pause", "Pause new trade entries"),
         BotCommand("resume", "Resume trading"),
         BotCommand("help", "Command list"),
     ])
@@ -527,7 +529,9 @@ def main():
     app.add_handler(CommandHandler("pnl", cmd_pnl))
     app.add_handler(CommandHandler("equity", cmd_equity))
     app.add_handler(CommandHandler("tradechart", cmd_tradechart))
+    app.add_handler(CommandHandler("live", cmd_live))
     app.add_handler(CommandHandler("stop", cmd_stop))
+    app.add_handler(CommandHandler("pause", cmd_pause))
     app.add_handler(CommandHandler("resume", cmd_resume))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_error_handler(error_handler)
