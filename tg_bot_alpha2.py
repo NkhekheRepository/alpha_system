@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Bot for Alpha 3% Triple-Barrier Observability.
+Telegram Bot for Alpha 3% Synthetic Flip Observability.
 Dedicated bot: @LetapataBot (Nkhekhe Alpha Quant).
 Reads alpha_3 simulation state. Commands: /status /pnl /live /stop /help
 """
@@ -142,7 +142,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
-        "Exits: TP/SL ±2% market | TIMEOUT bar 75 at market price\n"
+        "Resolve: p=0.85 ±2% flip at bar 15\n"
         "Staking: 3% margin × 50x lev = $150/trade (compounds, 100 USDT base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
@@ -228,11 +228,12 @@ def build_status_text(state, live=False):
             testnet_line = f"🔗 {net_label} | Testnet auth: {err} — paper positions above"
     except Exception:
         testnet_line = "🔗 Paper trading (dry mode)"
-    header = "🟢 LIVE — auto-updating every 30s" if live else "DRY MODE"
+    header = "🟢 LIVE — auto-updating every 30s" if live else "DRY MODE — SYNTHETIC FLIP"
     return (
-        f"🎲 <b>ALPHA 3% — DRY MODE</b>\n"
+        f"🎲 <b>ALPHA 3% — DRY MODE (SYNTHETIC FLIP)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
+        f"Resolve: every exit = coin flip p=0.85 ±2% at bar 15 (mirrored for shorts)\n"
         f"{testnet_line}\n"
         f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${100*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
         f"💰 <b>Portfolio (Paper)</b>\n"
@@ -316,14 +317,14 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"TP ${entry*1.02:,.2f} / SL ${entry*0.98:,.2f} (market) | TIMEOUT bar 75\n"
+            f"Resolves → WIN ${entry*1.02:,.2f} / LOSS ${entry*0.98:,.2f} (p=0.85 flip)\n"
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
     # Show paper TP/SL levels
     for sym2, pos2 in state.get('open_positions', {}).items():
         if 'tp_price' in pos2:
-            msg += f"  {sym2.replace(chr(85)+chr(83)+chr(68)+chr(84), "")} TP ${pos2["tp_price"]:,.2f} SL ${pos2["sl_price"]:,.2f}\n"
+            msg += f"     {base_s}: bar {age}/15 | resolves → +2% (${entry*1.02:,.2f}) / −2% (${entry*0.98:,.2f})\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 
