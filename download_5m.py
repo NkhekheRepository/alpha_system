@@ -14,8 +14,7 @@ import pandas as pd
 import requests
 
 OUT = Path('/home/nkhekhe/user_data/data/binance')
-from binance_config import BINANCE_API_BASE
-API = f'{BINANCE_API_BASE}/api/v3/klines'
+API = 'https://api.binance.com/api/v3/klines'
 SYMBOLS = {
     'BTCUSDT': 'BTC_USDT-5m.feather',
     'ETHUSDT': 'ETH_USDT-5m.feather',

@@ -9,8 +9,7 @@ import pandas as pd
 import requests
 
 OUT = Path('/home/nkhekhe/user_data/data/binance')
-from binance_config import BINANCE_API_BASE
-API = f'{BINANCE_API_BASE}/api/v3/klines'
+API = 'https://api.binance.com/api/v3/klines'
 SYMBOLS = ['BTCUSDT', 'ETHUSDT']
 START = 1735689600000 if '--full' in sys.argv else 1767225600000  # 2025-01-01 / 2026-01-01 UTC
 END = int(time.time() * 1000)

@@ -27,8 +27,7 @@ load_dotenv('/home/nkhekhe/alpha_system/.env')
 
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
-from binance_config import BINANCE_API_BASE
-API = f'{BINANCE_API_BASE}/api/v3'
+API = 'https://api.binance.com/api/v3'
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
