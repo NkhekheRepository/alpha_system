@@ -93,14 +93,24 @@ def fetch_testnet_orders():
         from binance_config import BINANCE_API_BASE, ACTIVE_API_KEY, ACTIVE_API_SECRET, USE_TESTNET
         if not USE_TESTNET or not ACTIVE_API_KEY or not ACTIVE_API_SECRET:
             return None, "Testnet keys not configured"
-        base = BINANCE_API_BASE
-        # For futures demo, show open POSITIONS (more meaningful than open orders for market fills)
-        is_futures = 'fapi' in base
-        path = '/fapi/v2/positionRisk' if is_futures else '/api/v3/openOrders'
+        # Use demo-fapi host directly for futures positions (BINANCE_API_BASE includes version)
+        from binance_config import BINANCE_DEMO_FAPI_BASE, USE_DEMO, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+        if USE_DEMO and BINANCE_DEMO_API_KEY:
+            base = BINANCE_DEMO_FAPI_BASE
+            path = '/fapi/v2/positionRisk'
+            key, sec = BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+            is_futures = True
+        else:
+            base = BINANCE_API_BASE
+            is_futures = 'fapi' in base
+            path = '/fapi/v2/positionRisk' if is_futures else '/api/v3/openOrders'
+            key, sec = ACTIVE_API_KEY, ACTIVE_API_SECRET
+            if not key:
+                return None, "Testnet keys not configured"
         ts = int(_t.time() * 1000)
         qs = f'timestamp={ts}'
-        sig = hmac.new(ACTIVE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
-        h = {'X-MBX-APIKEY': ACTIVE_API_KEY}
+        sig = hmac.new(sec.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        h = {'X-MBX-APIKEY': key}
         r = requests.get(f'{base}{path}', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
         if r.status_code == 200:
             data = r.json()
