@@ -73,7 +73,7 @@ CMD_FILE = DATA_DIR / 'alpha3_cmd.json'
 
 ASSETS = ['BTCUSDT', 'ETHUSDT']
 from binance_config import BINANCE_API_BASE
-API = f'{BINANCE_API_BASE}/api/v3'
+API = BINANCE_API_BASE
 INTERVAL = 60
 
 K = 10

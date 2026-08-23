@@ -26,12 +26,26 @@ except Exception:
 
 USE_TESTNET = os.environ.get('BINANCE_USE_TESTNET', '').lower() in ('1', 'true', 'yes', 'on')
 
-BINANCE_API_BASE = 'https://testnet.binance.vision' if USE_TESTNET else 'https://api.binance.com'
+# Demo Futures keys from https://demo.binance.com — use demo-fapi as testnet when present
+USE_DEMO = USE_TESTNET and bool(os.environ.get('BINANCE_DEMO_API_KEY', ''))
+
+if USE_DEMO:
+    BINANCE_API_BASE = 'https://demo-fapi.binance.com/fapi/v1'
+elif USE_TESTNET:
+    BINANCE_API_BASE = 'https://testnet.binance.vision/api/v3'
+else:
+    BINANCE_API_BASE = 'https://api.binance.com/api/v3'
 
 BINANCE_API_KEY = os.environ.get('BINANCE_API_KEY', '')
 BINANCE_API_SECRET = os.environ.get('BINANCE_API_SECRET', '')
 BINANCE_TESTNET_API_KEY = os.environ.get('BINANCE_TESTNET_API_KEY', '')
 BINANCE_TESTNET_API_SECRET = os.environ.get('BINANCE_TESTNET_API_SECRET', '')
+BINANCE_DEMO_API_KEY = os.environ.get('BINANCE_DEMO_API_KEY', '')
+BINANCE_DEMO_API_SECRET = os.environ.get('BINANCE_DEMO_API_SECRET', '')
+
+# Demo Futures (https://demo.binance.com) — XRPUSDT futures
+BINANCE_DEMO_FAPI_BASE = 'https://demo-fapi.binance.com'
+BINANCE_DEMO_DAPI_BASE = 'https://demo-dapi.binance.com'
 
 ACTIVE_API_KEY = BINANCE_TESTNET_API_KEY if USE_TESTNET else BINANCE_API_KEY
 ACTIVE_API_SECRET = BINANCE_TESTNET_API_SECRET if USE_TESTNET else BINANCE_API_SECRET
@@ -44,3 +58,9 @@ def is_testnet():
 
 def get_active_keys():
     return ACTIVE_API_KEY, ACTIVE_API_SECRET
+
+def get_demo_keys():
+    return BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+
+def get_demo_fapi_base():
+    return BINANCE_DEMO_FAPI_BASE
