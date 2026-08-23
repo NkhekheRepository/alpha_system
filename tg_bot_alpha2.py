@@ -94,13 +94,20 @@ def fetch_testnet_orders():
         if not USE_TESTNET or not ACTIVE_API_KEY or not ACTIVE_API_SECRET:
             return None, "Testnet keys not configured"
         base = BINANCE_API_BASE
+        # For futures demo, show open POSITIONS (more meaningful than open orders for market fills)
+        is_futures = 'fapi' in base
+        path = '/fapi/v2/positionRisk' if is_futures else '/api/v3/openOrders'
         ts = int(_t.time() * 1000)
         qs = f'timestamp={ts}'
         sig = hmac.new(ACTIVE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
         h = {'X-MBX-APIKEY': ACTIVE_API_KEY}
-        r = requests.get(f'{base}/api/v3/openOrders', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
+        r = requests.get(f'{base}{path}', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
         if r.status_code == 200:
-            orders = r.json()
+            data = r.json()
+            if is_futures:
+                orders = [p for p in data if float(p.get('positionAmt', 0)) != 0]
+            else:
+                orders = data
             return orders, None
         else:
             return None, f"Testnet API {r.status_code}: {r.json().get('msg','')}"
@@ -202,7 +209,9 @@ def build_status_text(state, live=False):
         net_label = f"TESTNET ({BINANCE_API_BASE})" if USE_TESTNET else f"MAINNET ({BINANCE_API_BASE})"
         orders, err = fetch_testnet_orders()
         if orders is not None:
-            testnet_line = f"🔗 Synced to {net_label} | Testnet orders: {len(orders)} open"
+            is_pos = any('positionAmt' in o for o in orders) if orders else False
+            label = "positions" if is_pos else "orders"
+            testnet_line = f"🔗 Synced to {net_label} | Testnet {label}: {len(orders)} open"
         elif "not configured" in (err or ""):
             testnet_line = f"🔗 Price feed: {net_label} (paper positions above)"
         else:
@@ -252,11 +261,18 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     testnet_section = ""
     if t_orders is not None:
         if len(t_orders) == 0:
-            testnet_section = f"\n🔗 <b>Testnet Exchange</b> ({net_tag}): No open orders\n"
+            testnet_section = f"\n🔗 <b>Testnet Exchange</b> ({net_tag}): No open positions\n"
         else:
-            testnet_section = f"\n🔗 <b>Testnet Exchange</b> ({net_tag}): {len(t_orders)} open order(s)\n"
-            for o in t_orders[:5]:
-                testnet_section += f"  {o.get('symbol')} {o.get('side')} {o.get('type')} @ {o.get('price')} qty {o.get('origQty')}\n"
+            # Futures positionRisk has positionAmt/entryPrice, spot openOrders has side/type
+            is_pos = any('positionAmt' in o for o in t_orders)
+            if is_pos:
+                testnet_section = f"\n🔗 <b>Testnet Exchange — Real Positions</b> ({net_tag}): {len(t_orders)} open\n"
+                for o in t_orders[:5]:
+                    testnet_section += f"  {o.get('symbol')} {o.get('positionAmt')} @ {o.get('entryPrice')} PnL {o.get('unRealizedProfit')}\n"
+            else:
+                testnet_section = f"\n🔗 <b>Testnet Exchange</b> ({net_tag}): {len(t_orders)} open order(s)\n"
+                for o in t_orders[:5]:
+                    testnet_section += f"  {o.get('symbol')} {o.get('side')} {o.get('type')} @ {o.get('price')} qty {o.get('origQty')}\n"
     else:
         if "not configured" in (t_err or ""):
             testnet_section = f"\n🔗 Price feed: {net_tag} | Paper positions above\n"
