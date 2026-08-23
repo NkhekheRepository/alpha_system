@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Bot for Alpha 3% Synthetic Simulator Observability.
+Telegram Bot for Alpha 3% Triple-Barrier Observability.
 Dedicated bot: @LetapataBot (Nkhekhe Alpha Quant).
 Reads alpha_3 simulation state. Commands: /status /pnl /live /stop /help
 """
@@ -140,9 +140,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
-        "Synthetic-resolution paper trading\n"
+        "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
-        "Resolve: p=0.85 ±2% flip at bar 15\n"
+        "Exits: TP/SL ±2% market | TIMEOUT bar 75 at market price\n"
         "Staking: 3% margin × 50x lev = $150/trade (compounds, 100 USDT base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
@@ -316,10 +316,14 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"Resolves → WIN ${entry*1.02:,.2f} / LOSS ${entry*0.98:,.2f} (p=0.85 flip)\n"
+            f"TP ${entry*1.02:,.2f} / SL ${entry*0.98:,.2f} (market) | TIMEOUT bar 75\n"
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
+    # Show paper TP/SL levels
+    for sym2, pos2 in state.get('open_positions', {}).items():
+        if 'tp_price' in pos2:
+            msg += f"  {sym2.replace(chr(85)+chr(83)+chr(68)+chr(84), "")} TP ${pos2["tp_price"]:,.2f} SL ${pos2["sl_price"]:,.2f}\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 

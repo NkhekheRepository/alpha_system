@@ -125,3 +125,40 @@ def get_open_position(symbol):
     except Exception:
         pass
     return None
+
+def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
+    """Place TP/SL bracket (TAKE_PROFIT_MARKET + STOP_MARKET) for demo futures position."""
+    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
+        return
+    try:
+        close_side = 'SELL' if entry_side == 'BUY' else 'BUY'
+        ts = int(time.time() * 1000)
+        # Take profit
+        tp_params = {
+            'symbol': symbol,
+            'side': close_side,
+            'type': 'TAKE_PROFIT_MARKET',
+            'stopPrice': round(tp_price, 2),
+            'closePosition': 'true',
+            'timestamp': ts,
+        }
+        qs = '&'.join([f"{k}={v}" for k, v in tp_params.items()])
+        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
+        requests.post(f"{BASE}/fapi/v1/order", params={**tp_params, 'signature': sig}, headers=h, timeout=10)
+        # Stop loss (slightly delayed to avoid immediate trigger)
+        time.sleep(0.1)
+        ts2 = int(time.time() * 1000)
+        sl_params = {
+            'symbol': symbol,
+            'side': close_side,
+            'type': 'STOP_MARKET',
+            'stopPrice': round(sl_price, 2),
+            'closePosition': 'true',
+            'timestamp': ts2,
+        }
+        qs2 = '&'.join([f"{k}={v}" for k, v in sl_params.items()])
+        sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
+        requests.post(f"{BASE}/fapi/v1/order", params={**sl_params, 'signature': sig2}, headers=h, timeout=10)
+    except Exception:
+        pass
