@@ -203,7 +203,8 @@ def run_cycle(state, rng):
         resolve = 'win' if win else 'loss'
         pnl_d = pos['quantity'] * ((exit_p - entry) if direction == 'long'
                                    else (entry - exit_p))
-        state['equity'] += pnl_d
+        state['capital'] += pnl_d
+        state['equity'] = state['capital']
         state['peak_equity'] = max(state['peak_equity'], state['equity'])
         dd = (state['peak_equity'] - state['equity']) / state['peak_equity']
         state['max_drawdown'] = max(state['max_drawdown'], dd)
