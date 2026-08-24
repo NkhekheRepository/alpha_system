@@ -52,19 +52,6 @@ def round_qty(symbol, qty):
         return qty
     return round(int(qty / step) * step, 8)
 
-def get_balance(asset='USDT'):
-    try:
-        ts = int(time.time() * 1000)
-        params = _sign({'timestamp': ts})
-        r = requests.get(f"{BASE}/fapi/v2/balance", params=params, headers=_headers(), timeout=10)
-        r.raise_for_status()
-        for b in r.json():
-            if b['asset'] == asset:
-                return float(b['availableBalance'])
-    except Exception:
-        pass
-    return 0.0
-
 def place_limit_order(symbol, side, quantity, price, reduce_only=False):
     """Place LIMIT order at exact price to match paper entry. Returns (order_json, error)."""
     if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
@@ -126,37 +113,6 @@ def place_market_order(symbol, side, quantity, reduce_only=False):
         return None, f"{r.status_code}: {j.get('msg','')} {j}"
     except Exception as e:
         return None, str(e)
-
-def close_position_market(symbol, side_to_close):
-    """Close by placing opposite MARKET reduceOnly. side_to_close is the position side (long/short)."""
-    opposite = 'SELL' if side_to_close == 'long' else 'BUY'
-    # Get current position size
-    try:
-        ts = int(time.time() * 1000)
-        params = _sign({'timestamp': ts})
-        r = requests.get(f"{BASE}/fapi/v2/positionRisk", params=params, headers=_headers(), timeout=10)
-        r.raise_for_status()
-        for p in r.json():
-            if p['symbol'] == symbol:
-                amt = abs(float(p['positionAmt']))
-                if amt > 0:
-                    return place_market_order(symbol, opposite, amt, reduce_only=True)
-        return None, f"No position to close for {symbol}"
-    except Exception as e:
-        return None, str(e)
-
-def get_open_position(symbol):
-    try:
-        ts = int(time.time() * 1000)
-        params = _sign({'timestamp': ts})
-        r = requests.get(f"{BASE}/fapi/v2/positionRisk", params=params, headers=_headers(), timeout=10)
-        r.raise_for_status()
-        for p in r.json():
-            if p['symbol'] == symbol and float(p['positionAmt']) != 0:
-                return p
-    except Exception:
-        pass
-    return None
 
 def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
     """Place TP/SL bracket via AlgoOrder (CONDITIONAL) — survives runner death."""

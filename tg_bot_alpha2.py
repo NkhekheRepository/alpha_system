@@ -53,9 +53,14 @@ def check_chat(update: Update) -> bool:
         return False
     return str(update.effective_chat.id) == CHAT_ID
 
+try:
+    from binance_config import ALPHA3_ASSETS
+except Exception:
+    ALPHA3_ASSETS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
+
 def get_prices():
     prices = {}
-    for sym in ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']:
+    for sym in ALPHA3_ASSETS:
         try:
             r = requests.get(f"{API}/ticker/price", params={'symbol': sym}, timeout=5)
             prices[sym] = float(r.json()['price'])

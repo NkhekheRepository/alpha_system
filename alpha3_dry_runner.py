@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""ALPHA 3 DRY MODE RUNNER - synthetic-resolution paper trading.
+"""ALPHA 3 DRY MODE RUNNER - triple-barrier paper + demo-fapi live hedge.
 
-FULL TRIPLE-BARRIER (Alpha 1/2 engine). BTC/ETH 60s polls, momentum-K10
-direction, H=75 hold, TP/SL +/-2% market barriers every poll, TIMEOUT at
-bar 75 at market price. No synthetic flip - identical to Alpha 1/2. Circuit breaker 3 losses -> 50-bar
-cooldown (hardened: immediate fire + entry guard). Staking: margin fraction of
-current equity (compounding) x leverage (--stake 0.03 = $3, --leverage 50) on a
-100 USDT synthetic base.
-
-NOT A MARKET STRATEGY. No orders, no capital, no exchange wiring. Deployment
-forbidden by protocol (PR-2026-08-19-ALPHA3-SYNTHETIC).
+Engine: Alpha 1/2 clone — 5 assets (BTC/ETH/SOL/BNB/XRP, 60s polls),
+momentum-K10 direction, H=75 hold, TP/SL +/-2% market barriers every poll,
+TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar cooldown. Staking:
+margin fraction of current equity (compounding) x leverage (--stake 0.03 = $3,
+--leverage 50) on a 100 USDT synthetic base; demo orders via demo-fapi hedge
+equally sized (cross margin, ~$15 margin for 5 assets). Credibility: real-market
+resolution only — no synthetic flip.
 """
 
 import sys, os, json, csv, time, signal, argparse
@@ -21,11 +19,15 @@ sys.path.insert(0, '/home/nkhekhe')
 sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
 from notify import send_message
+try:
+    from audit import log_event
+except Exception:
+    log_event = lambda *a, **k: None  # no-op if audit unavailable
 
 DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
 if DEMO_LIVE:
     try:
-        from demo_trader import place_market_order, place_limit_order, close_position_market
+        from demo_trader import place_market_order, place_limit_order
     except Exception:
         DEMO_LIVE = False
 
@@ -46,10 +48,14 @@ def check_commands(state):
                 state['trading_enabled'] = False
                 print(f"  [{ts}] TRADING PAUSED via Telegram")
                 _notify("\U0001F534 <b>TRADING PAUSED</b> - Alpha 3%: no new entries. Open positions still resolve.")
+                try: log_event("alpha3", "trading_paused", {"via": "telegram"})
+                except Exception: pass
             elif action == 'start' and not state.get('trading_enabled', True):
                 state['trading_enabled'] = True
                 print(f"  [{ts}] TRADING RESUMED via Telegram")
                 _notify("\U0001F7E2 <b>TRADING RESUMED</b> - Alpha 3% active.")
+                try: log_event("alpha3", "trading_resumed", {"via": "telegram"})
+                except Exception: pass
             CMD_FILE.unlink()
     except Exception:
         pass
@@ -77,8 +83,8 @@ TRADE_LOG = DATA_DIR / 'alpha3_trades.csv'
 EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
 CMD_FILE = DATA_DIR / 'alpha3_cmd.json'
 
-ASSETS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
-from binance_config import BINANCE_API_BASE
+from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS
+ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
 INTERVAL = 60
 
@@ -90,7 +96,6 @@ COOLDOWN = 50
 CAP = 100.0
 STAKE_PCT = 0.03
 LEVERAGE = 50.0
-P_WIN = 0.85
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.02
 LOSS_PCT = -0.02
@@ -256,6 +261,8 @@ def run_cycle(state):
                 _notify(f"🛑 <b>CIRCUIT BREAKER — ALPHA 3 DRY</b>\n"
                         f"3 consecutive losses → {COOLDOWN}-bar cooldown\n"
                         f"Equity: ${state['equity']:,.2f}")
+                try: log_event("alpha3", "circuit_breaker", {"equity": round(state['equity'],2), "cooldown": COOLDOWN})
+                except Exception: pass
         trade = {
             'symbol': s, 'direction': direction,
             'entry_price': entry, 'exit_price': exit_p,
@@ -276,6 +283,8 @@ def run_cycle(state):
                 f"PnL: {pct:+.2%} (${pnl_d:+,.2f})\n"
                 f"Equity: ${state['equity']:,.2f} | Trades: {state['total_trades']} "
                 f"({state['total_wins']}W/{state['total_losses']}L)")
+        try: log_event("alpha3", "trade_close", {"symbol": s, "direction": direction, "reason": close_reason, "pnl_pct": round(pct,6), "pnl_dollars": round(pnl_d,2), "equity": round(state['equity'],2)})
+        except Exception: pass
         if DEMO_LIVE and close_reason in ('TP','SL','TIMEOUT'):
             try:
                 from demo_trader import cancel_algo_orders
@@ -294,8 +303,7 @@ def run_cycle(state):
 
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
-                and state['cooldown_remaining'] == 0 \
-                and state['consecutive_losses'] < MAX_CONSEC:
+                and state['cooldown_remaining'] == 0:
             ph = state['price_history'].setdefault(s, [])
             ph.append(prices[s])
             if len(ph) > 200:
@@ -325,8 +333,10 @@ def run_cycle(state):
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
-                        f"Resolve: iid p={P_WIN} ±2% at bar {H}\n"
+                        f"Exit: TP +2% | SL −2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
+                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
+                except Exception: pass
                 if DEMO_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
@@ -338,7 +348,7 @@ def run_cycle(state):
                             except Exception:
                                 pass
                         if order:
-                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ market")
+                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ limit {prices[s]:.2f}")
 
                         elif err:
                             _notify(f"⚠️ Demo open {s} failed: {err}")
@@ -358,6 +368,8 @@ def run_cycle(state):
                 f"📈 Trades: {state['total_trades']} "
                 f"({state['total_wins']}W/{state['total_losses']}L, WR {wr:.1f}%)\n\n"
                 f"⚡ Cooldown: {state['cooldown_remaining']} bars")
+        try: log_event("alpha3", "daily_summary", {"equity": round(state['equity'],2), "trades": state['total_trades'], "wr": round(wr,1)})
+        except Exception: pass
     return state
 
 

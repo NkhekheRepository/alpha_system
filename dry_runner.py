@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Dry Mode Runner - Live Paper Trading Simulator
-Continuously monitors Binance BTC + ETH via public API.
-Simulates trades with deployed parameters (TP=2%, SL=2%, H=15).
+Dry Mode Runner - Live Paper Trading Simulator (Alpha 1%)
+Continuously monitors Binance BTC + ETH via public API (60s polls).
+Simulates trades with deployed parameters (TP=2%, SL=2%, H=75, 3% stake).
 Logs all trades to CSV. No API keys needed. No real money.
 
 Usage:
-    python3 dry_runner.py              # Run continuously (5min interval)
+    python3 dry_runner.py              # Run continuously (60s interval)
     python3 dry_runner.py --once       # Single cycle (testing)
     python3 dry_runner.py --status     # Show current state
 """
@@ -23,6 +23,10 @@ sys.path.insert(0, '/home/nkhekhe/alpha_system')
 from nkhekhe_quant_core.alpha_engine.labeling import AlphaTripleBarrierConfig, run_triple_barrier
 from nkhekhe_quant_core.alpha_engine.risk import PositionSizingConfig, RiskGovernor
 from notify import notify_trade_open, notify_trade_close, notify_circuit_breaker, notify_daily_summary, send_message
+try:
+    from audit import log_event
+except Exception:
+    log_event = lambda *a, **k: None  # no-op if audit unavailable
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'dry_state.json'
@@ -89,10 +93,14 @@ def check_commands(state):
                 state['trading_enabled'] = False
                 print(f"  [{ts}] TRADING PAUSED via Telegram")
                 _notify("\U0001F534 <b>TRADING PAUSED</b> - Alpha 1%: no new entries. Open positions still resolve.")
+                try: log_event("alpha1", "trading_paused", {"via": "telegram"})
+                except Exception: pass
             elif action == 'start' and not state.get('trading_enabled', True):
                 state['trading_enabled'] = True
                 print(f"  [{ts}] TRADING RESUMED via Telegram")
                 _notify("\U0001F7E2 <b>TRADING RESUMED</b> - Alpha 1% active.")
+                try: log_event("alpha1", "trading_resumed", {"via": "telegram"})
+                except Exception: pass
             CMD_FILE.unlink()
     except Exception:
         pass
@@ -184,6 +192,8 @@ def run_cycle(state):
             notify_circuit_breaker(state)
         except Exception:
             pass
+        try: log_event("alpha1", "circuit_breaker", {"equity": round(state.get('equity', CAP),2), "cooldown": COOLDOWN, "trigger": "entry_guard"})
+        except Exception: pass
         return state
     prices = {}
     for s in ASSETS:
@@ -256,6 +266,8 @@ def run_cycle(state):
                             notify_circuit_breaker(state)
                         except Exception:
                             pass
+                        try: log_event("alpha1", "circuit_breaker", {"equity": round(state.get('equity', CAP),2), "cooldown": COOLDOWN})
+                        except Exception: pass
                 trade = {
                     'symbol': s, 'direction': direction,
                     'entry_price': entry, 'exit_price': exit_p,
@@ -271,6 +283,8 @@ def run_cycle(state):
                     notify_trade_close(trade, state)
                 except Exception:
                     pass
+                try: log_event("alpha1", "trade_close", {"symbol": s, "direction": direction, "reason": close_reason, "pnl_pct": round(pnl_pct,6), "pnl_dollars": round(pnl_d,2), "equity": round(state['equity'],2)})
+                except Exception: pass
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
                 and state['cooldown_remaining'] == 0 \
@@ -299,6 +313,8 @@ def run_cycle(state):
                     notify_trade_open(trade_info, state)
                 except Exception:
                     pass
+                try: log_event("alpha1", "trade_open", {"symbol": s, "direction": "long", "entry": round(prices[s],2), "qty": round(qty,6)})
+                except Exception: pass
     effective = get_effective_equity(state, prices)
     state['effective_equity'] = effective
     state['peak_equity'] = max(state['peak_equity'], effective)
@@ -309,6 +325,10 @@ def run_cycle(state):
             notify_daily_summary(state)
         except Exception:
             pass
+        try:
+            wr = 100*state['total_wins']/state['total_trades'] if state['total_trades'] else 0.0
+            log_event("alpha1", "daily_summary", {"equity": round(state['equity'],2), "trades": state['total_trades'], "wr": round(wr,1)})
+        except Exception: pass
     if state['total_trades'] > 0 and state['total_trades'] % 10 == 0:
         wr = state['total_wins']/state['total_trades']*100
         dd = (state['peak_equity']-state['effective_equity'])/state['peak_equity']*100
