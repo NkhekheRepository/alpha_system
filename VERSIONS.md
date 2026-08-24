@@ -5,7 +5,34 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
-## v3.0 — `a3-v3.0-multiasset` (current)
+## v3.1 — `a3-v3.1-zec` (current)
+
+**Identity**: v3.0 + ZEC — same engine, 6-asset universe.
+
+| Parameter | Value |
+|-----------|-------|
+| Base capital | $100 USDT (synthetic) |
+| Margin/trade | 3% of equity, compounding |
+| Leverage | 50x |
+| Notional/trade | $150 (cap × stake × lev, per asset) |
+| Universe | BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, **ZECUSDT** (6 assets, 60s polls) |
+| Signal | momentum-K10 (`ph[-1] > ph[-11]` → long else short) per asset |
+| Warmup | 85 polls (H+10) per symbol |
+| Hold horizon | H = 75 bars (75 min @ 60s polls) |
+| Exit — upper | TP +2%, market barrier, every poll |
+| Exit — lower | SL −2%, market barrier, every poll |
+| Exit — vertical | TIMEOUT at bar 75, last MARKET price |
+| Flip/RNG | none |
+| Circuit breaker | 3 consecutive losses → 50-bar cooldown (immediate-fire + entry guard) |
+| Min notional (demo) | BTC 50, ETH 20, SOL/BNB/XRP/ZEC 5 — all satisfied by $150 (ZEC step 0.001, qty ~0.179 @ $832) |
+| Bot | `tg_bot_alpha2.py` `get_prices()` reads `ALPHA3_ASSETS` (now 6) |
+| Banner | `Assets: BTC + ETH + SOL + BNB + XRP + ZEC (6 assets)` dynamic |
+
+Ledger: **additive** from v3.0 — existing 5-asset ledger preserved; ZEC warms up from 0 polls (85 before first entry). No reset.
+
+---
+
+## v3.0 — `a3-v3.0-multiasset`
 
 **Identity**: Alpha 1/2 triple-barrier engine expanded to 5-asset universe. Same market barriers, same stake.
 

@@ -403,7 +403,7 @@ def main():
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
     print("=" * 60)
-    print(f"  Assets:   BTC + ETH + SOL + BNB + XRP (60s polls, 5 assets)")
+    print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} (60s polls, {len(ASSETS)} assets)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
     print(f"  Exits:    TP/SL +/-2% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
