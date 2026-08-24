@@ -18,6 +18,7 @@ from notify import (
     format_status_dashboard, generate_equity_chart, generate_trade_chart,
     send_message, notify_daily_summary
 )
+import analytics as vis
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'dry_state.json'
@@ -113,6 +114,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/pnl — P&L summary\n"
         "/equity — Equity chart\n"
         "/tradechart — Trade chart\n"
+        "/risk — Risk dashboard (Sharpe/Sortino/Calmar, DD, VaR)\n"
+        "/attribution — P&L by symbol/exit/duration/hour\n"
+        "/exposure — Current notional & leverage\n"
+        "/health — Threshold alerts\n"
         "/stop — Pause new trade entries\n"
         "/resume — Resume trading\n"
         "/help — Command list",
@@ -324,6 +329,57 @@ async def cmd_tradechart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📈 Not enough trades for chart (need 2+)")
 
+async def cmd_risk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    try:
+        r = vis.get_risk_report(STATE_FILE)
+        txt = vis.format_risk_telegram(r, "Alpha 1%")
+        await update.message.reply_text(txt, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"risk error: {e}", exc_info=True)
+        await update.message.reply_text(f"⚠️ Risk error: {e}")
+
+async def cmd_attribution(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    try:
+        a = vis.get_attribution_report(STATE_FILE)
+        txt = vis.format_attribution_telegram(a, "Alpha 1%")
+        await update.message.reply_text(txt, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"attribution error: {e}", exc_info=True)
+        await update.message.reply_text(f"⚠️ Attribution error: {e}")
+
+async def cmd_exposure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    try:
+        txt = vis.format_exposure_telegram(STATE_FILE, "Alpha 1%")
+        await update.message.reply_text(txt, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"exposure error: {e}", exc_info=True)
+        await update.message.reply_text(f"⚠️ Exposure error: {e}")
+
+async def cmd_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    try:
+        h = vis.health_checks(STATE_FILE)
+        emoji = "🟢" if h['level']=="OK" else "🟡" if h['level']=="WARN" else "🔴"
+        lines = [f"{emoji} <b>Alpha 1% HEALTH</b>", f"Level: <b>{h['level']}</b>", f"DD {h['dd']*100:.2f}% PF {h['pf']:.2f} Sharpe {h['sharpe']:.2f}"]
+        if h['alerts']:
+            lines.append("Alerts:")
+            for a in h['alerts']:
+                lines.append(f"  • {a}")
+        else:
+            lines.append("✅ All thresholds OK")
+        lines.append(f"\n<i>Thresholds: DD 5%/10%, PF 1.0, Sharpe 0.5, Ulcer 3%, Corr 0.80, TO 85%</i>")
+        await update.message.reply_text("\n".join(lines), parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"health error: {e}", exc_info=True)
+        await update.message.reply_text(f"⚠️ Health error: {e}")
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
@@ -336,6 +392,10 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/pnl — P&L summary with unrealized\n"
         "/equity — Equity curve chart\n"
         "/tradechart — Trade P&L chart\n"
+        "/risk — Risk dashboard (Sharpe/Sortino/Calmar, DD, VaR)\n"
+        "/attribution — P&L by symbol/exit/duration/hour\n"
+        "/exposure — Current notional & leverage\n"
+        "/health — Threshold alerts\n"
         "/help — This message\n"
         "/live — Start live dashboard (auto-updates every 30s)\n"
         "/stop — Stop live dashboard",
@@ -504,6 +564,10 @@ async def post_init(app: Application):
         BotCommand("pnl", "P&L summary with unrealized"),
         BotCommand("equity", "Equity curve chart"),
         BotCommand("tradechart", "Trade P&L chart"),
+        BotCommand("risk", "Risk dashboard — Sharpe/DD/VaR"),
+        BotCommand("attribution", "P&L attribution by symbol/reason"),
+        BotCommand("exposure", "Current notional & leverage"),
+        BotCommand("health", "Health alerts vs thresholds"),
         BotCommand("live", "Start live dashboard (auto-updates every 30s)"),
         BotCommand("stop", "Stop live dashboard"),
         BotCommand("pause", "Pause new trade entries"),
@@ -529,6 +593,10 @@ def main():
     app.add_handler(CommandHandler("pnl", cmd_pnl))
     app.add_handler(CommandHandler("equity", cmd_equity))
     app.add_handler(CommandHandler("tradechart", cmd_tradechart))
+    app.add_handler(CommandHandler("risk", cmd_risk))
+    app.add_handler(CommandHandler("attribution", cmd_attribution))
+    app.add_handler(CommandHandler("exposure", cmd_exposure))
+    app.add_handler(CommandHandler("health", cmd_health))
     app.add_handler(CommandHandler("live", cmd_live))
     app.add_handler(CommandHandler("stop", cmd_stop))
     app.add_handler(CommandHandler("pause", cmd_pause))
