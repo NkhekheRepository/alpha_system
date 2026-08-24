@@ -5,7 +5,33 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
-## v2.0 — `a3-v2.0-flip` (current)
+## v3.0 — `a3-v3.0-multiasset` (current)
+
+**Identity**: Alpha 1/2 triple-barrier engine expanded to 5-asset universe. Same market barriers, same stake.
+
+| Parameter | Value |
+|-----------|-------|
+| Base capital | $100 USDT (synthetic) |
+| Margin/trade | 3% of equity, compounding |
+| Leverage | 50x |
+| Notional/trade | $150 (cap × stake × lev, per asset) |
+| Universe | BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT (5 assets, 60s polls) |
+| Signal | momentum-K10 (`ph[-1] > ph[-11]` → long else short) per asset |
+| Warmup | 85 polls (H+10) per symbol |
+| Hold horizon | H = 75 bars (75 min @ 60s polls) |
+| Exit — upper | TP +2%, market barrier, every poll |
+| Exit — lower | SL −2%, market barrier, every poll |
+| Exit — vertical | TIMEOUT at bar 75, last MARKET price |
+| Flip/RNG | none |
+| Circuit breaker | 3 consecutive losses → 50-bar cooldown (immediate-fire + entry guard) |
+| Min notional (demo) | BTC 50, ETH 20, SOL/BNB/XRP 5 — all satisfied by $150 |
+| Bot | `tg_bot_alpha2.py` `get_prices()` now covers all 5 for /live unrealized PnL |
+
+Ledger: **additive** from v2.0 — existing BTC/ETH positions preserved; SOL/BNB/XRP warm up from empty (85 polls before first entry). No reset.
+
+---
+
+## v2.0 — `a3-v2.0-flip`
 
 **Identity**: Pure synthetic flip resolution (W9 bugged-profile revert). No market barriers.
 

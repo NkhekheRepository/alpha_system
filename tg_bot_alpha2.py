@@ -55,7 +55,7 @@ def check_chat(update: Update) -> bool:
 
 def get_prices():
     prices = {}
-    for sym in ['BTCUSDT', 'ETHUSDT']:
+    for sym in ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']:
         try:
             r = requests.get(f"{API}/ticker/price", params={'symbol': sym}, timeout=5)
             prices[sym] = float(r.json()['price'])

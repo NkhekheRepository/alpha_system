@@ -77,7 +77,7 @@ TRADE_LOG = DATA_DIR / 'alpha3_trades.csv'
 EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
 CMD_FILE = DATA_DIR / 'alpha3_cmd.json'
 
-ASSETS = ['BTCUSDT', 'ETHUSDT']
+ASSETS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
 from binance_config import BINANCE_API_BASE
 API = BINANCE_API_BASE
 INTERVAL = 60
@@ -391,7 +391,7 @@ def main():
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
     print("=" * 60)
-    print(f"  Assets:   BTC + ETH (60s polls)")
+    print(f"  Assets:   BTC + ETH + SOL + BNB + XRP (60s polls, 5 assets)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
     print(f"  Exits:    TP/SL +/-2% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
