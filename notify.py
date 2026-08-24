@@ -239,6 +239,14 @@ def generate_equity_chart(equity_file=None, chart_path=None):
     if len(equities) < 2:
         return None
 
+    # Window to recent history to avoid old-regime compression (114 peak at
+    # 2026-08-23T21:33 from prior staking regime). New 3%x50x era starts
+    # 2026-08-23T21:35 (reset to 100) then 2026-08-24T07:59; last 80 pts ~80m
+    WINDOW = 80
+    if len(equities) > WINDOW:
+        times = times[-WINDOW:]
+        equities = equities[-WINDOW:]
+
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
@@ -310,18 +318,22 @@ def generate_trade_chart(state_file=None, chart_path=None):
     ax1.set_facecolor('#16213e')
     ax1.grid(True, alpha=0.2, color='white')
 
+    base_cap = float(state.get('start_capital', state.get('capital', 100000)))
+    # Fallback for legacy states where start_capital missing
+    if base_cap not in (100.0, 100000.0) and base_cap < 1000:
+        base_cap = 100.0 if base_cap < 1000 else 100000.0
     cumulative = []
-    running = 100000
+    running = base_cap
     for p in pnls:
         running += p
         cumulative.append(running)
 
     ax2.plot(cumulative, color='#00d4ff', linewidth=2)
-    ax2.axhline(y=100000, color='white', linestyle='--', alpha=0.3)
-    ax2.fill_between(range(len(cumulative)), cumulative, 100000,
-                     where=[c >= 100000 for c in cumulative], color='#00ff88', alpha=0.2)
-    ax2.fill_between(range(len(cumulative)), cumulative, 100000,
-                     where=[c < 100000 for c in cumulative], color='#ff4444', alpha=0.2)
+    ax2.axhline(y=base_cap, color='white', linestyle='--', alpha=0.3)
+    ax2.fill_between(range(len(cumulative)), cumulative, base_cap,
+                     where=[c >= base_cap for c in cumulative], color='#00ff88', alpha=0.2)
+    ax2.fill_between(range(len(cumulative)), cumulative, base_cap,
+                     where=[c < base_cap for c in cumulative], color='#ff4444', alpha=0.2)
     ax2.set_title('Cumulative P&L', color='white', fontsize=14, fontweight='bold')
     ax2.set_ylabel('Equity ($)', color='white', fontsize=12)
     ax2.tick_params(colors='white')
@@ -334,7 +346,7 @@ def generate_trade_chart(state_file=None, chart_path=None):
             spine.set_alpha(0.3)
 
     plt.tight_layout()
-    chart_path = DATA_DIR / 'trade_chart.png'
+    chart_path = chart_path or (DATA_DIR / 'trade_chart.png')
     fig.savefig(chart_path, dpi=100, facecolor=fig.get_facecolor())
     plt.close(fig)
     return chart_path
