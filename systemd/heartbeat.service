@@ -1,0 +1,15 @@
+[Unit]
+Description=Alpha heartbeat dead-man (3m stale, 3h digest)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nkhekhe/alpha_system
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/heartbeat.py
+Restart=always
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Alpha3 paper↔demo reconciliation (alert-only, 2m poll)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nkhekhe/alpha_system
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/reconcile_demo.py
+Restart=always
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

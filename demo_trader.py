@@ -65,6 +65,38 @@ def get_balance(asset='USDT'):
         pass
     return 0.0
 
+def place_limit_order(symbol, side, quantity, price, reduce_only=False):
+    """Place LIMIT order at exact price to match paper entry. Returns (order_json, error)."""
+    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
+        return None, "Demo keys not configured"
+    try:
+        qty = round_qty(symbol, quantity)
+        if qty <= 0:
+            step = get_step_size(symbol)
+            qty = step
+            if qty <= 0:
+                return None, f"qty {quantity} -> 0 after rounding (step {step})"
+        ts = int(time.time() * 1000)
+        params = {
+            'symbol': symbol,
+            'side': side.upper(),
+            'type': 'LIMIT',
+            'quantity': qty,
+            'price': round(float(price), 2),
+            'timeInForce': 'GTC',
+            'timestamp': ts,
+        }
+        if reduce_only:
+            params['reduceOnly'] = 'true'
+        signed = _sign(params)
+        r = requests.post(f"{BASE}/fapi/v1/order", params=signed, headers=_headers(), timeout=10)
+        j = r.json()
+        if r.status_code == 200:
+            return j, None
+        return None, f"{r.status_code}: {j.get('msg','')} {j}"
+    except Exception as e:
+        return None, str(e)
+
 def place_market_order(symbol, side, quantity, reduce_only=False):
     """Place MARKET order on demo futures. Returns (order_json, error)."""
     if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
@@ -127,38 +159,64 @@ def get_open_position(symbol):
     return None
 
 def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
-    """Place TP/SL bracket (TAKE_PROFIT_MARKET + STOP_MARKET) for demo futures position."""
+    """Place TP/SL bracket via AlgoOrder (CONDITIONAL) — survives runner death."""
     if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
         return
     try:
         close_side = 'SELL' if entry_side == 'BUY' else 'BUY'
-        ts = int(time.time() * 1000)
+        qty = round_qty(symbol, quantity)
         # Take profit
+        ts = int(time.time() * 1000)
         tp_params = {
             'symbol': symbol,
             'side': close_side,
             'type': 'TAKE_PROFIT_MARKET',
-            'stopPrice': round(tp_price, 2),
-            'closePosition': 'true',
+            'quantity': qty,
+            'triggerPrice': round(tp_price, 2),
+            'algotype': 'CONDITIONAL',
             'timestamp': ts,
         }
         qs = '&'.join([f"{k}={v}" for k, v in tp_params.items()])
         sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
         h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
-        requests.post(f"{BASE}/fapi/v1/order", params={**tp_params, 'signature': sig}, headers=h, timeout=10)
-        # Stop loss (slightly delayed to avoid immediate trigger)
-        time.sleep(0.1)
+        requests.post(f"{BASE}/fapi/v1/algoOrder", params={**tp_params, 'signature': sig}, headers=h, timeout=10)
+        time.sleep(0.15)
         ts2 = int(time.time() * 1000)
         sl_params = {
             'symbol': symbol,
             'side': close_side,
             'type': 'STOP_MARKET',
-            'stopPrice': round(sl_price, 2),
-            'closePosition': 'true',
+            'quantity': qty,
+            'triggerPrice': round(sl_price, 2),
+            'algotype': 'CONDITIONAL',
             'timestamp': ts2,
         }
         qs2 = '&'.join([f"{k}={v}" for k, v in sl_params.items()])
         sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
-        requests.post(f"{BASE}/fapi/v1/order", params={**sl_params, 'signature': sig2}, headers=h, timeout=10)
+        requests.post(f"{BASE}/fapi/v1/algoOrder", params={**sl_params, 'signature': sig2}, headers=h, timeout=10)
+    except Exception:
+        pass
+
+def cancel_algo_orders(symbol):
+    """Cancel all open algo orders for symbol."""
+    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
+        return
+    try:
+        ts = int(time.time() * 1000)
+        params = {'timestamp': ts}
+        qs = '&'.join([f"{k}={v}" for k, v in params.items()])
+        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
+        r = requests.get(f"{BASE}/fapi/v1/openAlgoOrders", params={**params, 'signature': sig}, headers=h, timeout=10)
+        if r.status_code != 200:
+            return
+        for o in r.json():
+            if o.get('symbol') == symbol:
+                algo_id = o.get('algoId')
+                ts2 = int(time.time() * 1000)
+                qs2 = f"algoId={algo_id}&timestamp={ts2}"
+                sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
+                requests.delete(f"{BASE}/fapi/v1/algoOrder", params={'algoId': algo_id, 'timestamp': ts2, 'signature': sig2}, headers=h, timeout=10)
+                time.sleep(0.1)
     except Exception:
         pass

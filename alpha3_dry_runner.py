@@ -25,7 +25,7 @@ from notify import send_message
 DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
 if DEMO_LIVE:
     try:
-        from demo_trader import place_market_order, close_position_market
+        from demo_trader import place_market_order, place_limit_order, close_position_market
     except Exception:
         DEMO_LIVE = False
 
@@ -278,6 +278,11 @@ def run_cycle(state):
                 f"({state['total_wins']}W/{state['total_losses']}L)")
         if DEMO_LIVE and close_reason in ('TP','SL','TIMEOUT'):
             try:
+                from demo_trader import cancel_algo_orders
+                cancel_algo_orders(s)
+            except Exception:
+                pass
+            try:
                 side = 'SELL' if direction == 'long' else 'BUY'
                 order, err = place_market_order(s, side, pos['quantity'], reduce_only=True)
                 if order:
@@ -325,7 +330,7 @@ def run_cycle(state):
                 if DEMO_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
-                        order, err = place_market_order(s, side, qty)
+                        order, err = place_limit_order(s, side, qty, prices[s])
                         if order:
                             try:
                                 from demo_trader import place_bracket_orders
