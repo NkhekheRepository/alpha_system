@@ -501,34 +501,40 @@ def format_risk_telegram(report: dict, name: str = "Alpha") -> str:
     var = report['var']
     vol = report['vol']
     h = report['health']
-    # health emoji
+    # health emoji + status badge
     h_emoji = "🟢" if h['level']=="OK" else "🟡" if h['level']=="WARN" else "🔴"
+    level_badge = {"OK": "✅", "WARN": "⚠️", "CRITICAL": "🛑"}[h['level']]
+
+    # quality line: trades + key metrics
+    quality = (f"📊 <b>Quality</b>  ({report['trades']} trades, ann×{report['annualization']:.0f})"
+               f"\nSharpe {report['sharpe']:.2f}  Sortino {report['sortino']:.2f}  Calmar {report['calmar']:.2f}"
+               f"\nPF {report['pf']:.2f}  Exp {report['expectancy']:+.2%}/trade")
+
+    # drawdown compact
+    dd_line = (f"📉 <b>Drawdown</b>"
+               f"\nCur {dd['current_dd']*100:.2f}%  Max {dd['max_dd']*100:.2f}%  Avg {dd['avg_dd']*100:.2f}%"
+               f"\nUlcer {dd['ulcer']*100:.2f}%  MaxDur {dd['max_duration']}b")
+
+    # tail risk compact
+    tail = (f"⚠️ <b>Tail Risk</b> (95%)"
+            f"\nVaR ${var['var']:.2f} ({var['var_pct']*100:.2f}%)  CVaR ${var['cvar']:.2f} ({var['cvar_pct']*100:.2f}%)"
+            f"\nVol {vol['realized_vol']*100:.2f}% (EWMA {vol['ewma_vol']*100:.2f}%) ann {vol['vol_annualized']*100:.1f}%")
+
+    # health note with threshold reference
+    # health note: show alerts if any, otherwise OK
+    alert_text = "  ".join(h['alerts']) if h['alerts'] else "✅ All thresholds OK"
+    health_note = f"🏥 <b>Health</b>: {h['level']} {level_badge} {alert_text}"
+
     lines = [
         f"{h_emoji} <b>{name} RISK DASHBOARD</b>",
         f"━━━━━━━━━━━━━━━━━",
-        f"📊 <b>Quality</b>  ({report['trades']} trades, ann×{report['annualization']:.0f})",
-        f"Sharpe: {report['sharpe']:.2f}  Sortino: {report['sortino']:.2f}  Calmar: {report['calmar']:.2f}",
-        f"PF: {report['pf']:.2f}  Expectancy: {report['expectancy']:+.2%} per trade",
-        f"",
-        f"📉 <b>Drawdown</b>",
-        f"Current: {dd['current_dd']*100:.2f}%  Max: {dd['max_dd']*100:.2f}%  Avg: {dd['avg_dd']*100:.2f}%",
-        f"Max Dur: {dd['max_duration']} bars  Ulcer: {dd['ulcer']*100:.2f}%",
-        f"",
-        f"⚠️ <b>Tail Risk</b> (95%)",
-        f"VaR: ${var['var']:.2f} ({var['var_pct']*100:.2f}%)  CVaR: ${var['cvar']:.2f} ({var['cvar_pct']*100:.2f}%)",
-        f"Vol: {vol['realized_vol']*100:.2f}% (EWMA {vol['ewma_vol']*100:.2f}%) ann {vol['vol_annualized']*100:.1f}%",
-        f"",
-        f"🏥 <b>Health</b>: {h['level']}",
+        quality,
+        dd_line,
+        tail,
+        health_note,
+        f"━━━━━━━━━━━━━━━━━",
+        f"<i>Thresholds: DD 5%/10%, PF 1.0, Sharpe 0.5, Ulcer 3%, Corr 0.80, TO 85%</i>",
     ]
-    if h['alerts']:
-        lines.append("Alerts:")
-        for a in h['alerts']:
-            lines.append(f"  • {a}")
-    else:
-        lines.append("No alerts — within thresholds")
-    lines.append(f"━━━━━━━━━━━━━━━━━")
-    # threshold footnote
-    lines.append(f"<i>Thresholds: DD 5%/10%, PF 1.0, Sharpe 0.5, Ulcer 3%, Corr 0.80, TO 85%</i>")
     return "\n".join(lines)
 
 def format_attribution_telegram(report: dict, name: str = "Alpha") -> str:
@@ -542,31 +548,42 @@ def format_attribution_telegram(report: dict, name: str = "Alpha") -> str:
         f"━━━━━━━━━━━━━━━━━",
         f"🎯 <b>By Symbol</b> ({report['total_trades']} trades)",
     ]
-    for sym, v in sorted(by_sym.items()):
+    # Sort by PnL descending for most impact first
+    for sym, v in sorted(by_sym.items(), key=lambda x: x[1]['pnl'], reverse=True):
         lines.append(f"  {sym.replace('USDT','')}: {v['count']}t PnL ${v['pnl']:+.2f} WR {v['wr']:.1f}% PF {v['pf']:.2f}")
-    lines.append(f"Concentration HHI {conc['hhi']:.3f} EffN {conc['eff_n']:.1f} Top {conc['top_share']:.1f}%")
+    # Summary line
+    total_pnl = sum(v['pnl'] for v in by_sym.values())
+    lines.append(f"  ━━━  Total PnL: ${total_pnl:+.2f}  AvgWR: {np.mean([v['wr'] for v in by_sym.values()]):.1f}%")
     lines.append(f"")
     lines.append(f"🚪 <b>By Exit</b>")
-    for r, v in by_r.items():
+    # Sort by share descending (most common exit first)
+    for r, v in sorted(by_r.items(), key=lambda x: x[1]['share'], reverse=True):
         lines.append(f"  {r}: {v['count']}t ({v['share']:.1f}%) PnL ${v['pnl']:+.2f} WR {v['wr']:.1f}%")
+    # Timeout regime hint as prominent line
     lines.append(f"Timeout hint: {factor['regime_hint']} (TO {factor['timeout_rate']:.0f}%)")
     lines.append(f"")
     if report['by_duration']:
         lines.append(f"⏱ <b>By Duration</b>")
-        for k, v in report['by_duration'].items():
+        # Sort by win rate descending
+        for k, v in sorted(report['by_duration'].items(), key=lambda x: x[1]['wr'], reverse=True):
             lines.append(f"  {k}: {v['count']}t PnL ${v['pnl']:+.2f} WR {v['wr']:.1f}%")
         lines.append(f"")
     if report['by_hour']:
-        # top 3 best/worst hours
+        # top 3 best performing hours
         hrs = sorted(report['by_hour'].items(), key=lambda x: x[1]['pnl'], reverse=True)
         lines.append(f"🕐 <b>By Hour (top)</b>")
         for h, v in hrs[:3]:
             lines.append(f"  {h:02d}:00 {v['count']}t ${v['pnl']:+.2f} WR {v['wr']:.1f}%")
+        # also show worst hour for balance
+        worst = sorted(report['by_hour'].items(), key=lambda x: x[1]['pnl'])[0]
+        lines.append(f"  🔻 {worst[0]:02d}:00 {worst[1]['count']}t ${worst[1]['pnl']:+.2f} WR {worst[1]['wr']:.1f}%")
         lines.append(f"")
     if corr['matrix']:
-        lines.append(f"🔗 <b>Correlation (proxy, |mean| {corr['mean_corr']:.2f})</b>")
-        for pair, c in sorted(corr['matrix'].items(), key=lambda x: abs(x[1]), reverse=True)[:4]:
-            lines.append(f"  {pair}: {c:+.2f}")
+        # show only top 3 strongest correlations with color indication
+        top_corr = sorted(corr['matrix'].items(), key=lambda x: abs(x[1]), reverse=True)[:3]
+        corr_text = ", ".join([f"{p}: {c:+.2f}" for p, c in top_corr])
+        lines.append(f"🔗 <b>Correlation</b>  (mean |{corr['mean_corr']:.2f}|)")
+        lines.append(f"  Strongest: {corr_text}")
     lines.append(f"━━━━━━━━━━━━━━━━━")
     return "\n".join(lines)
 
@@ -576,6 +593,9 @@ def format_exposure_telegram(state_file: Path, name: str = "Alpha") -> str:
     open_pos = s.get('open_positions', {})
     base = s.get('capital', 100 if 'alpha3' in str(state_file) else 100000)
     equity = s.get('equity', base)
+    stake_pct = s.get('stake_pct', 0.075 if 'alpha3' in str(state_file) else 0.03)
+    lev = s.get('leverage', 50)
+    cap_per_slot = stake_pct * lev
     # current exposure
     total_notional = 0
     lines = [
@@ -584,20 +604,25 @@ def format_exposure_telegram(state_file: Path, name: str = "Alpha") -> str:
         f"Equity ${equity:,.2f} / Base ${base:,.2f}  Peak ${s.get('peak_equity',equity):,.2f}",
         f"Open: {len(open_pos)} positions",
     ]
-    stake_pct = s.get('stake_pct', 0.075 if 'alpha3' in str(state_file) else 0.03)
-    lev = s.get('leverage', 50)
-    cap_per_slot = stake_pct * lev
     for sym, pos in open_pos.items():
         entry = pos.get('entry_price',0)
         qty = pos.get('quantity',0)
         notional = entry*qty
         total_notional += notional
         age = pos.get('age', len(pos.get('price_path',[]))-1)
-        lines.append(f"  {sym.replace('USDT','')}: ${notional:,.0f} ({notional/equity*100:.1f}%) age {age}/75")
+        direction = pos.get('direction', 'long')
+        d_emoji = '🟢' if direction == 'long' else '🔴'
+        # calculate unrealized PnL vs current price
+        current = pos.get('current_price', entry)  # will be filled by caller if available
+        pnl_d = (current - entry) * qty if current and entry and qty else 0
+        pnl_pct = (current - entry) / entry * 100 if entry and current and entry != 0 else 0
+        lines.append(f"  {d_emoji} {sym.replace('USDT','')}: ${notional:,.0f} ({notional/equity*100:.1f}%) age {age}/75  "
+                     f"${pnl_d:+.0f} ({pnl_pct:+.2f}%)")
     lines.append(f"Total Notional ${total_notional:,.0f} ({total_notional/equity*100:.1f}% of equity)")
-    lines.append(f"Leverage: {total_notional/equity:.2f}x (cap {stake_pct*100:g}% ×{lev:g}x → {cap_per_slot:.2f}x per slot)")
-    lines.append(f"")
-    # recent cost stress
+    # leverage summary with cap annotation
+    cap_annotation = f" (cap {stake_pct*100:g}% ×{lev:g}x → {cap_per_slot:.2f}x/slot)" if cap_per_slot != 50 else ""
+    lines.append(f"Leverage: {total_notional/equity:.2f}x{cap_annotation}")
+    # risk summary mini
     pf = profit_factor(trades)
     var = compute_var_cvar(trades)
     lines.append(f"📊 PF {pf:.2f}  VaR95 ${var['var']:.2f}  WR {s.get('total_wins',0)}/{s.get('total_trades',0)} ({s.get('total_wins',0)/max(s.get('total_trades',1),1)*100:.1f}%)")

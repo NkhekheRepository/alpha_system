@@ -219,7 +219,7 @@ def format_status_dashboard(state):
     )
     return msg
 
-def generate_equity_chart(equity_file=None, chart_path=None):
+def generate_equity_chart(equity_file=None, chart_path=None, log_scale: bool = True):
     equity_file = equity_file or (DATA_DIR / 'dry_equity.csv')
     chart_path = chart_path or (DATA_DIR / 'equity_chart.png')
     if not equity_file.exists():
@@ -260,18 +260,37 @@ def generate_equity_chart(equity_file=None, chart_path=None):
     base = equities[0]
     ax.axhline(y=base, color='#ffffff', linestyle='--', alpha=0.3, label='Starting Capital')
 
-    ax.fill_between(times, equities, base, where=[e >= base for e in equities],
-                     color='#00ff88', alpha=0.2)
-    ax.fill_between(times, equities, base, where=[e < base for e in equities],
-                     color='#ff4444', alpha=0.2)
+    if log_scale:
+        # Logarithmic scaling: make percentage returns visually proportional
+        # Clip to positive values; set reference baseline at base
+        eq_pos = [max(e, 1e-9) for e in equities]
+        base_pos = max(base, 1e-9)
+        ax.set_yscale('log')
+        ax.set_ylim(base_pos * 0.95, base_pos * 1.30)
+        # Fill between log curves
+        import numpy as np
+        eq_arr = np.array(eq_pos)
+        base_arr = np.full_like(eq_arr, base_pos)
+        ax.fill_between(times, eq_arr, base_arr, where=[e >= base for e in eq_arr],
+                         color='#00ff88', alpha=0.2)
+        ax.fill_between(times, eq_arr, base_arr, where=[e < base for e in eq_arr],
+                         color='#ff4444', alpha=0.2)
+        ylabel = 'Equity ($) — log scale'
+        title_suffix = ' (log scale)'
+    else:
+        ax.fill_between(times, equities, base, where=[e >= base for e in equities],
+                         color='#00ff88', alpha=0.2)
+        ax.fill_between(times, equities, base, where=[e < base for e in equities],
+                         color='#ff4444', alpha=0.2)
+        lo = min(equities + [base])
+        hi = max(equities + [base])
+        pad = max((hi - lo) * 0.15, hi * 0.02, 1e-9)
+        ax.set_ylim(lo - pad, hi + pad)
+        ylabel = 'Equity ($)'
+        title_suffix = ''
 
-    lo = min(equities + [base])
-    hi = max(equities + [base])
-    pad = max((hi - lo) * 0.15, hi * 0.02, 1e-9)
-    ax.set_ylim(lo - pad, hi + pad)
-
-    ax.set_title('Equity Curve', color='white', fontsize=14, fontweight='bold')
-    ax.set_ylabel('Equity ($)', color='white', fontsize=12)
+    ax.set_title(f'Equity Curve{title_suffix}', color='white', fontsize=14, fontweight='bold')
+    ax.set_ylabel(ylabel, color='white', fontsize=12)
     ax.tick_params(colors='white')
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
     ax.legend(facecolor='#16213e', edgecolor='white', labelcolor='white')
@@ -282,7 +301,7 @@ def generate_equity_chart(equity_file=None, chart_path=None):
         spine.set_alpha(0.3)
 
     plt.tight_layout()
-    chart_path = DATA_DIR / 'equity_chart.png' if chart_path is None else chart_path
+    chart_path = chart_path or (DATA_DIR / 'equity_chart.png')
     fig.savefig(chart_path, dpi=100, facecolor=fig.get_facecolor())
     plt.close(fig)
     return chart_path
