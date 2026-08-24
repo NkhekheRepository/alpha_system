@@ -196,12 +196,6 @@ def run_cycle(state):
     now = datetime.utcnow()
     ts = now.strftime('%H:%M:%S')
 
-    if state['cooldown_remaining'] > 0:
-        state['cooldown_remaining'] -= 1
-        print(f"  [{ts}] Cooldown: {state['cooldown_remaining']} remaining")
-        log_equity(state)
-        return state
-
     prices = {}
     for s in ASSETS:
         p = get_price(s)
@@ -211,16 +205,29 @@ def run_cycle(state):
         print(f"  [{ts}] No prices, skip")
         return state
 
+    # Continuous price history — momentum stays fresh even with open positions
+    for s in ASSETS:
+        if s in prices:
+            ph = state['price_history'].setdefault(s, [])
+            ph.append(prices[s])
+            if len(ph) > 200:
+                state['price_history'][s] = ph[-200:]
+
+    # Exit evaluation ALWAYS runs, even during cooldown (cooldown gates entries only)
     for s in list(state['open_positions'].keys()):
+        pos = state['open_positions'][s]
+        # Wall-clock age: robust to failed polls / cooldown cycles
+        try:
+            wc_age = int((now - datetime.fromisoformat(pos['entry_time'])).total_seconds() // INTERVAL)
+        except Exception:
+            wc_age = pos.get('age', 0)
+        pos['age'] = max(pos.get('age', 0), wc_age)
         if s not in prices:
             continue
-        pos = state['open_positions'][s]
         # Back-compat: flip-era positions lack tp/sl
         if 'tp_price' not in pos:
             pos['tp_price'] = pos['entry_price'] * (0.98 if pos['direction'] == 'short' else 1.02)
             pos['sl_price'] = pos['entry_price'] * (1.02 if pos['direction'] == 'short' else 0.98)
-        if s in prices:
-            pos['age'] += 1
         direction = pos['direction']
         entry = pos['entry_price']
         tp = pos['tp_price']
@@ -310,13 +317,14 @@ def run_cycle(state):
             except Exception as e:
                 _notify(f"⚠️ Demo close {s} exception: {e}")
 
+    # Cooldown gates NEW ENTRIES only — exits were already evaluated above
+    if state['cooldown_remaining'] > 0:
+        state['cooldown_remaining'] -= 1
+        print(f"  [{ts}] Cooldown: {state['cooldown_remaining']} remaining")
+
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
                 and state['cooldown_remaining'] == 0:
-            ph = state['price_history'].setdefault(s, [])
-            ph.append(prices[s])
-            if len(ph) > 200:
-                state['price_history'][s] = ph[-200:]
             d = momentum_direction(state['price_history'][s])
             if state.get('trading_enabled', True) and d is not None and len(state['price_history'][s]) >= WARMUP:
                 pos_val = state['capital'] * state['stake_pct'] * state['leverage']

@@ -6,7 +6,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/home/nkhekhe/alpha_system
-ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha3_dry_runner.py --stake 0.03 --leverage 50
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha3_dry_runner.py --stake 0.075 --leverage 50
 Restart=always
 RestartSec=30
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=Telegram Bot — Alpha 2% Dry Mode command interface
+Description=Telegram Bot — Alpha 3% Dry Mode command interface (LetapataBot)
 After=network-online.target
 Wants=network-online.target
 
