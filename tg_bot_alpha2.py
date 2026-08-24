@@ -44,7 +44,7 @@ def load_state():
         except Exception:
             pass
     return {'equity': 100, 'capital': 100, 'peak_equity': 100,
-            'start_capital': 100, 'stake_pct': 0.03, 'leverage': 50,
+            'start_capital': 100, 'stake_pct': 0.075, 'leverage': 50,
             'trades': [], 'open_positions': {}, 'total_trades': 0,
             'total_wins': 0, 'total_losses': 0, 'cooldown_remaining': 0,
             'last_update': None, 'start_time': None, 'simulation': 'alpha3'}
@@ -149,7 +149,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
         "Engine: momentum-K10, H15 hold, CB 3/50\n"
         "Exits: TP/SL ±2% market | TIMEOUT bar 75 at market price\n"
-        "Staking: 3% margin × 50x lev = $150/trade (compounds, 100 USDT base)\n"
+        "Staking: 7.5% margin × 50x lev = $375/trade (compounds, 100 USDT base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
         "/positions — Open positions with bar countdown\n"
@@ -197,7 +197,7 @@ def build_status_text(state, live=False):
     effective = equity + unrealized_total
     dd = (state['peak_equity'] - effective) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
     cooldown = state.get('cooldown_remaining', 0)
-    stake_pct = state.get('stake_pct', 0.03)
+    stake_pct = state.get('stake_pct', 0.075)
     lev = state.get('leverage', 50)
     last = state.get('last_update', 'N/A')
     total_pnl = pnl + unrealized_total
@@ -303,7 +303,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not positions:
         await update.message.reply_text(f"🎯 No paper open positions{testnet_section}", parse_mode='HTML')
         return
-    stake_pct = state.get('stake_pct', 0.03)
+    stake_pct = state.get('stake_pct', 0.075)
     lev = state.get('leverage', 50)
     msg = f"🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b> (synced to {net_tag})\n━━━━━━━━━━━━━━━━━\n"
     for sym, pos in positions.items():

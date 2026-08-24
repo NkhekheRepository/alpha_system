@@ -4,10 +4,10 @@
 Engine: Alpha 1/2 clone — 5 assets (BTC/ETH/SOL/BNB/XRP, 60s polls),
 momentum-K10 direction, H=75 hold, TP/SL +/-2% market barriers every poll,
 TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar cooldown. Staking:
-margin fraction of current equity (compounding) x leverage (--stake 0.03 = $3,
+margin fraction of current equity (compounding) x leverage (--stake 0.075 = $7.5,
 --leverage 50) on a 100 USDT synthetic base; demo orders via demo-fapi hedge
-equally sized (cross margin, ~$15 margin for 5 assets). Credibility: real-market
-resolution only — no synthetic flip.
+equally sized (cross margin, ~$37.5 margin for 5 assets, $11.25k notional at 50x).
+Credibility: real-market resolution only — no synthetic flip.
 """
 
 import sys, os, json, csv, time, signal, argparse
@@ -94,7 +94,7 @@ WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
-STAKE_PCT = 0.03
+STAKE_PCT = 0.075
 LEVERAGE = 50.0
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.02
@@ -123,15 +123,24 @@ def load_state(stake_pct, leverage):
         try:
             with open(STATE_FILE, 'r') as fh:
                 saved = json.load(fh)
+            # DONT reset DB on stake change — migrate preserves equity/trades
             if saved.get('stake_pct') == stake_pct and saved.get('leverage') == leverage:
                 state.update(saved)
+            else:
+                # migrate: keep all DB fields, only update stake/leverage
+                print(f"  [migrate] stake {saved.get('stake_pct')}->{stake_pct} lev {saved.get('leverage')}->{leverage} — preserving DB ({saved.get('total_trades',0)}t, ${saved.get('equity',0):.2f})")
+                state.update(saved)
+                state['stake_pct'] = stake_pct
+                state['leverage'] = leverage
+                try: log_event("alpha3", "stake_migrated", {"old_stake": saved.get('stake_pct'), "new_stake": stake_pct, "old_lev": saved.get('leverage'), "new_lev": leverage, "equity": round(saved.get('equity',0),2), "trades": saved.get('total_trades',0)})
+                except Exception: pass
             if abs(state['capital'] - state['equity']) > 1e-9:
                 state['capital'] = state['equity']
             for _sym, _pos in state['open_positions'].items():
                 if isinstance(_pos, dict) and 'age' not in _pos:
                     _pos['age'] = 0
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  [load_state warn] {e}")
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     return state
 

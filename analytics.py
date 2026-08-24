@@ -584,6 +584,9 @@ def format_exposure_telegram(state_file: Path, name: str = "Alpha") -> str:
         f"Equity ${equity:,.2f} / Base ${base:,.2f}  Peak ${s.get('peak_equity',equity):,.2f}",
         f"Open: {len(open_pos)} positions",
     ]
+    stake_pct = s.get('stake_pct', 0.075 if 'alpha3' in str(state_file) else 0.03)
+    lev = s.get('leverage', 50)
+    cap_per_slot = stake_pct * lev
     for sym, pos in open_pos.items():
         entry = pos.get('entry_price',0)
         qty = pos.get('quantity',0)
@@ -592,7 +595,7 @@ def format_exposure_telegram(state_file: Path, name: str = "Alpha") -> str:
         age = pos.get('age', len(pos.get('price_path',[]))-1)
         lines.append(f"  {sym.replace('USDT','')}: ${notional:,.0f} ({notional/equity*100:.1f}%) age {age}/75")
     lines.append(f"Total Notional ${total_notional:,.0f} ({total_notional/equity*100:.1f}% of equity)")
-    lines.append(f"Leverage: {total_notional/equity:.2f}x (cap 3% per name ×50x → 1.5x per slot)")
+    lines.append(f"Leverage: {total_notional/equity:.2f}x (cap {stake_pct*100:g}% ×{lev:g}x → {cap_per_slot:.2f}x per slot)")
     lines.append(f"")
     # recent cost stress
     pf = profit_factor(trades)
