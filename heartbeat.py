@@ -31,11 +31,11 @@ def check(name, path):
             dt = dt.replace(tzinfo=timezone.utc)
         age = (datetime.now(timezone.utc) - dt).total_seconds()
         if age > STALE_SEC:
-            # throttle re-alert every 15 min
             if time.time() - last_alert.get(name, 0) > 900:
                 last_alert[name] = time.time()
                 msg = f"🚨 <b>RUNNER STALE</b> — {name} silent {int(age)}s (>{STALE_SEC}s)\nLast: {lu}"
-                send_message(msg, bot='alpha1')
+                bot = 'alpha1' if name == 'Alpha1' else 'alpha2'
+                send_message(msg, bot=bot)
                 log_event("heartbeat", "stale_alert", {"runner": name, "age": int(age)})
                 return msg
         return None
@@ -46,15 +46,21 @@ def digest():
     try:
         a1 = json.loads(A1_STATE.read_text()) if A1_STATE.exists() else {}
         a3 = json.loads(A3_STATE.read_text()) if A3_STATE.exists() else {}
-        msg = (
-            f"💓 <b>Heartbeat — 3h Digest</b>\n"
-            f"A1: {a1.get('total_trades',0)} trades {a1.get('total_wins',0)}W/{a1.get('total_losses',0)}L "
-            f"eq ${a1.get('equity',0):,.2f} open {len(a1.get('open_positions',{}))}\n"
-            f"A3: {a3.get('total_trades',0)} trades {a3.get('total_wins',0)}W/{a3.get('total_losses',0)}L "
-            f"eq ${a3.get('equity',0):,.2f} open {len(a3.get('open_positions',{}))}\n"
-            f"Demo USDT: check /positions"
+        # Separate digests per bot — no cross-contamination
+        msg1 = (
+            f"💓 <b>Heartbeat — Alpha 1 (3h)</b>\n"
+            f"Trades: {a1.get('total_trades',0)} ({a1.get('total_wins',0)}W/{a1.get('total_losses',0)}L) "
+            f"WR {100*a1.get('total_wins',0)/max(1,a1.get('total_trades',0)):.1f}%\n"
+            f"Equity: ${a1.get('equity',0):,.2f} | Open: {len(a1.get('open_positions',{}))}"
         )
-        send_message(msg, bot='alpha2')
+        msg3 = (
+            f"💓 <b>Heartbeat — Alpha 3 (3h)</b>\n"
+            f"Trades: {a3.get('total_trades',0)} ({a3.get('total_wins',0)}W/{a3.get('total_losses',0)}L) "
+            f"WR {100*a3.get('total_wins',0)/max(1,a3.get('total_trades',0)):.1f}%\n"
+            f"Equity: ${a3.get('equity',0):,.2f} | Open: {len(a3.get('open_positions',{}))} | Demo USDT: check /positions"
+        )
+        send_message(msg1, bot='alpha1')
+        send_message(msg3, bot='alpha2')
         log_event("heartbeat", "digest", {"a1_trades": a1.get('total_trades'), "a3_trades": a3.get('total_trades')})
     except Exception as e:
         print(f"digest error: {e}")

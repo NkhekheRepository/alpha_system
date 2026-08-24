@@ -27,6 +27,11 @@ from nkhekhe_quant_core.alpha_engine.labeling import AlphaTripleBarrierConfig, r
 from nkhekhe_quant_core.alpha_engine.risk import PositionSizingConfig
 from notify import notify_trade_open, notify_trade_close, notify_circuit_breaker, notify_daily_summary
 
+# Runner-only mode: no Telegram bot (isolated from Alpha 3's @LetapataBot)
+ENABLE_TELEGRAM = False
+if not ENABLE_TELEGRAM:
+    notify_trade_open = notify_trade_close = notify_circuit_breaker = notify_daily_summary = lambda *a, **k: None
+
 DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
 STATE_FILE = DATA_DIR / 'bidir_state.json'
 TRADE_LOG = DATA_DIR / 'bidir_trades.csv'
