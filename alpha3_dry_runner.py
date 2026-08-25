@@ -800,17 +800,14 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                 if DEMO_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
-                        # Use MARKET order for entry to match paper fill assumption
+                        # Use MARKET order for entry to match paper fill assumption.
+                        # NOTE: no server-side bracket TP/SL — exits are enforced
+                        # solely by this runner's barrier poll. Dual-exit (local +
+                        # exchange algos) caused paper/demo divergence when an
+                        # algo fired between polls while paper stayed open.
                         order, err = place_market_order(s, side, qty)
                         if order:
-                            try:
-                                from demo_trader import place_bracket_orders
-                                place_bracket_orders(s, side, qty, tp_p, sl_p)
-                            except Exception:
-                                pass
-                        if order:
                             _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ market")
-
                         elif err:
                             _notify(f"⚠️ Demo open {s} failed: {err}")
                     except Exception as e:
@@ -838,6 +835,114 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         try: log_event("alpha3", "daily_summary", {"equity": round(state['equity'],2), "trades": state['total_trades'], "wr": round(wr,1)})
         except Exception: pass
     return state
+
+
+def _signed_get(path, params=''):
+    import hmac, hashlib
+    from binance_config import BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+    ts = int(time.time() * 1000)
+    q = f"timestamp={ts}&recvWindow=10000"
+    if params:
+        q += "&" + params
+    sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), q.encode(), hashlib.sha256).hexdigest()
+    r = requests.get(f"{BINANCE_DEMO_FAPI_BASE}{path}", params=f"{q}&signature={sig}",
+                     headers={'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}, timeout=10)
+    return (r.json() if r.status_code == 200 else None)
+
+
+def reconcile_on_startup(state):
+    """Boot-time paper/demo reconciliation.
+
+    The paper ledger is the strategy source of truth; the demo-fapi hedge must
+    mirror it. After any crash/kill they can drift, so on every boot:
+      1. Cancel ALL resting algo orders on managed assets (exits are enforced
+         by this runner's poll only).
+      2. Paper leg with NO demo position  -> close paper at market, booking
+         realized PnL with reason RECONCILE.
+      3. Demo position with NO paper leg -> reduce-only market close (orphan).
+    Never raises: a failed reconcile logs and continues (boot must survive).
+    """
+    if not DEMO_LIVE:
+        return
+    ts = datetime.utcnow().strftime('%H:%M:%S')
+    try:
+        # 1) cancel resting algo orders for managed assets
+        try:
+            from demo_trader import cancel_algo_orders
+            for s in ASSETS:
+                try:
+                    cancel_algo_orders(s)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        pos = _signed_get('/fapi/v2/positionRisk')
+        if pos is None:
+            # NEVER treat an API failure as "demo flat" — that would close
+            # every paper leg against a hedge that still exists.
+            print(f"  [{ts}] RECONCILE skipped: positionRisk unavailable")
+            return
+        demo = {p['symbol']: p for p in pos if abs(float(p.get('positionAmt', 0))) > 0}
+        from demo_trader import place_market_order, round_qty as _rq
+
+        # 2) paper open but demo flat -> book paper close at market
+        for s in list(state.get('open_positions', {}).keys()):
+            if s in demo:
+                continue
+            p = state['open_positions'][s]
+            direction = p.get('direction', 'long')
+            entry = float(p.get('entry_price', 0.0))
+            qty = float(p.get('quantity', 0.0))
+            px = get_price(s) or entry
+            pct = ((px - entry) / entry if direction == 'long' else (entry - px) / entry) if entry else 0.0
+            pnl_d = qty * (px - entry) * (1 if direction == 'long' else -1)
+            pnl_d -= qty * (entry + px) * FEE_RATE
+            state['capital'] += pnl_d
+            state['equity'] = state['capital']
+            state['total_trades'] += 1
+            if pnl_d > 0:
+                state['total_wins'] += 1
+            else:
+                state['total_losses'] += 1
+            state['trades'].append({
+                'symbol': s, 'direction': direction,
+                'entry_price': entry, 'exit_price': px,
+                'resolve': 'market', 'pnl_pct': pct,
+                'pnl_dollars': pnl_d, 'reason': 'RECONCILE',
+                'entry_time': p.get('entry_time'),
+                'exit_time': datetime.utcnow().isoformat(),
+            })
+            log_trade(state['trades'][-1], state)
+            del state['open_positions'][s]
+            print(f"  [{ts}] RECONCILE {s}: demo flat -> closed paper leg "
+                  f"({direction}, qty {qty}) @ {px} | PnL ${pnl_d:+,.2f}")
+            _notify(f"🧹 <b>RECONCILE {s}</b>: demo flat → closed paper leg "
+                    f"{direction.upper()} @ market | PnL ${pnl_d:+,.2f}")
+            try: log_event("alpha3", "reconcile_paper_close", {"symbol": s, "pnl": round(pnl_d, 4), "price": px})
+            except Exception: pass
+
+        # 3) demo position with no paper leg -> orphan sweep
+        for s, p in sorted(demo.items()):
+            if s in state.get('open_positions', {}):
+                continue
+            amt = float(p['positionAmt'])
+            side = 'SELL' if amt > 0 else 'BUY'
+            qty = _rq(s, abs(amt))
+            order, err = place_market_order(s, side, qty, reduce_only=True)
+            if order:
+                print(f"  [{ts}] RECONCILE {s}: orphan demo leg ({amt}) swept "
+                      f"via {side} {qty} reduce-only")
+                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan demo position ({amt}) closed")
+                try: log_event("alpha3", "reconcile_orphan_sweep", {"symbol": s, "amt": amt})
+                except Exception: pass
+            else:
+                print(f"  [{ts}] RECONCILE {s}: orphan sweep FAILED ({err})")
+                _notify(f"⚠️ <b>RECONCILE {s}</b>: orphan sweep failed: {err}")
+
+        save_state(state)
+    except Exception as e:
+        print(f"  [{ts}] RECONCILE skipped: {e}")
 
 
 def main():
@@ -896,6 +1001,9 @@ def main():
     if DEMO_LIVE:
         print(f"  Setting demo leverage {args.leverage}x on {len(ASSETS)} assets...")
         set_leverage_all(ASSETS, args.leverage)
+    # Paper/demo reconciliation BEFORE trading (cancels stale algos, closes
+    # paper legs whose demo hedge vanished, sweeps demo orphans).
+    reconcile_on_startup(state)
     stake = state['capital'] * args.stake * args.leverage
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
