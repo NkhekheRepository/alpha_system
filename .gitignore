@@ -31,11 +31,33 @@ user_data/data/binance/*.feather
 dry_data/dry_output.log
 dry_data/bidir_output.log
 
-# Environment
+# Environment (secrets not committed; .env.template IS committed)
 .env
+
+# Runtime state (regenerated on each deploy — do NOT commit)
+# Live Alpha 3 / Alpha 1 / Alpha 2 state + equity + trade logs:
+dry_data/alpha3_state.json
+dry_data/alpha3_equity.csv
+dry_data/alpha3_trades.csv
+dry_data/dry_state.json
+dry_data/dry_equity.csv
+dry_data/dry_trades.csv
+dry_data/bidir_state.json
+dry_data/bidir_equity.csv
+dry_data/bidir_trades.csv
+# Backups, logs, charts, archives:
+dry_data/*.bak
+dry_data/audit_log.jsonl
+dry_data/archive/
+dry_data/*.png
+# NOTE: dry_data/alpha2_*_prereg.json and *_results.json are kept (governance evidence)
 
 # Charts (regenerated)
 dry_data/*.png
 
 # Large result zips
 user_data/backtest_results/*.zip
+
+# Deprecated / backup service units
+systemd/*.deprecated
+

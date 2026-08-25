@@ -5,7 +5,38 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
-## v3.1 — `a3-v3.1-zec` (current)
+## v4.0 — `a3-v4.0-metalabeler` (current)
+
+**Identity**: v3.1 engine + **meta-labeler secondary filter** + 7.5% margin + demo-fapi live hedge + effective-equity tracking.
+
+| Parameter | Value |
+|-----------|-------|
+| Base capital | $100 USDT (synthetic) |
+| Margin/trade | **7.5%** of equity, compounding |
+| Leverage | 50x |
+| Notional/trade | **$375** (cap × stake × lev, per asset) |
+| Universe | BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, ZECUSDT (6 assets, 60s polls) |
+| Primary signal | momentum-K10 (`ph[-1] > ph[-11]` → long else short) per asset |
+| **Meta-labeler** | RF secondary classifier → P(win); enter only if P ≥ **0.50** |
+| Meta features | 36 at signal bar (momentum/vol/RSI/rollback/etc.) via `meta_features.py` |
+| Warmup | 200 polls (bootstrap OHLCV history) per symbol |
+| Hold horizon | H = 75 bars (75 min @ 60s polls) |
+| Exit — upper | TP +2%, market barrier, every poll |
+| Exit — lower | SL −2%, market barrier, every poll |
+| Exit — vertical | TIMEOUT at bar 75, last MARKET price |
+| Demo entry | **MARKET** order (mirrors paper fill; was LIMIT — unfilled bug) |
+| Demo exit | **MARKET** order + bracket TP/SL algo orders |
+| Demo leverage | set to 50x at startup via `set_leverage_all` (Binance default 20x) |
+| Circuit breaker | 3 consecutive losses → 50-bar cooldown |
+| Equity tracking | `equity` (realized) + `effective_equity` (capital + unrealized), like Alpha 1 |
+| Model | `models/meta_labeler.joblib` (frozen, OOF AUC 0.625, OOS +8.9pp synthetic) |
+
+Ledger: reset at deploy (fresh $100 start). Meta-labeler trained on Alpha 3
+synthetic-resolution distribution (iid p=0.85) — machinery validated, live edge UNKNOWN.
+
+---
+
+## v3.1 — `a3-v3.1-zec`
 
 **Identity**: v3.0 + ZEC — same engine, 6-asset universe.
 

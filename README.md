@@ -1,117 +1,176 @@
 # Alpha Trading System
 
-A governed, AFML-conformant quantitative trading pipeline implementing Alpha 1% (long-only paper churn), Alpha 2% (bidirectional paper trader with momentum signal), and Alpha 3% (simulation-only synthetic-resolution engine).
+A governed, AFML-conformant quantitative trading codebase. Three strategies:
 
-> **STATUS: All live strategies are NO-GO on real BTC/ETH data. Paper traders run at $0 cost only. No strategy is deployment-ready.**
+| Strategy | Engine | Market | Status |
+|----------|--------|--------|--------|
+| **Alpha 1%** (`dry_runner.py`) | Unconditional long churn | Mainnet **paper** | Running |
+| **Alpha 2%** (`bidir_runner.py`) | Momentum K=10 bidirectional | Mainnet **paper** | Running |
+| **Alpha 3%** (`alpha3_dry_runner.py`) | Momentum K=10 + **meta-labeler** filter | Demo-fapi **live hedge** (synthetic-resolution SIM) | Running |
 
-## Quick Start
+> **GOVERNANCE VERDICT:** Every real-market backtest is **NO-GO** (0/108 walk-forward, Kelly f*=0, 1m 0/18). The meta-labeler is validated **only on Alpha 3's synthetic-resolution distribution (iid p=0.85)** — it demonstrates the *machinery*, not live edge. Alpha 3 is **SIMULATION ONLY — never deploy to real capital.**
+
+---
+
+## ⚡ Quick Deploy (Alpha 3 Dry Mode)
+
+For a fresh server, three commands get the full system running:
 
 ```bash
-# 1. Clone
 git clone https://github.com/nkhekhe/alpha_system.git
 cd alpha_system
-
-# 2. Setup (installs deps, downloads data, checks deps)
-bash setup.sh
-
-# 3. Run backtest
-python3 backtest_alpha2.py
-
-# 4. Start live paper traders
-python3 dry_runner.py        # Alpha 1% (unconditional long churn)
-python3 bidir_runner.py      # Alpha 2% (momentum K=10 signal)
-python3 alpha_3_runner.py --offline  # Alpha 3% (simulation only)
-
-# 5. Check status
-python3 dry_runner.py --status
-python3 bidir_runner.py --status
+./deploy.sh            # installs deps, sets up systemd, copies .env template
 ```
 
-### Always-On (systemd, survives reboots)
+Then fill keys and start:
 
 ```bash
-# Install units (adjust paths if not /home/nkhekhe/alpha_system)
-mkdir -p ~/.config/systemd/user
-cp systemd/alpha1-dry-runner.service systemd/alpha2-bidir-runner.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now alpha1-dry-runner.service alpha2-bidir-runner.service
-
-# Require user services to start on boot without login
-loginctl enable-linger $USER
-
-# Status / logs
-systemctl --user status alpha1-dry-runner alpha2-bidir-runner
-journalctl --user -u alpha1-dry-runner -f
+nano .env              # add BINANCE_DEMO_API_KEY/SECRET + TELEGRAM token
+systemctl --user enable --now alpha3-dry-runner.service alpha3-tg-bot.service
+journalctl --user -u alpha3-dry-runner.service -f
 ```
 
-Both units use `Restart=always` (30s backoff, 10 bursts/600s limit) so the bots
-self-heal on crash, and linger ensures they start at boot before any login.
+Full detail in **[DEPLOY.md](DEPLOY.md)**.
 
-### Telegram command bots
+---
 
-Two long-polling Telegram bots (`/status`, `/positions`, `/trades`, `/pnl`,
-`/equity`, `/tradechart`) answer for each runner. Run them always-on too:
+## Architecture
 
-```bash
-cp systemd/alpha1-tg-bot.service systemd/alpha2-tg-bot.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now alpha1-tg-bot.service alpha2-tg-bot.service
-# @Nkhekhe_bot  → Alpha 1%  (commands read dry_data/dry_state.json)
-# @LetapataBot  → Alpha 2%  (commands read dry_data/bidir_state.json)
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ LAYER 1: DATA                                                          │
+│  Binance ticker/price (60s polls) + 1m klines                        │
+│  Demo-fapi (https://demo.binance.com) for live hedge orders          │
+├──────────────────────────────────────────────────────────────────────┤
+│ LAYER 2: PRIMARY SIGNAL                                               │
+│  momentum_direction(K=10): sign of 10-bar return                     │
+├──────────────────────────────────────────────────────────────────────┤
+│ LAYER 3: META-LABELER (Alpha 3 secondary filter)                      │
+│  RF classifier → P(win). Enter only if P ≥ 0.50.                      │
+│  Features: 36 at signal bar (momentum, vol, RSI, rollback, etc.)     │
+├──────────────────────────────────────────────────────────────────────┤
+│ LAYER 4: TRIPLE-BARRIER EXIT                                          │
+│  TP/SL ±2% of entry | Vertical timeout at H=75                       │
+│  Demo entry = MARKET order (mirrors paper fill)                      │
+│  Demo exit  = MARKET order (TP/SL via bracket algo orders)           │
+├──────────────────────────────────────────────────────────────────────┤
+│ LAYER 5: RISK                                                         │
+│  Stake 7.5% margin × 50x = $375/trade (compounding on $100)         │
+│  Circuit breaker: 3 consecutive losses → 50-bar cooldown            │
+│  Per-cycle meta-filter (not just entry): re-evaluates open logic     │
+├──────────────────────────────────────────────────────────────────────┤
+│ LAYER 6: OBSERVABILITY                                                │
+│  equity + effective_equity (capital + unrealized) log               │
+│  Telegram alerts (@LetapataBot) + analytics.py dashboard            │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-## Documentation
+---
 
-- Full system architecture: See `SYSTEM_DOCUMENTATION.md`
-- Governance logbook: `../.config/opencode/AGENTS.md` (changelog v1.1–v1.12)
+## The Meta-Labeler (Alpha 3)
 
-## Key Findings
+López de Prado AFML secondary classifier. Primary signal = momentum direction;
+meta-labeler predicts whether that signal will be a winner, and we only trade
+when P(win) ≥ threshold (default 0.50).
+
+**Pipeline** (`scripts/`):
+
+| Step | Script | Output |
+|------|--------|--------|
+| 1. Fetch history | `fetch_historical_klines.py` | `models/kline_data/*.csv` (1.56M bars, 6 assets × 259k 1m) |
+| 2. Label | `generate_labels.py` | `models/labeled_signals.csv` (97,411 signals, 53.3% raw WR) |
+| 3. Features | `engineer_features.py` | `models/labeled_features.csv` (36 features/signal) |
+| 4. Train | `train_meta_labeler.py` | `models/meta_labeler.joblib` (purged K-fold CV) |
+| 5. Validate | `validate_oos.py` | `models/oos_validation_results.json` (walk-forward) |
+| 6. Runtime feats | `meta_features.py` | shared feature computation used by runner |
+
+**Config** (`scripts/meta_labeler_config.py`) — matches runner exactly:
+`K=10, H=75, TP_PCT=0.02, SL_PCT=-0.02, FEE_RATE=0.0002, PURGE=75, EMBARGO=75, RF 50 trees/max_depth 6`.
+
+**Results:**
+- Out-of-fold AUC **0.625**, Precision **63.3%** (vs 53.3% base rate)
+- Walk-forward OOS: **Filtered WR 61.8% vs Raw 52.9% = +8.9pp**
+- Selects ~44% of primary signals (filters out low-P ones)
+
+> ⚠️ **Scope caveat:** these numbers are measured on Alpha 3's *synthetic-resolution*
+> distribution (iid p=0.85 wins), not real markets. The meta-labeler is a correct,
+> working instrument; its *edge* on live data is **unproven** (n=12 live trades, all TIMEOUT).
+
+---
+
+## Key Findings (governance logbook)
 
 | Result | Value | Source |
 |--------|-------|--------|
 | 5m backtest (Deep) | net −$55,181, WR 29.6%, Sharpe −31 | `backtest_alpha2.py` |
 | Walk-forward (real, 108 configs) | **0/108 → NO-GO** | `walkforward_search.py` |
 | Kelly (real) | **f* = 0** (bet nothing) | `kelly_test.py` |
-| 1m live-granularity validation | **0/18 → NO-GO**; both live configs | `backtest_live_1m.py` |
-| Walk-forward (bugged synthetic) | 108/108 PASS (diagnostic only) | `walkforward_synthetic.py` |
-| Live Alpha 1 | 7W/0L, $100,193.91 | `dry_runner.py` |
-| Live Alpha 2 | 3W/0L, $100,122.05 | `bidir_runner.py` |
-| Alpha 3 | SIM-ONLY (4 gates PASS) | `alpha_3.py` |
+| 1m live-granularity validation | **0/18 → NO-GO** | `backtest_live_1m.py` |
+| Meta-labeler OOS (synthetic) | Filtered 61.8% vs Raw 52.9% (+8.9pp) | `validate_oos.py` |
+| Live Alpha 3 (demo hedge) | 12 trades, 83.3% WR (machinery PASS, edge UNKNOWN) | `alpha3_dry_runner.py` |
 
-## Architecture
+---
+
+## Repo Layout
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                      LAYER 1: DATA                               │
-│  Binance API (klines) → user_data/data/binance/*.feather          │
-│  Live: /ticker/price (60s instantaneous polls)                  │
-├──────────────────────────────────────────────────────────────────┤
-│                      LAYER 2: SIGNAL                              │
-│  Alpha 1: NONE (unconditional LONG churn)                        │
-│  Alpha 2: momentum K=10 @ 60s (=10 min)                          │
-│  Backtest: momentum K=10 @ 5m (=50 min)  ⚠️ MISMATCH               │
-│  alpha_1%: fracdiff d=0.1 lookback=5                             │
-├──────────────────────────────────────────────────────────────────┤
-│                    LAYER 3: TRIPLE-BARRIER EXIT                   │
-│  TP/SL: ±2% of entry  |  Vertical: H=75 (live) / H=15 (5m backtest)│
-│  Barriers decorative: 96.5% TIMEOUT at every granularity        │
-├──────────────────────────────────────────────────────────────────┤
-│                     LAYER 4: RISK                                 │
-│  Sizing: 3% position (NOT Kelly — f*=0)                          │
-│  Stoploss=0.15% DEAD (exit = barriers + timeout)                 │
-│  CB: 3 losses → 50-bar cooldown                                   │
-├──────────────────────────────────────────────────────────────────┤
-│                   LAYER 5: GOVERNANCE                             │
-│  All 13 waves: NO-GO on real data; bugged synthetic trivially PASS│
-│  50-trade live milestone: 7/50 complete                        │
-│  Alpha 3: SIM-ONLY (dual ledger proof instrument)               │
-└──────────────────────────────────────────────────────────────────┘
+alpha_system/
+├── alpha3_dry_runner.py      # Alpha 3 live runner (meta-labeler integrated)
+├── dry_runner.py             # Alpha 1% mainnet paper
+├── bidir_runner.py           # Alpha 2% mainnet paper
+├── demo_trader.py            # Demo-fapi hedge order client (market + bracket)
+├── notify.py                 # Telegram alerts + equity chart
+├── analytics.py              # Risk/sharpe/drawdown dashboard
+├── binance_config.py         # API config + ALPHA3_ASSETS single source of truth
+├── tg_bot_alpha2.py          # @LetapataBot command interface (Alpha 3)
+├── scripts/                  # Meta-labeler pipeline (fetch→label→features→train→validate)
+├── models/                   # Frozen model + metrics (committed)
+│   ├── meta_labeler.joblib           # ← required to run without retraining
+│   ├── meta_labeler_metrics.json
+│   └── oos_validation_results.json
+├── systemd/                  # User service units (alpha3-*.service)
+├── dry_data/                 # Runtime state (gitignored; regenerated on deploy)
+├── requirements.txt
+├── deploy.sh                 # One-command setup
+├── .env.template             # Config template (copy to .env)
+└── DEPLOY.md                 # Full deployment guide
 ```
 
-## Dependencies
+---
 
-See `requirements.txt`. Python 3.14+, `nkkelhe_quant_core` sibling repo.
+## Operations
 
-## License
+```bash
+# Status
+python3 alpha3_dry_runner.py --status
 
-Internal use — all alpha strategies closed/NO-GO.
+# Single cycle (no daemon)
+python3 alpha3_dry_runner.py --stake 0.075 --leverage 50 --once
+
+# Logs
+journalctl --user -u alpha3-dry-runner.service -f
+
+# Telegram commands (@LetapataBot): /status /positions /trades /pnl /equity /tradechart
+```
+
+---
+
+## Re-training the meta-labeler (optional)
+
+The frozen model is committed, so retraining is **not required** to run. To retrain:
+
+```bash
+python3 scripts/fetch_historical_klines.py
+python3 scripts/generate_labels.py
+python3 scripts/engineer_features.py
+python3 scripts/train_meta_labeler.py     # writes models/meta_labeler.joblib
+python3 scripts/validate_oos.py
+```
+
+---
+
+## License & Disclaimer
+
+Internal research. **All alpha strategies are NO-GO on real data. Alpha 3 is
+simulation-only — never deploy to real capital.** Paper/live-hedge runners cost
+$0 of real money by design.

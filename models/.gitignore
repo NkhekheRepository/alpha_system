@@ -1,2 +1,7 @@
+# Keep the frozen meta-labeler model committed (required to run without retraining)
+# kline_data/ is regenerable via scripts/fetch_historical_klines.py — do not commit
 kline_data/
-*.joblib
+
+# Large intermediate training artifacts (regenerable) — do not commit
+labeled_features.csv
+labeled_signals.csv

@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """ALPHA 3 - paper harness scaffold. SIMULATION ONLY - NOT A MARKET STRATEGY.
 
-Per PR-2026-08-19-ALPHA3-SYNTHETIC: Alpha 3 resolves trades via the known-bugged
-W9 synthetic distribution (p=0.85 +/-2%, pnl_dollars = 100000.0 * pnl_pct) with a
-dual real ledger (causal barriers on actual prices, 3% sizing) for divergence.
+Per PR-2026-08-19-ALPHA3-SYNTHETIC (addendum 2026-08-24: barrier config aligned
+to alpha_1percent.py TB_CONFIG for declarative parity): Alpha 3 resolves trades
+via the known-bugged W9 synthetic distribution (p=0.85 +/-2%, pnl_dollars =
+100000.0 * pnl_pct) with a dual real ledger. Real-ledger barriers are sourced
+from alpha_3.TB_CONFIG (AlphaTripleBarrierConfig 2%/2% H=15 MAD-T flags),
+byte-for-byte identical to alpha_1percent.py:74-83; effective barriers are fixed
+±2% (core-library vol scaling is a stub; nkhekhe_quant_core/alpha_engine/labeling
+__init__.py:71-75), SL stays 2% per user confirmation. 3% sizing for divergence.
 
 DEPLOYMENT FORBIDDEN: no market orders, no capital, no live wiring. This harness
 exists as an unstarted scaffold. To run an offline demo cycle: python3 alpha_3_runner.py --offline
@@ -29,7 +34,12 @@ def main():
                     help='synthetic sizing mode')
     args = ap.parse_args()
 
+    # Banner includes config parity note so any later divergence is visible in logs.
+    from alpha_3 import TB_CONFIG, ADDENDUM_HASH
     print("ALPHA 3 - SIMULATION ONLY. Not a market strategy. No orders, no capital.")
+    print(f"  Barriers: TP {TB_CONFIG.upper_barrier:.0%} / SL {TB_CONFIG.lower_barrier:.0%} "
+          f"H={TB_CONFIG.vertical_horizon} (TB_CONFIG parity with alpha_1percent.py)")
+    print(f"  Addendum: {ADDENDUM_HASH}")
     if not args.offline:
         print("Scaffold only - invoke with --offline to run a demo cycle.")
         return

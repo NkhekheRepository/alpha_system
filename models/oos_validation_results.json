@@ -1,0 +1,94 @@
+{
+  "monthly": [
+    {
+      "month1_auc": 0.6711914226618138,
+      "month1_accuracy": 0.6165320840781606,
+      "month1_precision": 0.6891834720067691,
+      "month1_recall": 0.5488544474393531,
+      "month1_n_samples": 16223,
+      "month1_n_positive": 8904,
+      "month1_n_negative": 7319,
+      "month1_selected": 7091,
+      "month1_selection_rate": 0.437095481723479,
+      "threshold": 0.5,
+      "month": 1
+    },
+    {
+      "month2_auc": 0.6411518006211768,
+      "month2_accuracy": 0.5977316156074709,
+      "month2_precision": 0.6379760041731872,
+      "month2_recall": 0.5660726683638047,
+      "month2_n_samples": 16223,
+      "month2_n_positive": 8642,
+      "month2_n_negative": 7581,
+      "month2_selected": 7668,
+      "month2_selection_rate": 0.47266226961721014,
+      "threshold": 0.5,
+      "month": 2
+    },
+    {
+      "month3_auc": 0.6129991109687887,
+      "month3_accuracy": 0.5797941194600259,
+      "month3_precision": 0.6100206611570248,
+      "month3_recall": 0.5543950240582092,
+      "month3_n_samples": 16223,
+      "month3_n_positive": 8521,
+      "month3_n_negative": 7702,
+      "month3_selected": 7744,
+      "month3_selection_rate": 0.4773469765148246,
+      "threshold": 0.5,
+      "month": 3
+    },
+    {
+      "month4_auc": 0.5006182898024117,
+      "month4_accuracy": 0.5047155273377304,
+      "month4_precision": 0.5012531328320802,
+      "month4_recall": 0.39746615327288537,
+      "month4_n_samples": 16223,
+      "month4_n_positive": 8051,
+      "month4_n_negative": 8172,
+      "month4_selected": 6384,
+      "month4_selection_rate": 0.39351537939961784,
+      "threshold": 0.5,
+      "month": 4
+    },
+    {
+      "month5_auc": 0.6164451116490505,
+      "month5_accuracy": 0.5792393515379399,
+      "month5_precision": 0.6387494622113867,
+      "month5_recall": 0.5083894532587604,
+      "month5_n_samples": 16223,
+      "month5_n_positive": 8761,
+      "month5_n_negative": 7462,
+      "month5_selected": 6973,
+      "month5_selection_rate": 0.4298218578561302,
+      "threshold": 0.5,
+      "month": 5
+    }
+  ],
+  "overall_threshold_050": {
+    "overall_auc": 0.6087432544127187,
+    "overall_accuracy": 0.5756025396042656,
+    "overall_precision": 0.6178750697155605,
+    "overall_recall": 0.5167331327689545,
+    "overall_n_samples": 81115,
+    "overall_n_positive": 42879,
+    "overall_n_negative": 38236,
+    "overall_selected": 35860,
+    "overall_selection_rate": 0.44208839302225234
+  },
+  "overall_threshold_0.50": {
+    "thresh0.50_auc": 0.6087432544127187,
+    "thresh0.50_accuracy": 0.5756025396042656,
+    "thresh0.50_precision": 0.6178750697155605,
+    "thresh0.50_recall": 0.5167331327689545,
+    "thresh0.50_n_samples": 81115,
+    "thresh0.50_n_positive": 42879,
+    "thresh0.50_n_negative": 38236,
+    "thresh0.50_selected": 35860,
+    "thresh0.50_selection_rate": 0.44208839302225234
+  },
+  "raw_wr": 52.86198606916107,
+  "filtered_wr": 61.78750697155605,
+  "improvement_pp": 8.925520902394979
+}

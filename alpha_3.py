@@ -2,9 +2,12 @@
 """ALPHA 3 - Synthetic-Resolution Alpha 2 (bugged-profile simulator).
 
 SIMULATION ONLY - NOT A MARKET STRATEGY (PR-2026-08-19-ALPHA3-SYNTHETIC, sha 35e4a607...).
+Addendum 2026-08-24: barrier config aligned to alpha_1percent.py TB_CONFIG for
+declarative parity (fixed ±2%, H=15, MAD-T flags). See alpha_1percent.py:74-83.
 
 Alpha 3 reuses the Alpha 2 engine mechanics (BTC/ETH 5m, momentum-K10, TP/SL 2%,
-H15, 3% sizing, circuit breaker 3/50) but trade outcomes resolve via the
+H15, 3% sizing, circuit breaker 3/50; barriers sourced from TB_CONFIG below,
+identical to Alpha 1%) but trade outcomes resolve via the
 KNOWN-BUGGED W9 synthetic distribution (iid p=0.85 win +2% / p=0.15 loss -2%)
 with the W9 PnL formula pnl_dollars = 100000.0 * pnl_pct (100% notional).
 
@@ -30,7 +33,39 @@ import pandas as pd
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
 from backtest_alpha2 import ASSETS, DATA_DIR, CAP, FEE
 
+# Aligned barrier config — byte-for-byte parity with alpha_1percent.py TB_CONFIG (alpha_1percent.py:74-83).
+# Note: nkhekhe_quant_core's volatility_scaling is a stub (scale_factor=1.0 both branches;
+# see nkhekhe_quant_core/alpha_engine/labeling/__init__.py:71-75), so effective barriers
+# are fixed ±2% regardless of the flag. Importing the shared config keeps the two
+# systems on a single source of truth if the core library later implements MAD-T.
+try:
+    from nkhekhe_quant_core.alpha_engine.labeling import AlphaTripleBarrierConfig
+    TB_CONFIG = AlphaTripleBarrierConfig(
+        upper_barrier=0.02,     # 2% take-profit (alpha_1percent parity)
+        lower_barrier=0.02,     # 2% stop-loss (alpha_1percent parity; user confirmed SL 2%)
+        vertical_horizon=15,    # 15 bars (alpha_1percent TB_CONFIG:77)
+        volatility_scaling=True,
+        volatility_method='madt',
+        direction='long',
+        barrier_scaling_factor=1.0,
+        label_version='2.0',
+    )
+except Exception:  # fallback if core package unavailable (offline env)
+    from dataclasses import dataclass
+    @dataclass
+    class _TB:  # minimal mirror
+        upper_barrier: float = 0.02
+        lower_barrier: float = 0.02
+        vertical_horizon: int = 15
+        volatility_scaling: bool = True
+        volatility_method: str = 'madt'
+        direction: str = 'long'
+        barrier_scaling_factor: float = 1.0
+        label_version: str = '2.0'
+    TB_CONFIG = _TB()
+
 PR_HASH = '35e4a607ae8d3424a346ed64fb0a659cccd472e7d6ff299c040c43de27cbb025'
+ADDENDUM_HASH = '2026-08-24: declarative alignment to alpha_1percent TB_CONFIG (alpha_3.py:34-55)'
 OUT = Path('/home/nkhekhe/alpha_system/experiments/alpha3_results_20260819.json')
 
 P_WIN = 0.85
@@ -39,9 +74,10 @@ LOSS = -0.02
 SYNTH_SIZING = [0.03, 1.0, 8.75, 35.0, 10.0]
 
 K = 10
-TP = 0.02
-SL = 0.02
-H = 15
+# Derived from TB_CONFIG so Alpha 1% and Alpha 3 barriers stay identical.
+TP = TB_CONFIG.upper_barrier
+SL = TB_CONFIG.lower_barrier
+H = TB_CONFIG.vertical_horizon
 WARMUP = 25
 MAX_CONSEC = 3
 COOLDOWN = 50
