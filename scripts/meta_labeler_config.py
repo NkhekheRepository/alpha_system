@@ -19,12 +19,12 @@ EMBARGO_BARS = H      # embargo after test set to prevent leakage
 N_SPLITS = 5          # purged K-fold splits
 MIN_TRADES_PER_FOLD = 20  # minimum trades for a valid fold
 RF_PARAMS = {
-    'n_estimators': 200,
+    'n_estimators': 50,
     'max_depth': 6,
     'min_samples_leaf': 50,
     'max_features': 'sqrt',
     'class_weight': 'balanced_subsample',
     'random_state': 42,
-    'n_jobs': -1,
+    'n_jobs': 1,
 }
 PROB_THRESHOLD_DEFAULT = 0.50  # meta-label: enter if P(win) > threshold
