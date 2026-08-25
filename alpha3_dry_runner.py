@@ -14,6 +14,8 @@ import sys, os, json, csv, time, signal, argparse
 from pathlib import Path
 from datetime import datetime
 import requests
+import joblib
+import numpy as np
 
 sys.path.insert(0, '/home/nkhekhe')
 sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
@@ -100,6 +102,191 @@ FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.02
 LOSS_PCT = -0.02
 
+# Meta-labeler config
+META_LABELER_PATH = Path('/home/nkhekhe/alpha_system/models/meta_labeler.joblib')
+META_THRESHOLD = 0.50  # from training
+
+
+def load_meta_labeler():
+    """Load frozen meta-labeler model."""
+    try:
+        model_data = joblib.load(META_LABELER_PATH)
+        return model_data['model'], model_data.get('threshold', META_THRESHOLD)
+    except Exception as e:
+        print(f"  [meta-labeler] Failed to load: {e}")
+        return None, META_THRESHOLD
+
+
+# Feature computation for meta-labeler (must match training exactly)
+def _rolling_mean(x, w):
+    out = np.full(len(x), np.nan)
+    cs = np.cumsum(np.insert(x, 0, 0))
+    out[w-1:] = (cs[w:] - cs[:-w]) / w
+    return out
+
+
+def _rolling_std(x, w):
+    out = np.full(len(x), np.nan)
+    cs = np.cumsum(x)
+    cs2 = np.cumsum(x**2)
+    for i in range(w-1, len(x)):
+        s = cs[i] - (cs[i-w] if i >= w else 0)
+        s2 = cs2[i] - (cs2[i-w] if i >= w else 0)
+        mean = s / w
+        var = s2 / w - mean**2
+        out[i] = np.sqrt(max(var, 0))
+    return out
+
+
+def _ema(x, span):
+    alpha = 2 / (span + 1)
+    ema = np.full(len(x), np.nan)
+    ema[0] = x[0]
+    for i in range(1, len(x)):
+        ema[i] = alpha * x[i] + (1 - alpha) * ema[i-1]
+    return ema
+
+
+def compute_meta_features(closes, highs, lows, volumes, idx):
+    """Compute all 36 features at bar index idx (no look-ahead)."""
+    n = len(closes)
+    if idx < 200 or idx >= n:
+        return None
+    c = closes[idx-199:idx+1]
+    h = highs[idx-199:idx+1]
+    l = lows[idx-199:idx+1]
+    v = volumes[idx-199:idx+1]
+    i = 199
+
+    feat = {}
+
+    # Momentum
+    for w in [5, 10, 20, 50]:
+        feat[f'ret_{w}'] = (c[i] - c[i-w]) / c[i-w]
+
+    # RSI
+    for period in [7, 14]:
+        deltas = np.diff(c[i-period:i+1])
+        gains = np.where(deltas > 0, deltas, 0.0)
+        losses = np.where(deltas < 0, -deltas, 0.0)
+        avg_gain = _ema(gains, period)[-1]
+        avg_loss = _ema(losses, period)[-1]
+        rs = avg_gain / (avg_loss + 1e-10)
+        feat[f'rsi_{period}'] = 100 - (100 / (1 + rs))
+
+    # MACD
+    ema12 = _ema(c, 12)
+    ema26 = _ema(c, 26)
+    macd_line = ema12 - ema26
+    signal_line = _ema(macd_line, 9)
+    feat['macd'] = macd_line[-1] / c[-1]
+    feat['macd_signal'] = signal_line[-1] / c[-1]
+    feat['macd_hist'] = (macd_line[-1] - signal_line[-1]) / c[-1]
+
+    # Volatility
+    for w in [10, 20, 50]:
+        feat[f'vol_{w}'] = np.std(c[i-w+1:i+1]) / c[i]
+
+    # ATR (14)
+    tr = np.zeros(len(c))
+    tr[1:] = np.maximum(h[1:] - l[1:],
+                         np.maximum(np.abs(h[1:] - c[:-1]),
+                                    np.abs(l[1:] - c[:-1])))
+    atr = _rolling_mean(tr, 14)[-1]
+    feat['atr_14'] = atr / c[-1]
+
+    # BB
+    ma20 = np.mean(c[-20:])
+    std20 = np.std(c[-20:])
+    if std20 > 0 and ma20 > 0:
+        upper = ma20 + 2 * std20
+        lower = ma20 - 2 * std20
+        feat['bb_pos'] = (c[-1] - lower) / (upper - lower)
+        feat['bb_width'] = (upper - lower) / ma20
+    else:
+        feat['bb_pos'] = 0.5
+        feat['bb_width'] = 0
+
+    # Range/close pos
+    hl = h[-1] - l[-1]
+    feat['range_ratio'] = hl / c[-1] if c[-1] > 0 else 0
+    feat['close_position'] = (c[-1] - l[-1]) / hl if hl > 0 else 0.5
+
+    # Volume
+    for w in [10, 20, 50]:
+        ma = np.mean(v[-w:])
+        feat[f'vol_ratio_{w}'] = v[-1] / ma if ma > 0 else 1
+    ma50 = np.mean(v[-50:])
+    feat['vol_spike'] = v[-1] / ma50 if ma50 > 0 else 1
+
+    # Regime
+    for w in [20, 50, 100, 200]:
+        ma = np.mean(c[-w:])
+        feat[f'price_vs_ma{w}'] = (c[-1] - ma) / ma if ma > 0 else 0
+
+    # MA crosses
+    ma20v = np.mean(c[-20:])
+    ma50v = np.mean(c[-50:])
+    ma100v = np.mean(c[-100:])
+    feat['ma50_ma20_cross'] = (ma20v - ma50v) / ma50v if ma50v > 0 else 0
+    feat['ma100_ma50_cross'] = (ma50v - ma100v) / ma100v if ma100v > 0 else 0
+
+    # Trend slope
+    ma50_vals = [np.mean(c[j-50:j]) for j in range(len(c)-20, len(c))]
+    if len(ma50_vals) > 1 and ma50_vals[0] > 0:
+        feat['trend_slope'] = (ma50_vals[-1] - ma50_vals[0]) / ma50_vals[0]
+    else:
+        feat['trend_slope'] = 0
+
+    # Microstructure
+    consec = 0
+    if i > 0:
+        sign = np.sign(c[i] - c[i-1])
+        for j in range(i, max(0, i-20), -1):
+            if j > 0 and np.sign(c[j] - c[j-1]) == sign:
+                consec += 1
+            else:
+                break
+        feat['consec_direction'] = consec * sign
+    else:
+        feat['consec_direction'] = 0
+
+    feat['hh_streak_5'] = sum(1 for j in range(i-4, i+1) if h[j] > h[j-1])
+    feat['ll_streak_5'] = sum(1 for j in range(i-4, i+1) if l[j] < l[j-1])
+
+    d1 = c[-1] - c[-6]
+    d2 = c[-6] - c[-11]
+    feat['momentum_accel'] = (d1 - d2) / c[-1]
+
+    # Time
+    feat['hour_sin'] = np.sin(2 * np.pi * (idx % 1440) / 1440)
+    feat['hour_cos'] = np.cos(2 * np.pi * (idx % 1440) / 1440)
+    feat['dow_sin'] = np.sin(2 * np.pi * ((idx // 1440) % 7) / 7)
+    feat['dow_cos'] = np.cos(2 * np.pi * ((idx // 1440) % 7) / 7)
+
+    return feat
+
+
+FEATURE_ORDER = [
+    'ret_5', 'ret_10', 'ret_20', 'ret_50',
+    'rsi_7', 'rsi_14',
+    'macd', 'macd_signal', 'macd_hist',
+    'vol_10', 'vol_20', 'vol_50',
+    'atr_14', 'bb_pos', 'bb_width',
+    'range_ratio', 'close_position',
+    'vol_ratio_10', 'vol_ratio_20', 'vol_ratio_50', 'vol_spike',
+    'price_vs_ma20', 'price_vs_ma50', 'price_vs_ma100', 'price_vs_ma200',
+    'ma50_ma20_cross', 'ma100_ma50_cross', 'trend_slope',
+    'consec_direction', 'hh_streak_5', 'll_streak_5', 'momentum_accel',
+    'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos',
+]
+
+
+def features_to_array(feat_dict):
+    if feat_dict is None:
+        return None
+    return np.array([feat_dict.get(f, np.nan) for f in FEATURE_ORDER], dtype=np.float32).reshape(1, -1)
+
 
 def default_state():
     return {
@@ -177,39 +364,63 @@ def log_equity(state):
                     state['total_trades'], f"{wr:.1f}", state['cooldown_remaining']])
 
 
-def get_price(symbol):
+def get_ohlcv(symbol):
+    """Fetch latest 1m kline for OHLCV data."""
     try:
-        r = requests.get(f"{API}/ticker/price", params={'symbol': symbol}, timeout=5)
-        return float(r.json()['price'])
+        r = requests.get(f"{API}/klines", params={'symbol': symbol, 'interval': '1m', 'limit': 1}, timeout=5)
+        data = r.json()
+        if data:
+            k = data[0]
+            return {
+                'open': float(k[1]),
+                'high': float(k[2]),
+                'low': float(k[3]),
+                'close': float(k[4]),
+                'volume': float(k[5]),
+                'close_time': k[6],
+            }
     except Exception:
-        return None
+        pass
+    return None
+
+
+def get_price(symbol):
+    """Backward compatibility — return close price."""
+    ohlcv = get_ohlcv(symbol)
+    return ohlcv['close'] if ohlcv else None
 
 
 def momentum_direction(ph):
+    """ph is list of OHLCV dicts or close prices."""
     if len(ph) < K + 1:
         return None
-    return 'long' if ph[-1] > ph[-1 - K] else 'short'
+    # Extract close prices
+    closes = [c['close'] if isinstance(c, dict) else c for c in ph]
+    return 'long' if closes[-1] > closes[-1 - K] else 'short'
 
 
-def run_cycle(state):
+def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     check_commands(state)
     now = datetime.utcnow()
     ts = now.strftime('%H:%M:%S')
 
-    prices = {}
+    ohlcv_data = {}
     for s in ASSETS:
-        p = get_price(s)
-        if p is not None:
-            prices[s] = p
-    if not prices:
-        print(f"  [{ts}] No prices, skip")
+        o = get_ohlcv(s)
+        if o is not None:
+            ohlcv_data[s] = o
+    if not ohlcv_data:
+        print(f"  [{ts}] No OHLCV data, skip")
         return state
 
-    # Continuous price history — momentum stays fresh even with open positions
+    # Extract close prices for backward compatibility
+    prices = {s: o['close'] for s, o in ohlcv_data.items()}
+
+    # Continuous OHLCV history — momentum stays fresh even with open positions
     for s in ASSETS:
-        if s in prices:
+        if s in ohlcv_data:
             ph = state['price_history'].setdefault(s, [])
-            ph.append(prices[s])
+            ph.append(ohlcv_data[s])
             if len(ph) > 200:
                 state['price_history'][s] = ph[-200:]
 
@@ -327,6 +538,24 @@ def run_cycle(state):
                 and state['cooldown_remaining'] == 0:
             d = momentum_direction(state['price_history'][s])
             if state.get('trading_enabled', True) and d is not None and len(state['price_history'][s]) >= WARMUP:
+                # Meta-labeler filter
+                if meta_model is not None:
+                    ph = state['price_history'][s]
+                    idx = len(ph) - 1
+                    # Extract OHLCV arrays
+                    closes = np.array([c['close'] for c in ph])
+                    highs = np.array([c['high'] for c in ph])
+                    lows = np.array([c['low'] for c in ph])
+                    volumes = np.array([c['volume'] for c in ph])
+                    feat = compute_meta_features(closes, highs, lows, volumes, idx)
+                    if feat is not None:
+                        feat_arr = features_to_array(feat)
+                        if feat_arr is not None and not np.any(np.isnan(feat_arr)):
+                            prob = meta_model.predict_proba(feat_arr)[0, 1]
+                            if prob < meta_threshold:
+                                print(f"  [{ts}] META-FILTER {s}: prob={prob:.3f} < {meta_threshold} — SKIP")
+                                continue
+                            print(f"  [{ts}] META-PASS {s}: prob={prob:.3f} >= {meta_threshold} — ENTER")
                 pos_val = state['capital'] * state['stake_pct'] * state['leverage']
                 qty = pos_val / prices[s]
                 try:
@@ -416,6 +645,12 @@ def main():
         return
 
     state = load_state(args.stake, args.leverage)
+    # Load meta-labeler
+    meta_model, meta_threshold = load_meta_labeler()
+    if meta_model:
+        print(f"  Meta-labeler: LOADED (threshold={meta_threshold:.2f})")
+    else:
+        print(f"  Meta-labeler: NOT LOADED (running without filter)")
     stake = state['capital'] * args.stake * args.leverage
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
@@ -444,7 +679,7 @@ def main():
     while running:
         cycle += 1
         try:
-            state = run_cycle(state)
+            state = run_cycle(state, meta_model, meta_threshold)
             save_state(state)
             if args.once:
                 print("  Single cycle done.")
