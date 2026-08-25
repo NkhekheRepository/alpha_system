@@ -36,6 +36,20 @@ logging.basicConfig(
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+def fmt_price(p):
+    try:
+        p = float(p)
+    except Exception:
+        return str(p)
+    if p >= 10:
+        return f"${p:,.2f}"
+    elif p >= 1:
+        return f"${p:,.4f}"
+    elif p >= 0.01:
+        return f"${p:,.5f}"
+    else:
+        return f"${p:,.6f}"
+
 def load_state():
     if STATE_FILE.exists():
         try:
@@ -104,7 +118,7 @@ def calc_unrealized(state, prices):
         unrealized_total += pnl_d
         base = sym.replace('USDT', '')
         emoji = '🟢' if pnl_d >= 0 else '🔴'
-        details.append(f"{emoji} <b>{base}</b> {direction.upper()}: ${current:,.2f} vs ${entry:,.2f} → {pnl_pct:+.2f}% (${pnl_d:+,.2f})")
+        details.append(f"{emoji} <b>{base}</b> {direction.upper()}: {fmt_price(current)} vs {fmt_price(entry)} → {pnl_pct:+.2f}% (${pnl_d:+,.2f})")
     return unrealized_total, details
 
 def fetch_testnet_orders():
@@ -254,12 +268,12 @@ def build_status_text(state, live=False):
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
             pos_lines += (f"     {base_s}: bar {age}/15 | stake ${stake:,.0f} | resolves → "
-                          f"+2% (${entry*1.02:,.2f}) / −2% (${entry*0.98:,.2f})\n")
+                          f"+2% ({fmt_price(entry*1.02)}) / −2% ({fmt_price(entry*0.98)})\n")
     elif positions:
         for sym, pos in positions.items():
             base_s = sym.replace('USDT', '')
             direction = pos.get('direction', 'long').upper()
-            pos_lines += f"  {base_s}: {direction} @ ${pos['entry_price']:,.2f}\n"
+            pos_lines += f"  {base_s}: {direction} @ {fmt_price(pos['entry_price'])}\n"
     else:
         pos_lines = "  No open positions\n"
 
@@ -395,7 +409,7 @@ async def cmd_trades(update: Update, context: ContextTypes.DEFAULT_TYPE):
         emoji = '🟢' if t['pnl_dollars'] > 0 else '🔴'
         msg += (
             f"{emoji} <b>{base}</b> — {t.get('direction','LONG').upper()} {t['reason']}\n"
-            f"Entry: ${t['entry_price']:,.2f} → Exit: ${t['exit_price']:,.2f}\n"
+            f"Entry: {fmt_price(t['entry_price'])} → Exit: {fmt_price(t['exit_price'])}\n"
             f"PnL: {t['pnl_pct']:+.2%} (${t['pnl_dollars']:+,.0f})\n\n"
         )
     msg += "━━━━━━━━━━━━━━━━━"
