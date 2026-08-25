@@ -9,7 +9,7 @@ Usage:
 """
 
 import argparse, csv, sys, time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -74,10 +74,10 @@ def main():
 
     symbols = args.symbols.split(',')
     end_ms = int(time.time() * 1000)
-    start_ms = int((datetime.utcnow() - timedelta(days=args.months * 30)).timestamp() * 1000)
+    start_ms = int((datetime.now(timezone.utc) - timedelta(days=args.months * 30)).timestamp() * 1000)
 
     print(f"Fetching {args.months}m of 1m klines: {', '.join(symbols)}")
-    print(f"Range: {datetime.utcfromtimestamp(start_ms/1000)} -> {datetime.utcfromtimestamp(end_ms/1000)}")
+    print(f"Range: {datetime.fromtimestamp(start_ms/1000, tz=timezone.utc)} -> {datetime.fromtimestamp(end_ms/1000, tz=timezone.utc)}")
     print(f"Output: {DATA_DIR}\n")
 
     for sym in symbols:
