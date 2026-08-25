@@ -456,6 +456,15 @@ def load_state(stake_pct, leverage):
             for _sym, _pos in state['open_positions'].items():
                 if isinstance(_pos, dict) and 'age' not in _pos:
                     _pos['age'] = 0
+            # Backfill kill-switch visibility from historical peak/drawdown
+            _base = state.get('start_capital', CAP) or CAP
+            _peak = state.get('peak_equity', state.get('equity', CAP)) or CAP
+            _best = (state.get('best_return_pct', 0.0)
+                     if isinstance(state.get('best_return_pct'), (int, float)) else 0.0)
+            state['best_return_pct'] = max(_best, (_peak - _base) / _base if _base else 0.0)
+            _worst = (state.get('worst_drawdown_pct', 0.0)
+                      if isinstance(state.get('worst_drawdown_pct'), (int, float)) else 0.0)
+            state['worst_drawdown_pct'] = max(_worst, state.get('max_drawdown', 0.0))
         except Exception as e:
             print(f"  [load_state warn] {e}")
     DATA_DIR.mkdir(parents=True, exist_ok=True)
