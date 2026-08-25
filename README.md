@@ -12,6 +12,29 @@ A governed, AFML-conformant quantitative trading codebase. Three strategies:
 
 ---
 
+## 📚 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [GETTING_STARTED.md](docs/GETTING_STARTED.md) | Run it on a fresh machine in a few steps |
+| [DEPLOY.md](DEPLOY.md) | Full deployment reference |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System structure, topologies, pipeline, wiring + drawings |
+| [GOVERNANCE.md](docs/GOVERNANCE.md) | Process, experimental ledger, deployment-block rules |
+| [RESEARCH.md](docs/RESEARCH.md) | Methodology (AFML) and findings |
+| [PHD_HYPOTHESIS.md](docs/PHD_HYPOTHESIS.md) | Thesis + testable sub-hypothesis + pre-registered gates |
+| [HEDGE_REPORT.md](docs/HEDGE_REPORT.md) | Live quantitative hedge metrics (generated) |
+| [TESTS.md](docs/TESTS.md) | Test suite coverage and how to run |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Operational runbook |
+| [LEARNINGS.md](docs/LEARNINGS.md) | Engineering + quant lessons |
+| [RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) | Prioritized next steps |
+| [SWOT_ANALYSIS.md](docs/SWOT_ANALYSIS.md) | Strategic assessment |
+| [STORY.md](docs/STORY.md) | Narrative: from 84% win rate to an honest machine |
+
+Architecture images (rendered, reproducible): `docs/images/pipeline.png`,
+`docs/images/topology.png`.
+
+---
+
 ## ⚡ Quick Deploy (Alpha 3 Dry Mode)
 
 For a fresh server, three commands get the full system running:
@@ -129,6 +152,11 @@ alpha_system/
 │   ├── meta_labeler_metrics.json
 │   └── oos_validation_results.json
 ├── systemd/                  # User service units (alpha3-*.service)
+├── docs/                      # Full documentation (see Documentation index)
+│   └── images/                # Rendered architecture images (pipeline.png, topology.png)
+├── tests/                     # 27-test automated suite (pytest)
+├── pytest.ini                 # Test config (pythonpath=., testpaths=tests)
+├── Makefile                   # make test / deploy / status
 ├── dry_data/                 # Runtime state (gitignored; regenerated on deploy)
 ├── requirements.txt
 ├── deploy.sh                 # One-command setup
