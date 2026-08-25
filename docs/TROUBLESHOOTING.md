@@ -75,6 +75,26 @@ cause → fix. Assumes the deployment in `DEPLOY.md` is in place.
 
 ## 10. systemctl stop closed my positions
 - **Symptom:** stopping the service flattened all demo positions.
-- **Cause:** `FLATTEN_ON_SHUTDOWN=True` (default) — graceful shutdown flattens.
-- **Fix:** expected/safe. To preserve positions on stop, set
+- **Cause:** `FLATTEN_ON_SHUTDOWN=True` (default) — graceful shutdown flattens via
+  `_flatten_positions` (close + book only).
+- **Fix:** expected/safe. Shutdown flattens but does **NOT** arm the kill switch
+  (fixed in `f00aefb`; prior builds armed `kill_armed=True` on `systemctl stop`,
+  blocking the next start). To preserve positions on stop, set
   `FLATTEN_ON_SHUTDOWN=False` in `alpha3_dry_runner.py` (not recommended).
+
+## 11. Restart stopped trades resuming (cooldown stuck / kill armed)
+- **Symptom:** after a trigger + restart, `cooldown_remaining` never reaches 0
+  (e.g. stuck at 12–17) and `kill_armed=True`, so no new entries open.
+- **Cause (historical):** (a) `engage_kill_switch` booked killed trades as
+  wins/losses; losing kills pushed `consecutive_losses` to the breaker threshold,
+  tripping the 50-bar cooldown; (b) the `FLATTEN_ON_SHUTDOWN` SIGTERM handler
+  called `engage_kill_switch`, so any `systemctl stop`/`restart` **armed** the
+  kill switch in the persisted state, blocking the next start.
+- **Fix (commit `f00aefb`):** `_flatten_positions` resets `consecutive_losses=0`
+  and `cooldown_remaining=0`; the shutdown handler now calls `_flatten_positions`
+  (no arming). Recovery: set `kill_armed=False`, `trading_enabled=True`,
+  `cooldown_remaining=0`, `consecutive_losses=0` in `alpha3_state.json`,
+  `kill -9` the stale runner (use `[a]lpha3_dry_runner.py` regex so pkill does
+  not match its own shell), let `Restart=always` respawn the new build.
+- **Tooling note:** `pkill -f "alpha3_dry_runner.py"` kills the shell running the
+  command (self-match). Always use `pkill -f "[a]lpha3_dry_runner.py"`.
