@@ -1,5 +1,13 @@
 # Governance
 
+**Mandate.** We (human operator + AI engineer) are a **tag team** whose objective
+is to **make the best profit** from the Alpha system. Every governance decision is
+made in service of that goal — but *durably*: profit is captured only when it is
+real, evidenced, and bounded by risk. A beautiful number is a hypothesis to
+destroy, not a trophy to ship. The human pulls the trigger (kill switch) on best
+returns or worst drawdown; the machine makes those moments visible and executes
+exactly what the human commands.
+
 **Scope.** This document records the governance discipline, the experimental
 ledger, and the deployment-block rules that govern the Alpha system. It is the
 "how we decide" counterpart to `RESEARCH.md` (the "what we found"). Governance

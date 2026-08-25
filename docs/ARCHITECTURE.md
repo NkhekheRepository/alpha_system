@@ -287,7 +287,50 @@ poll() → fetch ticker → update price_history
 
 ---
 
-## 8. References
+## 8. Kill Switch (human-in-the-loop)
+
+A manual escape hatch for the human operator. When the human sees **best returns**
+(peak, tracked as `best_return_pct`) or **worst drawdown** (`worst_drawdown_pct`,
+both surfaced in `/status`), they pull the trigger to **close all open trades
+exactly once**, then the runner enters a persistent **COOL** non-trading state and
+keeps running/monitoring. The machine's role is *visibility only* — it does **not**
+auto-act.
+
+```
+ HUMAN SEES best/worst in /status
+        │  pull trigger
+        ▼
+ /kill  (Telegram)  ┐
+ touch alpha3_kill.flag  ├─▶ engage_kill_switch()
+ python3 alpha3_dry_runner.py --kill  ┘
+        │
+        ▼
+ flatten ALL open positions (demo market close, reduce_only)  [ONCE]
+        │
+        ▼
+ kill_armed=True, trading_enabled=False  ──▶ COOL (no new entries)
+        │
+        ▼
+ runner KEEPS RUNNING (status/monitor) until /disarm
+
+ /disarm  ─▶ kill_armed=False, trading_enabled=True  ─▶ trading resumes
+```
+
+**Distinction from pause:** *Pause* (`trading_enabled=False`) blocks new entries
+but leaves open positions to resolve. *Kill* flattens immediately and persists a
+`kill_armed` flag so a `systemd` auto-restart will **not** reopen trades.
+
+**Shutdown:** `systemctl stop` / SIGTERM flattens open positions
+(`FLATTEN_ON_SHUTDOWN=True`) — no dangling hedge.
+
+**Tracking:** every kill engagement is booked (PnL realized into equity + trade
+log) and appended to `dry_data/alpha3_kill_log.csv` (time, equity before/after,
+kill PnL total, symbols, best/worst drawdown, win rate). `/status` shows the
+cumulative kill-log PnL.
+
+See `TROUBLESHOOTING.md`, `GETTING_STARTED.md`, `GOVERNANCE.md`.
+
+## 9. References
 - `docs/GETTING_STARTED.md` — run it.
 - `docs/GOVERNANCE.md` — process, verdicts, OEOS lessons.
 - `docs/RESEARCH.md` — methodology and findings.

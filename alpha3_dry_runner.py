@@ -43,6 +43,9 @@ def _notify(text):
 
 def check_commands(state):
     try:
+        # External one-way kill trigger (flag file created by any process / human)
+        if KILL_FILE.exists() and not state.get('kill_armed', False):
+            engage_kill_switch(state)
         if CMD_FILE.exists():
             action = json.loads(CMD_FILE.read_text()).get('action')
             ts = datetime.utcnow().strftime('%H:%M:%S')
@@ -58,9 +61,130 @@ def check_commands(state):
                 _notify("\U0001F7E2 <b>TRADING RESUMED</b> - Alpha 3% active.")
                 try: log_event("alpha3", "trading_resumed", {"via": "telegram"})
                 except Exception: pass
+            elif action == 'kill' and not state.get('kill_armed', False):
+                engage_kill_switch(state)
+            elif action == 'disarm' and state.get('kill_armed', False):
+                disarm_kill_switch(state)
             CMD_FILE.unlink()
     except Exception:
         pass
+
+
+def engage_kill_switch(state):
+    """HUMAN-IN-THE-LOOP kill: close ALL open positions exactly once, then COOL.
+
+    Each closed position is BOOKED (PnL realized into equity + trade log) and the
+    aggregate kill PnL / metrics are written to the kill ledger. The runner keeps
+    running (monitoring / status) but opens no new trades until /disarm.
+    """
+    ts = datetime.utcnow().strftime('%H:%M:%S')
+    equity_before = float(state.get('equity', state.get('capital', CAP)))
+    closed = 0
+    kill_pnl = 0.0
+    symbols = []
+    for s in list(state.get('open_positions', {}).keys()):
+        pos = state['open_positions'][s]
+        direction = pos.get('direction', 'long')
+        entry = pos.get('entry_price', 0.0)
+        qty = pos.get('quantity', 0.0)
+        try:
+            exit_p = get_price(s) or entry
+        except Exception:
+            exit_p = entry
+        if direction == 'long':
+            pct = (exit_p - entry) / entry if entry else 0.0
+            pnl_d = qty * (exit_p - entry)
+        else:
+            pct = (entry - exit_p) / entry if entry else 0.0
+            pnl_d = qty * (entry - exit_p)
+        fee = qty * (entry + exit_p) * FEE_RATE
+        pnl_d -= fee
+        kill_pnl += pnl_d
+        # Book like a normal close (realize PnL into equity)
+        state['capital'] += pnl_d
+        state['equity'] = state['capital']
+        state['total_trades'] += 1
+        if pnl_d > 0:
+            state['total_wins'] += 1
+            state['consecutive_losses'] = 0
+        else:
+            state['total_losses'] += 1
+            state['consecutive_losses'] += 1
+        trade = {
+            'symbol': s, 'direction': direction,
+            'entry_price': entry, 'exit_price': exit_p,
+            'resolve': 'market', 'pnl_pct': pct,
+            'pnl_dollars': pnl_d, 'reason': 'KILL',
+            'entry_time': pos.get('entry_time'),
+            'exit_time': datetime.utcnow().isoformat(),
+        }
+        state['trades'].append(trade)
+        log_trade(trade, state)
+        if DEMO_LIVE:
+            try:
+                from demo_trader import cancel_algo_orders, place_market_order
+                cancel_algo_orders(s)
+                side = 'SELL' if direction == 'long' else 'BUY'
+                place_market_order(s, side, qty, reduce_only=True)
+            except Exception as e:
+                _notify(f"⚠️ Kill close {s} failed: {e}")
+        del state['open_positions'][s]
+        closed += 1
+        symbols.append(s)
+        _notify(f"{'🟢' if pnl_d > 0 else '🔴'} <b>KILL CLOSE {s} {direction.upper()}</b> "
+                f"PnL {pct:+.2%} (${pnl_d:+,.2f})")
+    state['peak_equity'] = max(state.get('peak_equity', state['equity']), state['equity'])
+    dd = (state['peak_equity'] - state['equity']) / state['peak_equity'] if state['peak_equity'] else 0.0
+    state['max_drawdown'] = max(state.get('max_drawdown', 0.0), dd)
+    state['kill_armed'] = True
+    state['trading_enabled'] = False
+    equity_after = float(state.get('equity', state['capital']))
+    _write_kill_ledger(state, equity_before, equity_after, kill_pnl, closed, symbols)
+    if closed:
+        _notify(f"🛑 <b>KILL SWITCH ENGAGED</b> — Alpha 3%: {closed} position(s) CLOSED (once), "
+                f"kill PnL ${kill_pnl:+,.2f}. Runner in COOL. Send /disarm to re-arm.")
+    else:
+        _notify(f"🛑 <b>KILL SWITCH ENGAGED</b> — Alpha 3%: no open positions. Runner in COOL.")
+    print(f"  [{ts}] KILL SWITCH ENGAGED — {closed} closed, kill PnL ${kill_pnl:+,.2f}, runner COOL")
+    try: log_event("alpha3", "kill_switch_engaged", {"closed": closed, "kill_pnl": round(kill_pnl, 2), "equity_after": round(equity_after, 2)})
+    except Exception: pass
+
+
+def _write_kill_ledger(state, equity_before, equity_after, kill_pnl, closed, symbols):
+    """Persist every kill engagement: PnL captured, metrics, context."""
+    new = not KILL_LOG.exists()
+    with open(KILL_LOG, 'a', newline='') as fh:
+        w = csv.writer(fh)
+        if new:
+            w.writerow(['time', 'equity_before', 'equity_after', 'kill_pnl_total',
+                        'n_closed', 'symbols', 'best_return_pct', 'worst_drawdown_pct',
+                        'total_trades', 'win_rate'])
+        wr = 100 * state['total_wins'] / state['total_trades'] if state['total_trades'] else 0.0
+        w.writerow([datetime.utcnow().isoformat(), f"{equity_before:.2f}", f"{equity_after:.2f}",
+                    f"{kill_pnl:.2f}", closed, "|".join(symbols),
+                    f"{state.get('best_return_pct', 0.0) * 100:.2f}",
+                    f"{state.get('worst_drawdown_pct', 0.0) * 100:.2f}",
+                    state['total_trades'], f"{wr:.1f}"])
+
+
+def disarm_kill_switch(state):
+    """Re-arm after a human kill: clear the cool flag and resume trading."""
+    state['kill_armed'] = False
+    state['trading_enabled'] = True
+    _notify("🟢 <b>KILL SWITCH DISARMED</b> — Alpha 3% trading re-enabled.")
+    print(f"  KILL SWITCH DISARMED — trading re-enabled")
+    try: log_event("alpha3", "kill_switch_disarmed", {})
+    except Exception: pass
+
+
+def _track_best_worst(state, effective):
+    """Machine-in-the-loop visibility: track peak return and worst drawdown."""
+    base = state.get('start_capital', CAP) or CAP
+    ret = (effective - base) / base if base else 0.0
+    state['best_return_pct'] = max(state.get('best_return_pct', 0.0), ret)
+    peak = state.get('peak_equity', effective) or effective
+    dd = (peak - effective) / peak if peak else 0.0
+    state['worst_drawdown_pct'] = max(state.get('worst_drawdown_pct', 0.0), dd)
 
 
 def check_daily_summary(state):
@@ -84,6 +208,9 @@ STATE_FILE = DATA_DIR / 'alpha3_state.json'
 TRADE_LOG = DATA_DIR / 'alpha3_trades.csv'
 EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
 CMD_FILE = DATA_DIR / 'alpha3_cmd.json'
+KILL_FILE = DATA_DIR / 'alpha3_kill.flag'
+KILL_LOG = DATA_DIR / 'alpha3_kill_log.csv'
+FLATTEN_ON_SHUTDOWN = True  # systemctl stop / SIGTERM flattens all open positions
 
 from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS
 ASSETS = ALPHA3_ASSETS
@@ -297,6 +424,9 @@ def default_state():
         'total_trades': 0, 'total_wins': 0, 'total_losses': 0,
         'last_update': None, 'start_time': datetime.utcnow().isoformat(),
         'trading_enabled': True,
+        'kill_armed': False,
+        'best_return_pct': 0.0,
+        'worst_drawdown_pct': 0.0,
         'start_capital': CAP, 'stake_pct': None, 'leverage': None,
         'banner': '',
     }
@@ -424,6 +554,24 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     check_commands(state)
     now = datetime.utcnow()
     ts = now.strftime('%H:%M:%S')
+
+    # KILL SWITCH (human-in-the-loop): if armed, flatten stragglers, take no new
+    # trades, but keep the runner alive/monitoring with refreshed equity.
+    if state.get('kill_armed', False):
+        if state.get('open_positions'):
+            engage_kill_switch(state)
+        ohlcv_data = {}
+        for s in ASSETS:
+            o = get_ohlcv(s)
+            if o is not None:
+                ohlcv_data[s] = o
+        prices = {s: o['close'] for s, o in ohlcv_data.items()}
+        eff = get_effective_equity(state, prices)
+        state['effective_equity'] = eff
+        state['peak_equity'] = max(state.get('peak_equity', eff), eff)
+        _track_best_worst(state, eff)
+        log_equity(state)
+        return state
 
     ohlcv_data = {}
     for s in ASSETS:
@@ -581,7 +729,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         if s not in state['open_positions'] and s in prices \
                 and state['cooldown_remaining'] == 0:
             d = momentum_direction(state['price_history'][s])
-            if state.get('trading_enabled', True) and d is not None and len(state['price_history'][s]) >= WARMUP:
+            if state.get('trading_enabled', True) and not state.get('kill_armed', False) and d is not None and len(state['price_history'][s]) >= WARMUP:
                 # Meta-labeler filter
                 if meta_model is not None:
                     ph = state['price_history'][s]
@@ -650,6 +798,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     eff = get_effective_equity(state, prices)
     state['effective_equity'] = eff
     state['peak_equity'] = max(state.get('peak_equity', eff), eff)
+    _track_best_worst(state, eff)
 
     log_equity(state)
     if check_daily_summary(state):
@@ -681,8 +830,26 @@ def main():
                     help='Margin fraction of equity per trade')
     ap.add_argument('--leverage', type=float, default=LEVERAGE,
                     help='Leverage multiplier on margin')
+    ap.add_argument('--kill', action='store_true',
+                    help='Set kill flag (running daemon flattens all positions + goes COOL) then exit')
+    ap.add_argument('--disarm', action='store_true',
+                    help='Clear kill switch and re-enable trading then exit')
     args = ap.parse_args()
 
+    # Kill switch CLI (human-in-the-loop). The running daemon picks up the flag.
+    if args.kill:
+        KILL_FILE.touch()
+        print("Kill flag set. The running Alpha 3 daemon will flatten all open positions "
+              "and enter COOL (no new entries). Send /disarm to re-arm.")
+        return
+    if args.disarm:
+        if KILL_FILE.exists():
+            KILL_FILE.unlink()
+        s = load_state(args.stake, args.leverage)
+        disarm_kill_switch(s)
+        save_state(s)
+        print("Kill switch disarmed. Trading re-enabled.")
+        return
 
     print(f"  RNG seed:  {args.seed if args.seed is not None else 'OS-entropy (non-repeating)'}")
 
@@ -695,6 +862,8 @@ def main():
         return
 
     state = load_state(args.stake, args.leverage)
+    if state.get('kill_armed', False):
+        print("  ⚠️  KILL SWITCH ARMED — runner is COOL (no new entries). Send /disarm to re-arm.")
     # Load meta-labeler
     meta_model, meta_threshold = load_meta_labeler()
     if meta_model:
@@ -724,6 +893,12 @@ def main():
 
     def handler(sig, frame):
         nonlocal running
+        if FLATTEN_ON_SHUTDOWN:
+            try:
+                engage_kill_switch(state)
+                save_state(state)
+            except Exception:
+                pass
         print("\n  Shutting down...")
         running = False
     signal.signal(signal.SIGINT, handler)

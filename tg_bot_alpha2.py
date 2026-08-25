@@ -5,7 +5,7 @@ Dedicated bot: @LetapataBot (Nkhekhe Alpha Quant).
 Reads alpha_3 simulation state. Commands: /status /pnl /live /stop /help
 """
 
-import os, sys, json, logging, requests
+import os, sys, json, logging, csv, requests
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
@@ -68,6 +68,21 @@ def get_prices():
         except Exception:
             pass
     return prices
+
+def _kill_ledger_line():
+    try:
+        kl = DATA_DIR / 'dry_data' / 'alpha3_kill_log.csv'
+        if not kl.exists():
+            return "Kill log: none\n"
+        rows = list(csv.reader(open(kl)))
+        if len(rows) <= 1:
+            return "Kill log: 0 engagements\n"
+        n = len(rows) - 1
+        tot = sum(float(r[3]) for r in rows[1:] if r and len(r) > 3)
+        return f"Kill log: {n} engagement(s), total PnL ${tot:+,.2f}\n"
+    except Exception:
+        return ""
+
 
 def calc_unrealized(state, prices):
     positions = state.get('open_positions', {})
@@ -163,6 +178,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/health — Threshold alerts\n"
         "/live — Start live dashboard (auto-updates every 30s)\n"
         "/stop — Stop live dashboard\n"
+        "/kill — 🛑 KILL SWITCH: close all open positions once, then COOL\n"
+        "/disarm — Disarm kill switch, re-enable trading\n"
         "/help — Command list",
         parse_mode='HTML'
     )
@@ -181,6 +198,29 @@ async def cmd_resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
     CMD_FILE.write_text(json.dumps({'action': 'start', 'ts': datetime.utcnow().isoformat()}))
     await update.message.reply_text(
         "\U0001F7E2 <b>Trading ACTIVE</b>\nNew entries resume on next cycle.",
+        parse_mode='HTML')
+
+
+async def cmd_kill(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    CMD_FILE.write_text(json.dumps({'action': 'kill', 'ts': datetime.utcnow().isoformat()}))
+    await update.message.reply_text(
+        "\U0001F6D1 <b>KILL SWITCH ARMED</b>\nClosing ALL open positions now (once), then COOL. "
+        "No new entries until /disarm.",
+        parse_mode='HTML')
+
+
+async def cmd_panic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await cmd_kill(update, context)
+
+
+async def cmd_disarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not check_chat(update):
+        return
+    CMD_FILE.write_text(json.dumps({'action': 'disarm', 'ts': datetime.utcnow().isoformat()}))
+    await update.message.reply_text(
+        "\U0001F7E2 <b>KILL SWITCH DISARMED</b>\nTrading re-enabled.",
         parse_mode='HTML')
 
 def build_status_text(state, live=False):
@@ -257,7 +297,10 @@ def build_status_text(state, live=False):
         f"Win Rate: {wr:.1f}%\n\n"
         f"🎯 <b>Open Positions (Paper, synced to testnet price)</b>\n{pos_lines}"
         f"⚡ <b>Risk State</b>\n"
-        f"Trading: {'\U0001F7E2 ACTIVE' if state.get('trading_enabled', True) else '\U0001F534 PAUSED'}\n"
+        f"Trading: {'\U0001F6D1 KILLED (cool)' if state.get('kill_armed', False) else ('\U0001F7E2 ACTIVE' if state.get('trading_enabled', True) else '\U0001F534 PAUSED')}\n"
+        f"Best Return: {state.get('best_return_pct', 0.0)*100:+.2f}% | Worst Drawdown: {state.get('worst_drawdown_pct', 0.0)*100:.2f}%\n"
+        # Kill-switch tracking ledger (local file, no network)
+        f"{_kill_ledger_line()}"
         f"Cooldown: {cooldown} bars\n"
         f"Circuit Breaker: {'ON (paused)' if cooldown > 0 else 'OFF'}\n"
         f"Last Update: {last}"
@@ -487,6 +530,9 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/stop — Stop live dashboard\n"
         "/pause — Pause new trade entries\n"
         "/resume — Resume trading\n"
+        "/kill — 🛑 KILL SWITCH: close all open positions once, then COOL\n"
+        "/panic — Alias for /kill\n"
+        "/disarm — Disarm kill switch, re-enable trading\n"
         "/help — This message",
         parse_mode='HTML'
     )
@@ -546,6 +592,9 @@ async def post_init(app: Application):
         BotCommand("stop", "Stop live dashboard"),
         BotCommand("pause", "Pause new trade entries"),
         BotCommand("resume", "Resume trading"),
+        BotCommand("kill", "KILL SWITCH: close all positions once, then COOL"),
+        BotCommand("panic", "Alias for /kill"),
+        BotCommand("disarm", "Disarm kill switch, re-enable trading"),
         BotCommand("help", "Command list"),
     ])
     await app.bot.set_chat_menu_button(
@@ -575,6 +624,9 @@ def main():
     app.add_handler(CommandHandler("stop", cmd_stop))
     app.add_handler(CommandHandler("pause", cmd_pause))
     app.add_handler(CommandHandler("resume", cmd_resume))
+    app.add_handler(CommandHandler("kill", cmd_kill))
+    app.add_handler(CommandHandler("panic", cmd_panic))
+    app.add_handler(CommandHandler("disarm", cmd_disarm))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_error_handler(error_handler)
 

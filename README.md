@@ -179,6 +179,7 @@ python3 alpha3_dry_runner.py --stake 0.075 --leverage 50 --once
 journalctl --user -u alpha3-dry-runner.service -f
 
 # Telegram commands (@LetapataBot): /status /positions /trades /pnl /equity /tradechart
+#   Kill switch (human-in-the-loop): /kill (close all open trades once, then COOL) · /disarm (re-arm)
 ```
 
 ---

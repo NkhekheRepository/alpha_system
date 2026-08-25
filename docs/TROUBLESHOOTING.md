@@ -57,3 +57,24 @@ cause → fix. Assumes the deployment in `DEPLOY.md` is in place.
   absent/untracked.
 - **Fix:** `pip install -r requirements.txt`; ensure model and metrics are present
   (committed). Re-run `python3 scripts/train_meta_labeler.py` if regenerating.
+
+## 8. Kill switch engaged, can't reopen
+- **Symptom:** `/status` shows `KILLED (cool)`; no new trades open.
+- **Cause:** `kill_armed=True` (persisted in state) or `dry_data/alpha3_kill.flag`
+  present. This is the intended post-trigger state.
+- **Fix:** send `/disarm` (or `python3 alpha3_dry_runner.py --disarm`, or
+  `make disarm`). Verify `kill_armed` clears in `/status`.
+
+## 9. Open positions not closing on kill
+- **Symptom:** `/kill` sent but a position remains open on demo-fapi.
+- **Cause:** demo API error during `place_market_order(reduce_only=True)`, or
+  `DEMO_LIVE=False` (runner not connected to demo). The local state is still
+  cleared (`kill_armed=True`); the exchange side may need a manual close.
+- **Fix:** check Telegram for `⚠️ Kill close <sym> failed`; manually close on
+  demo-fapi; confirm `open_positions` empty in `alpha3_state.json`.
+
+## 10. systemctl stop closed my positions
+- **Symptom:** stopping the service flattened all demo positions.
+- **Cause:** `FLATTEN_ON_SHUTDOWN=True` (default) — graceful shutdown flattens.
+- **Fix:** expected/safe. To preserve positions on stop, set
+  `FLATTEN_ON_SHUTDOWN=False` in `alpha3_dry_runner.py` (not recommended).

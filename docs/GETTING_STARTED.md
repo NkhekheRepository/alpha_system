@@ -87,6 +87,34 @@ journalctl --user -u alpha3-dry-runner -f   # live logs
 
 ---
 
+## Kill Switch (human-in-the-loop)
+
+You watch `/status` (Best Return / Worst Drawdown readouts) and pull the trigger
+to **close all open trades once**, then the runner goes COOL (no new entries) and
+keeps running. Re-arm with `/disarm`.
+
+```bash
+# From Telegram (@LetapataBot):
+/kill      # close all open positions now, go COOL
+/disarm    # re-enable trading
+
+# Or from the shell (the running daemon picks it up next cycle):
+make kill          # touch dry_data/alpha3_kill.flag
+make disarm        # clear flag + re-arm
+python3 alpha3_dry_runner.py --kill     # same as make kill
+python3 alpha3_dry_runner.py --disarm   # same as make disarm
+```
+
+> `systemctl stop` also flattens open positions (`FLATTEN_ON_SHUTDOWN=True`).
+
+Every kill engagement is **tracked**: each closed trade is booked (PnL realized
+into equity + `alpha3_trades.csv`) and the aggregate is appended to
+`dry_data/alpha3_kill_log.csv` (equity before/after, kill PnL total, symbols,
+best/worst drawdown, win rate). `/status` shows cumulative kill-log PnL — the
+tag team's captured profit from pulling the trigger.
+
+---
+
 ## Next Reads
 - `DEPLOY.md` — full deployment reference.
 - `ARCHITECTURE.md` — system structure & pipeline.

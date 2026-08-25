@@ -39,6 +39,8 @@ dry_data/bidir_output.log
 dry_data/alpha3_state.json
 dry_data/alpha3_equity.csv
 dry_data/alpha3_trades.csv
+dry_data/alpha3_kill_log.csv
+dry_data/alpha3_kill.flag
 dry_data/dry_state.json
 dry_data/dry_equity.csv
 dry_data/dry_trades.csv
