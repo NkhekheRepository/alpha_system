@@ -416,11 +416,11 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     # Extract close prices for backward compatibility
     prices = {s: o['close'] for s, o in ohlcv_data.items()}
 
-    # Bootstrap OHLCV history if price_history has old format (floats only)
+    # Bootstrap OHLCV history if price_history has < 201 bars (need full window for features)
     for s in ASSETS:
         ph = state['price_history'].get(s, [])
-        if ph and isinstance(ph[0], (int, float)):
-            print(f"  [{ts}] Bootstrapping OHLCV for {s} ({len(ph)} bars)...")
+        if len(ph) < 201:
+            print(f"  [{ts}] BOOTSTRAP START {s} ({len(ph)} bars)...")
             try:
                 r = requests.get(f"{API}/klines", params={'symbol': s, 'interval': '1m', 'limit': 201}, timeout=10)
                 klines = r.json()
@@ -435,9 +435,9 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         'close_time': k[6],
                     })
                 state['price_history'][s] = new_ph[-201:]
-                print(f"  [{ts}] Bootstrapped {len(new_ph)} OHLCV bars for {s}")
+                print(f"  [{ts}] BOOTSTRAP DONE {s} ({len(new_ph)} bars)")
             except Exception as e:
-                print(f"  [{ts}] Bootstrap failed for {s}: {e}")
+                print(f"  [{ts}] BOOTSTRAP FAIL {s}: {e}")
 
     # Continuous OHLCV history — momentum stays fresh even with open positions
     for s in ASSETS:
