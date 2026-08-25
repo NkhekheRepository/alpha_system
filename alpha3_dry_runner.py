@@ -2,7 +2,7 @@
 """ALPHA 3 DRY MODE RUNNER - triple-barrier paper + demo-fapi live hedge.
 
 Engine: Alpha 1/2 clone — 5 assets (BTC/ETH/SOL/BNB/XRP, 60s polls),
-momentum-K10 direction, H=75 hold, TP/SL +/-2% market barriers every poll,
+momentum-K10 direction, H=50 hold, TP/SL +/-2% market barriers every poll,
 TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar cooldown. Staking:
 margin fraction of current equity (compounding) x leverage (--stake 0.075 = $7.5,
 --leverage 50) on a 100 USDT synthetic base; demo orders via demo-fapi hedge
@@ -231,7 +231,7 @@ API = BINANCE_API_BASE
 INTERVAL = 60
 
 K = 10
-H = 75
+H = 40
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
