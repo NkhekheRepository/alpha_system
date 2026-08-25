@@ -416,10 +416,10 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     # Extract close prices for backward compatibility
     prices = {s: o['close'] for s, o in ohlcv_data.items()}
 
-    # Bootstrap OHLCV history if price_history has < 201 bars (need full window for features)
+    # Bootstrap OHLCV history if price_history has < 200 bars (need 200 for features)
     for s in ASSETS:
         ph = state['price_history'].get(s, [])
-        if len(ph) < 201:
+        if len(ph) < 200:
             print(f"  [{ts}] BOOTSTRAP START {s} ({len(ph)} bars)...")
             try:
                 r = requests.get(f"{API}/klines", params={'symbol': s, 'interval': '1m', 'limit': 201}, timeout=10)
@@ -609,7 +609,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                 if DEMO_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
-                        order, err = place_limit_order(s, side, qty, prices[s])
+                        # Use MARKET order for entry to match paper fill assumption
+                        order, err = place_market_order(s, side, qty)
                         if order:
                             try:
                                 from demo_trader import place_bracket_orders
@@ -617,7 +618,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                             except Exception:
                                 pass
                         if order:
-                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ limit {prices[s]:.2f}")
+                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ market")
 
                         elif err:
                             _notify(f"⚠️ Demo open {s} failed: {err}")
