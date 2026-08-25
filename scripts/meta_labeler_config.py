@@ -11,7 +11,7 @@ TP_PCT = 0.02     # +2% take-profit
 SL_PCT = -0.02    # -2% stop-loss (as fraction of entry, negative)
 FEE_RATE = 0.0002  # 0.02% taker fee per side
 INTERVAL_SEC = 60  # 1-minute bars
-HOLDINGS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'ZECUSDT']
+HOLDINGS = ['HANAUSDT', 'STRKUSDT', 'TACUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT']
 
 # Training parameters
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)
@@ -25,6 +25,6 @@ RF_PARAMS = {
     'max_features': 'sqrt',
     'class_weight': 'balanced_subsample',
     'random_state': 42,
-    'n_jobs': 1,
+    'n_jobs': -1,  # perf-only: parallel trees do not change the fitted model
 }
 PROB_THRESHOLD_DEFAULT = 0.50  # meta-label: enter if P(win) > threshold

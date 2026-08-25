@@ -1,13 +1,13 @@
 {
   "schema_match": true,
   "numeric_parity_max_diff": 0.0,
-  "cv_primary_wr": 0.5325703954059358,
-  "cv_filtered_wr": 0.6329272173478202,
-  "cv_improvement_pp": 10.035682194188444,
-  "cv_selection_rate": 0.45194826541199673,
-  "cv_auc": 0.6249051902272493,
-  "cv_accuracy": 0.5875820552068459,
-  "cv_precision": 0.6329272173478202,
-  "cv_recall": 0.5371127657111994,
+  "cv_primary_wr": 0.5102095786288835,
+  "cv_filtered_wr": 0.5640031348474212,
+  "cv_improvement_pp": 5.379355621853765,
+  "cv_selection_rate": 0.45197402405726517,
+  "cv_auc": 0.5667380706477809,
+  "cv_accuracy": 0.5476459301896539,
+  "cv_precision": 0.5640031348474212,
+  "cv_recall": 0.49962755917470003,
   "verdict": "PASS"
 }

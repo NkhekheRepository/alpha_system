@@ -66,11 +66,16 @@ def save_klines(symbol: str, klines: list[list], out_dir: Path):
 
 
 def main():
+    global API_BASE
     ap = argparse.ArgumentParser(description='Fetch Binance 1m klines')
     ap.add_argument('--months', type=int, default=6, help='Months of history')
     ap.add_argument('--symbols', type=str, default=','.join(DEFAULT_SYMBOLS),
                     help='Comma-separated symbols')
+    ap.add_argument('--base', type=str, default=API_BASE,
+                    help="API root, e.g. 'https://fapi.binance.com/fapi/v1' for USD-M futures")
     args = ap.parse_args()
+
+    API_BASE = args.base.rstrip('/')
 
     symbols = args.symbols.split(',')
     end_ms = int(time.time() * 1000)
