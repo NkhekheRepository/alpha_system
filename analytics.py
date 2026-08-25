@@ -391,7 +391,9 @@ def health_checks(state_file: Path):
                 reader = csv.DictReader(f)
                 rows = list(reader)
                 # window to recent 80 already in drawdown_stats, but keep full for daily calc
-                eq_curve = [float(r['equity']) for r in rows]
+                # Prefer effective_equity (capital + unrealized) when present, matching Alpha 1
+                col = 'effective_equity' if 'effective_equity' in (reader.fieldnames or []) else 'equity'
+                eq_curve = [float(r[col]) for r in rows]
                 eq_times = [datetime.fromisoformat(r['time']) for r in rows]
     except:
         pass
@@ -442,8 +444,10 @@ def get_risk_report(state_file: Path):
         eq_csv = state_file.parent / ('alpha3_equity.csv' if 'alpha3' in str(state_file) else 'dry_equity.csv')
         if eq_csv.exists():
             with open(eq_csv) as f:
-                rows = list(csv.DictReader(f))
-                eq_curve = [float(r['equity']) for r in rows]
+                reader = csv.DictReader(f)
+                rows = list(reader)
+                col = 'effective_equity' if 'effective_equity' in (reader.fieldnames or []) else 'equity'
+                eq_curve = [float(r[col]) for r in rows]
                 eq_times = [datetime.fromisoformat(r['time']) for r in rows]
     except:
         pass

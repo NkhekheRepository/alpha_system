@@ -353,14 +353,35 @@ def log_trade(trade, state):
                     f"{100*state['total_wins']/state['total_trades']:.1f}"])
 
 
+def get_effective_equity(state, prices):
+    """Capital + unrealized P&L from open positions (mirrors Alpha 1)."""
+    cap = float(state.get('capital', CAP))
+    unrealized = 0.0
+    positions = state.get('open_positions')
+    if not isinstance(positions, dict):
+        return cap
+    for sym, pos in positions.items():
+        if not isinstance(pos, dict):
+            continue
+        if sym not in prices:
+            continue
+        entry = pos.get('entry_price')
+        qty = pos.get('quantity', 0)
+        if entry is None or qty is None or qty <= 0:
+            continue
+        unrealized += (prices[sym] - float(entry)) * float(qty)
+    return cap + unrealized
+
+
 def log_equity(state):
     new = not EQUITY_LOG.exists()
     with open(EQUITY_LOG, 'a', newline='') as fh:
         w = csv.writer(fh)
         if new:
-            w.writerow(['time', 'equity', 'trades', 'wr', 'cooldown'])
+            w.writerow(['time', 'equity', 'effective_equity', 'trades', 'wr', 'cooldown'])
         wr = 100*state['total_wins']/state['total_trades'] if state['total_trades'] else 0.0
-        w.writerow([datetime.utcnow().isoformat(), f"{state['equity']:.2f}",
+        eff = state.get('effective_equity', state['equity'])
+        w.writerow([datetime.utcnow().isoformat(), f"{state['equity']:.2f}", f"{eff:.2f}",
                     state['total_trades'], f"{wr:.1f}", state['cooldown_remaining']])
 
 
@@ -624,6 +645,11 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                             _notify(f"⚠️ Demo open {s} failed: {err}")
                     except Exception as e:
                         _notify(f"⚠️ Demo open {s} exception: {e}")
+
+    # Update effective equity (capital + unrealized) like Alpha 1
+    eff = get_effective_equity(state, prices)
+    state['effective_equity'] = eff
+    state['peak_equity'] = max(state.get('peak_equity', eff), eff)
 
     log_equity(state)
     if check_daily_summary(state):

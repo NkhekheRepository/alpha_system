@@ -229,10 +229,11 @@ def generate_equity_chart(equity_file=None, chart_path=None, log_scale: bool = T
     equities = []
     with open(equity_file, 'r') as f:
         reader = csv.DictReader(f)
+        col = 'effective_equity' if 'effective_equity' in (reader.fieldnames or []) else 'equity'
         for row in reader:
             try:
                 times.append(datetime.fromisoformat(row['time']))
-                equities.append(float(row['equity']))
+                equities.append(float(row[col]))
             except (ValueError, KeyError):
                 continue
 
