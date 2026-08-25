@@ -22,8 +22,13 @@ echo "[1/6] Python $PYVER OK"
 
 # 2. Install dependencies
 echo "[2/6] Installing Python dependencies..."
-pip install -q -r requirements.txt
-echo "      dependencies installed"
+if pip install -q -r requirements.txt 2>/dev/null; then
+    echo "      dependencies installed"
+else
+    echo "      (externally-managed env — retrying with --break-system-packages)"
+    pip install -q -r requirements.txt --break-system-packages
+    echo "      dependencies installed"
+fi
 
 # 3. Create data directory + .env if missing
 mkdir -p dry_data
