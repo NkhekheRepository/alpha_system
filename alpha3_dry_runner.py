@@ -150,7 +150,7 @@ def _ema(x, span):
 def compute_meta_features(closes, highs, lows, volumes, idx):
     """Compute all 36 features at bar index idx (no look-ahead)."""
     n = len(closes)
-    if idx < 200 or idx >= n:
+    if idx < 199 or idx >= n:
         return None
     c = closes[idx-199:idx+1]
     h = highs[idx-199:idx+1]
@@ -415,6 +415,29 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
 
     # Extract close prices for backward compatibility
     prices = {s: o['close'] for s, o in ohlcv_data.items()}
+
+    # Bootstrap OHLCV history if price_history has old format (floats only)
+    for s in ASSETS:
+        ph = state['price_history'].get(s, [])
+        if ph and isinstance(ph[0], (int, float)):
+            print(f"  [{ts}] Bootstrapping OHLCV for {s} ({len(ph)} bars)...")
+            try:
+                r = requests.get(f"{API}/klines", params={'symbol': s, 'interval': '1m', 'limit': 201}, timeout=10)
+                klines = r.json()
+                new_ph = []
+                for k in klines:
+                    new_ph.append({
+                        'open': float(k[1]),
+                        'high': float(k[2]),
+                        'low': float(k[3]),
+                        'close': float(k[4]),
+                        'volume': float(k[5]),
+                        'close_time': k[6],
+                    })
+                state['price_history'][s] = new_ph[-201:]
+                print(f"  [{ts}] Bootstrapped {len(new_ph)} OHLCV bars for {s}")
+            except Exception as e:
+                print(f"  [{ts}] Bootstrap failed for {s}: {e}")
 
     # Continuous OHLCV history — momentum stays fresh even with open positions
     for s in ASSETS:
