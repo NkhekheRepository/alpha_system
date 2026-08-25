@@ -70,15 +70,14 @@ def check_commands(state):
         pass
 
 
-def engage_kill_switch(state):
-    """HUMAN-IN-THE-LOOP kill: close ALL open positions exactly once, then COOL.
+def _flatten_positions(state):
+    """Close ALL open positions, booking each as a realized trade.
 
-    Each closed position is BOOKED (PnL realized into equity + trade log) and the
-    aggregate kill PnL / metrics are written to the kill ledger. The runner keeps
-    running (monitoring / status) but opens no new trades until /disarm.
+    Shared by the human kill switch and graceful shutdown. Does NOT arm the kill
+    switch and resets the circuit-breaker counters — a deliberate human close (or
+    a shutdown) must not be punished by an extra cooldown. Returns
+    (closed, kill_pnl, symbols).
     """
-    ts = datetime.utcnow().strftime('%H:%M:%S')
-    equity_before = float(state.get('equity', state.get('capital', CAP)))
     closed = 0
     kill_pnl = 0.0
     symbols = []
@@ -100,16 +99,13 @@ def engage_kill_switch(state):
         fee = qty * (entry + exit_p) * FEE_RATE
         pnl_d -= fee
         kill_pnl += pnl_d
-        # Book like a normal close (realize PnL into equity)
         state['capital'] += pnl_d
         state['equity'] = state['capital']
         state['total_trades'] += 1
         if pnl_d > 0:
             state['total_wins'] += 1
-            state['consecutive_losses'] = 0
         else:
             state['total_losses'] += 1
-            state['consecutive_losses'] += 1
         trade = {
             'symbol': s, 'direction': direction,
             'entry_price': entry, 'exit_price': exit_p,
@@ -136,6 +132,23 @@ def engage_kill_switch(state):
     state['peak_equity'] = max(state.get('peak_equity', state['equity']), state['equity'])
     dd = (state['peak_equity'] - state['equity']) / state['peak_equity'] if state['peak_equity'] else 0.0
     state['max_drawdown'] = max(state.get('max_drawdown', 0.0), dd)
+    # A human kill / shutdown is a deliberate reset: clear the circuit breaker so
+    # trading can resume cleanly afterward (do not double-penalize the operator).
+    state['consecutive_losses'] = 0
+    state['cooldown_remaining'] = 0
+    return closed, kill_pnl, symbols
+
+
+def engage_kill_switch(state):
+    """HUMAN-IN-THE-LOOP kill: close ALL open positions exactly once, then COOL.
+
+    Each closed position is BOOKED (PnL realized into equity + trade log) and the
+    aggregate kill PnL / metrics are written to the kill ledger. The runner keeps
+    running (monitoring / status) but opens no new trades until /disarm.
+    """
+    ts = datetime.utcnow().strftime('%H:%M:%S')
+    equity_before = float(state.get('equity', state.get('capital', CAP)))
+    closed, kill_pnl, symbols = _flatten_positions(state)
     state['kill_armed'] = True
     state['trading_enabled'] = False
     equity_after = float(state.get('equity', state['capital']))
@@ -904,7 +917,7 @@ def main():
         nonlocal running
         if FLATTEN_ON_SHUTDOWN:
             try:
-                engage_kill_switch(state)
+                _flatten_positions(state)  # close positions, do NOT arm kill switch
                 save_state(state)
             except Exception:
                 pass

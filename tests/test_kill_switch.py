@@ -151,3 +151,25 @@ def test_best_worst_tracking(monkeypatch):
     R._track_best_worst(s, 99.0)
     assert s['worst_drawdown_pct'] == 0.10
     assert s['best_return_pct'] == 0.10
+
+
+def test_flatten_does_not_arm(monkeypatch):
+    monkeypatch.setattr(R, 'DEMO_LIVE', False)
+    monkeypatch.setattr(R, 'get_price', lambda s: 105.0)
+    s = _seed_state(with_position=True)
+    R._flatten_positions(s)
+    assert s['open_positions'] == {}
+    assert s['kill_armed'] is False          # flatten != arm
+    assert s['trading_enabled'] is True
+
+
+def test_kill_clears_circuit_breaker(monkeypatch):
+    monkeypatch.setattr(R, 'DEMO_LIVE', False)
+    monkeypatch.setattr(R, 'get_price', lambda s: 105.0)
+    s = _seed_state(with_position=True)
+    s['consecutive_losses'] = 3
+    s['cooldown_remaining'] = 40
+    R.engage_kill_switch(s)
+    assert s['kill_armed'] is True
+    assert s['consecutive_losses'] == 0     # breaker reset by human kill
+    assert s['cooldown_remaining'] == 0
