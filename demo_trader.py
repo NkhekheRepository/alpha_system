@@ -176,3 +176,37 @@ def cancel_algo_orders(symbol):
                 time.sleep(0.1)
     except Exception:
         pass
+
+
+def set_leverage(symbol, leverage=50):
+    """Set leverage for a symbol on demo futures."""
+    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
+        return None, "Demo keys not configured"
+    try:
+        ts = int(time.time() * 1000)
+        params = {
+            'symbol': symbol,
+            'leverage': int(leverage),
+            'timestamp': ts,
+        }
+        signed = _sign(params)
+        r = requests.post(f"{BASE}/fapi/v1/leverage", params=signed, headers=_headers(), timeout=10)
+        j = r.json()
+        if r.status_code == 200:
+            return j, None
+        return None, f"{r.status_code}: {j.get('msg','')} {j}"
+    except Exception as e:
+        return None, str(e)
+
+
+def set_leverage_all(symbols, leverage=50):
+    """Set leverage for all symbols."""
+    results = {}
+    for sym in symbols:
+        res, err = set_leverage(sym, leverage)
+        results[sym] = (res, err)
+        if err:
+            print(f"  Leverage set {sym}: ERROR {err}")
+        else:
+            print(f"  Leverage set {sym}: {res.get('leverage', 'OK')}")
+    return results

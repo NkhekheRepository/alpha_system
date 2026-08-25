@@ -29,7 +29,7 @@ except Exception:
 DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
 if DEMO_LIVE:
     try:
-        from demo_trader import place_market_order, place_limit_order
+        from demo_trader import place_market_order, place_limit_order, set_leverage_all
     except Exception:
         DEMO_LIVE = False
 
@@ -674,6 +674,10 @@ def main():
         print(f"  Meta-labeler: LOADED (threshold={meta_threshold:.2f})")
     else:
         print(f"  Meta-labeler: NOT LOADED (running without filter)")
+    # Set demo leverage
+    if DEMO_LIVE:
+        print(f"  Setting demo leverage {args.leverage}x on {len(ASSETS)} assets...")
+        set_leverage_all(ASSETS, args.leverage)
     stake = state['capital'] * args.stake * args.leverage
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
