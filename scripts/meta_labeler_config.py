@@ -11,7 +11,7 @@ TP_PCT = 0.02     # +2% take-profit
 SL_PCT = -0.02    # -2% stop-loss (as fraction of entry, negative)
 FEE_RATE = 0.0002  # 0.02% taker fee per side
 INTERVAL_SEC = 60  # 1-minute bars
-HOLDINGS = ['HANAUSDT', 'STRKUSDT', 'TACUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT']
+HOLDINGS = ['HANAUSDT', 'STRKUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT', 'PROMUSDT', 'PLAYUSDT']
 
 # Training parameters
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)

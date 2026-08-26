@@ -44,7 +44,7 @@ BINANCE_DEMO_API_KEY = os.environ.get('BINANCE_DEMO_API_KEY', '')
 BINANCE_DEMO_API_SECRET = os.environ.get('BINANCE_DEMO_API_SECRET', '')
 
 # Alpha 3 tradable universe — single source of truth
-ALPHA3_ASSETS = ['HANAUSDT', 'STRKUSDT', 'TACUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT']
+ALPHA3_ASSETS = ['HANAUSDT', 'STRKUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT', 'PROMUSDT', 'PLAYUSDT']
 
 # Demo Futures (https://demo.binance.com) — XRPUSDT futures
 BINANCE_DEMO_FAPI_BASE = 'https://demo-fapi.binance.com'
