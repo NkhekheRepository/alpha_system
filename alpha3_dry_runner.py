@@ -328,7 +328,7 @@ INTERVAL = 20  # 20s polls -> 3x more responsive vs 60s; K/H scaled to keep wall
 
 K = 30  # 30*20s = 600s momentum window (was 10*60s)
 H = 300  # 300*20s = 6000s hold (was 100*60s)
-WARMUP = H + 10
+WARMUP = 60  # keep low to allow immediate trading with existing 200-bar history (was H+10=310, which blocked opens)
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
