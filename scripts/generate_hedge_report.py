@@ -5,7 +5,7 @@ Computes real risk/performance metrics via analytics.py and emits a
 quantitative hedge report. Reproducible:  python3 scripts/generate_hedge_report.py
 """
 from pathlib import Path
-import json, csv, sys
+import json, csv, sys, os
 from datetime import datetime
 import numpy as np
 
@@ -17,7 +17,7 @@ STATE = ROOT / 'dry_data' / 'alpha3_state.json'
 EQUITY = ROOT / 'dry_data' / 'alpha3_equity.csv'
 OUT = ROOT / 'docs' / 'HEDGE_REPORT.md'
 
-LEV = 50.0
+LEV = float(os.environ.get('ALPHA3_LEV', '0')) or None  # resolved from state at runtime
 STAKE = 0.075
 
 
@@ -30,9 +30,15 @@ def load_equity_curve():
         return [], []
     times, eq = [], []
     with open(EQUITY) as f:
-        for r in csv.DictReader(f):
-            times.append(r['time'])
-            eq.append(float(r.get('effective_equity', r['equity'])))
+        rows = list(csv.reader(f))
+    # Runner appends WITHOUT header: cols = time, equity, effective, ...
+    if rows and rows[0] and rows[0][0].strip().lower() == 'time':
+        rows = rows[1:]
+    for r in rows:
+        if len(r) < 3:
+            continue
+        times.append(r[0])
+        eq.append(float(r[2]))  # effective equity
     return times, eq
 
 
@@ -42,16 +48,28 @@ def load_trades_csv():
         return []
     out = []
     with open(p) as f:
-        for r in csv.DictReader(f):
+        rows = list(csv.reader(f))
+    # Runner appends WITHOUT header after truncations: sniff and map positionally.
+    header = ['time', 'symbol', 'dir', 'entry', 'exit', 'resolve',
+              'pnl_pct', 'pnl_dollar', 'reason', 'equity', 'trades', 'wr']
+    if rows and rows[0] and rows[0][0].strip().lower() == 'time':
+        rows = rows[1:]
+    for r in rows:
+        if len(r) < 9:
+            continue
+        d = dict(zip(header, r))
+        try:
             out.append({
-                'symbol': r.get('symbol', ''),
-                'direction': r.get('dir', ''),
-                'reason': r.get('reason', ''),
-                'pnl_pct': float(r.get('pnl_pct', 0) or 0),
-                'pnl_dollar': float(r.get('pnl_dollar', 0) or 0),
-                'entry_price': float(r.get('entry', 0) or 0),
-                'exit_price': float(r.get('exit', 0) or 0),
+                'symbol': d['symbol'],
+                'direction': d['dir'],
+                'reason': d['reason'],
+                'pnl_pct': float(d['pnl_pct'] or 0),
+                'pnl_dollars': float(d['pnl_dollar'] or 0),
+                'entry_price': float(d['entry'] or 0),
+                'exit_price': float(d['exit'] or 0),
             })
+        except ValueError:
+            continue
     return out
 
 
@@ -62,6 +80,8 @@ def main():
     cap = float(s.get('capital', 100.0))
     eq = float(s.get('equity', cap))
     eff = float(s.get('effective_equity', eq))
+    lev = float(s.get('leverage') or LEV or 20.0)
+    base = float(s.get('start_capital') or 100.0)
     n = s.get('total_trades', 0)
     wins = s.get('total_wins', 0)
     losses = s.get('total_losses', 0)
@@ -75,7 +95,7 @@ def main():
         entry = float(p['entry_price'])
         qty = float(p['quantity'])
         notional = entry * qty
-        margin = notional / LEV
+        margin = notional / lev
         total_notional += notional
         total_margin += margin
         book.append((sym, p['direction'], entry, qty, notional, margin,
@@ -111,15 +131,15 @@ def main():
     lines.append("")
     lines.append(f"_Generated: {datetime.utcnow().isoformat()} (UTC)_")
     lines.append("")
-    lines.append("> **DISCLAIMER:** Alpha 3 is a **simulation-only** synthetic-resolution engine. "
-                 "All figures below describe the demo-fapi paper hedge book and the synthetic "
-                 "trade stream. Alpha 3 is **NO-GO on real capital** (see GOVERNANCE.md).")
+    lines.append("> **DISCLAIMER:** Alpha 3 is a **simulation-only** system on the demo-fapi test "
+                 "account (real market prices, synthetic capital). Alpha 3 is **NO-GO on real "
+                 "capital** (see GOVERNANCE.md).")
     lines.append("")
     lines.append("## 1. Executive Summary")
     lines.append("")
     lines.append("| Metric | Value |")
     lines.append("|--------|-------|")
-    lines.append(f"| Base capital | ${cap:,.2f} |")
+    lines.append(f"| Base capital | ${base:,.2f} |")
     lines.append(f"| Realized equity | ${eq:,.2f} |")
     lines.append(f"| Effective equity (mark-to-market) | ${eff:,.2f} |")
     lines.append(f"| Unrealized P&L | ${eff-eq:+,.2f} |")
@@ -128,7 +148,7 @@ def main():
     lines.append(f"| Open hedge positions | {len(book)} |")
     lines.append(f"| Total notional (open) | ${total_notional:,.2f} |")
     lines.append(f"| Total margin (open) | ${total_margin:,.2f} |")
-    lines.append(f"| Leverage | {LEV:.0f}x |")
+    lines.append(f"| Leverage | {lev:.0f}x |")
     lines.append("")
     lines.append("## 2. Hedge Book (live demo-fapi positions)")
     lines.append("")
@@ -154,9 +174,14 @@ def main():
         lines.append(f"| VaR (95%) | {fmt(var_cvar[0])} |")
         lines.append(f"| CVaR (95%) | {fmt(var_cvar[1])} |")
     else:
-        lines.append(f"| VaR/CVaR | {var_cvar} |")
+        if isinstance(var_cvar, dict):
+            lines.append(f"| VaR95 (per trade) | ${-abs(var_cvar.get('var',0)):,.4f} |")
+            lines.append(f"| CVaR95 (per trade) | ${-abs(var_cvar.get('cvar',0)):,.4f} |")
+        else:
+            lines.append(f"| VaR/CVaR | {var_cvar} |")
     lines.append(f"| Profit factor | {fmt(pf)} |")
-    lines.append(f"| Expectancy / trade | {fmt(exp)} |")
+    lines.append(f"| Expectancy / trade (price-move) | {exp:+.4%} |")
+    lines.append(f"| Expectancy / trade (dollars) | ${sum(t['pnl_dollars'] for t in trades)/max(1,len(trades)):+,.3f} |")
     lines.append("")
     lines.append("## 4. Attribution")
     lines.append("")
@@ -174,12 +199,10 @@ def main():
     lines.append("### By symbol")
     lines.append("")
     if isinstance(by_sym, dict):
-        lines.append("| Symbol | Count | Win% |")
-        lines.append("|--------|-------|------|")
+        lines.append("| Symbol | Count | Win% | PnL |")
+        lines.append("|--------|-------|------|-----|")
         for sym, v in sorted(by_sym.items()):
-            c = v.get('count', 0)
-            w = v.get('wins', 0)
-            lines.append(f"| {sym} | {c} | {100*w/c if c else 0:.1f}% |")
+            lines.append(f"| {sym} | {v.get('count',0)} | {v.get('wr',0.0):.1f}% | ${v.get('pnl',0.0):+,.2f} |")
     else:
         lines.append(str(by_sym))
     lines.append("")
@@ -190,8 +213,9 @@ def main():
     lines.append("- Effective equity = capital + unrealized P&L of open positions (mirrors Alpha 1).")
     lines.append("- Sample size is **small (n=%d)**; per the governance evidence policy, no live-edge "
                  "conclusion is drawn until n≥100 with a TIMEOUT/TP-SL split. All exits so far are TIMEOUT." % n)
-    lines.append("- The meta-labeler is validated only on Alpha 3's synthetic-resolution distribution "
-                 "(iid p=0.85); its live edge is **UNPROVEN**.")
+    lines.append("- Meta-labeler retrained 2026-08-25 on the live universe (6mo futures 1m): "
+                 "purged-K-fold CV primary 51.0% -> filtered 56.4% (+5.4pp, AUC 0.567, all 5 "
+                 "folds positive). Live edge still UNPROVEN until the n-gate below clears.")
     lines.append("")
     lines.append("---")
     lines.append("_Reproduce: `python3 scripts/generate_hedge_report.py`_")
