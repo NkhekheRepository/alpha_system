@@ -20,6 +20,7 @@ import hmac
 import hashlib
 import time
 import requests
+from urllib.parse import urlencode
 from pathlib import Path
 
 try:
@@ -123,7 +124,11 @@ def sign_query(params, secret=None):
         p["timestamp"] = server_timestamp()
     if "recvWindow" not in p:
         p["recvWindow"] = 10000
-    qs = "&".join(f"{k}={v}" for k, v in p.items())
+    # Sign the URL-ENCODED query string — exactly what requests sends on the
+    # wire. Manual '&'.join mismatches whenever a value contains characters that
+    # requests encodes (e.g. '+' in scientific-notation floats like 5.6e+20),
+    # which produced -1022 "Signature not valid".
+    qs = urlencode(p)
     sec = (secret if secret is not None else BINANCE_DEMO_API_SECRET or "").strip()
     sig = hmac.new(sec.encode(), qs.encode(), hashlib.sha256).hexdigest()
     return {**p, "signature": sig}

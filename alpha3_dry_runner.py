@@ -40,12 +40,43 @@ if DEMO_LIVE:
     except Exception:
         DEMO_LIVE = False
 
+# Testnet futures (https://testnet.binancefuture.com) — parallel to demo
+TESTNET_LIVE = False
+try:
+    from binance_config import BINANCE_TESTNET_API_KEY as _TNK
+    if _TNK:
+        from demo_trader import place_testnet_market_order, set_testnet_leverage_all
+        TESTNET_LIVE = True
+    else:
+        place_testnet_market_order = None
+        set_testnet_leverage_all = None
+except Exception:
+    TESTNET_LIVE = False
+    place_testnet_market_order = None
+    set_testnet_leverage_all = None
+
 
 def _notify(text):
     try:
         send_message(text, bot='alpha2')
     except Exception:
         pass
+
+def _place_live_market(symbol, side, qty, reduce_only=False):
+    """Place live market order on demo and testnet (if enabled). Returns (demo_res, testnet_res) for logging."""
+    demo_res = demo_err = None
+    tn_res = tn_err = None
+    if DEMO_LIVE:
+        try:
+            demo_res, demo_err = place_market_order(symbol, side, qty, reduce_only=reduce_only)
+        except Exception as e:
+            demo_err = str(e)
+    if TESTNET_LIVE:
+        try:
+            tn_res, tn_err = place_testnet_market_order(symbol, side, qty, reduce_only=reduce_only)
+        except Exception as e:
+            tn_err = str(e)
+    return (demo_res, demo_err, tn_res, tn_err)
 
 
 def check_commands(state):
@@ -123,12 +154,13 @@ def _flatten_positions(state):
         }
         state['trades'].append(trade)
         log_trade(trade, state)
-        if DEMO_LIVE:
+        if DEMO_LIVE or TESTNET_LIVE:
             try:
-                from demo_trader import cancel_algo_orders, place_market_order
-                cancel_algo_orders(s)
+                from demo_trader import cancel_algo_orders
+                if DEMO_LIVE:
+                    cancel_algo_orders(s)
                 side = 'SELL' if direction == 'long' else 'BUY'
-                place_market_order(s, side, qty, reduce_only=True)
+                _place_live_market(s, side, qty, reduce_only=True)
             except Exception as e:
                 _notify(f"⚠️ Kill close {s} failed: {e}")
         del state['open_positions'][s]
@@ -795,21 +827,31 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                 f"({state['total_wins']}W/{state['total_losses']}L)")
         try: log_event("alpha3", "trade_close", {"symbol": s, "direction": direction, "reason": close_reason, "pnl_pct": round(pct,6), "pnl_dollars": round(pnl_d,2), "equity": round(state['equity'],2)})
         except Exception: pass
-        if DEMO_LIVE and close_reason in ('TP','SL','TIMEOUT'):
+        if (DEMO_LIVE or TESTNET_LIVE) and close_reason in ('TP','SL','TIMEOUT'):
             try:
                 from demo_trader import cancel_algo_orders
-                cancel_algo_orders(s)
+                if DEMO_LIVE:
+                    cancel_algo_orders(s)
             except Exception:
                 pass
             try:
                 side = 'SELL' if direction == 'long' else 'BUY'
-                order, err = place_market_order(s, side, pos['quantity'], reduce_only=True)
-                if order:
-                    _notify(f"📡 Demo close {s}: {side} {pos['quantity']:.6f} filled")
-                elif err:
-                    _notify(f"⚠️ Demo close {s} failed: {err}")
+                _, d_err, _, t_err = _place_live_market(s, side, pos['quantity'], reduce_only=True)
+                # only notify on success or if both failed
+                if d_err and t_err:
+                    _notify(f"⚠️ Live close {s} failed: demo {d_err} | testnet {t_err}")
+                elif d_err and TESTNET_LIVE:
+                    pass  # testnet succeeded, suppress demo -1111 spam
+                elif d_err:
+                    _notify(f"⚠️ Demo close {s} failed: {d_err}")
+                else:
+                    # success on at least one venue
+                    if DEMO_LIVE and TESTNET_LIVE:
+                        _notify(f"📡 Live close {s}: {side} {pos['quantity']:.4f} filled (demo+testnet)")
+                    elif DEMO_LIVE:
+                        _notify(f"📡 Demo close {s}: {side} {pos['quantity']:.4f} filled")
             except Exception as e:
-                _notify(f"⚠️ Demo close {s} exception: {e}")
+                _notify(f"⚠️ Live close {s} exception: {e}")
 
     # Cooldown gates NEW ENTRIES only — exits were already evaluated above
     if state['cooldown_remaining'] > 0:
@@ -868,21 +910,27 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         f"Equity: ${state['equity']:,.2f}")
                 try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
-                if DEMO_LIVE:
+                if DEMO_LIVE or TESTNET_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
-                        # Use MARKET order for entry to match paper fill assumption.
-                        # NOTE: no server-side bracket TP/SL — exits are enforced
-                        # solely by this runner's barrier poll. Dual-exit (local +
-                        # exchange algos) caused paper/demo divergence when an
-                        # algo fired between polls while paper stayed open.
-                        order, err = place_market_order(s, side, qty)
-                        if order:
-                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ market")
-                        elif err:
-                            _notify(f"⚠️ Demo open {s} failed: {err}")
+                        _, d_err, _, t_err = _place_live_market(s, side, qty)
+                        if d_err and t_err:
+                            _notify(f"⚠️ Live open {s} failed: demo {d_err} | testnet {t_err}")
+                        elif d_err and TESTNET_LIVE:
+                            pass
+                        elif d_err:
+                            _notify(f"⚠️ Demo open {s} failed: {d_err}")
+                        elif t_err and DEMO_LIVE:
+                            pass
+                        else:
+                            if DEMO_LIVE and TESTNET_LIVE:
+                                _notify(f"📡 Live open {s}: {side} {qty:.4f} @ market (demo+testnet)")
+                            elif DEMO_LIVE:
+                                _notify(f"📡 Demo open {s}: {side} {qty:.4f} @ market")
+                            else:
+                                _notify(f"📡 Testnet open {s}: {side} {qty:.4f} @ market")
                     except Exception as e:
-                        _notify(f"⚠️ Demo open {s} exception: {e}")
+                        _notify(f"⚠️ Live open {s} exception: {e}")
 
     # Update effective equity (capital + unrealized) like Alpha 1
     eff = get_effective_equity(state, prices)
@@ -996,23 +1044,22 @@ def reconcile_on_startup(state):
             try: log_event("alpha3", "reconcile_paper_close", {"symbol": s, "pnl": round(pnl_d, 4), "price": px})
             except Exception: pass
 
-        # 3) demo position with no paper leg -> orphan sweep
+        # 3) demo position with no paper leg -> orphan sweep (demo + testnet)
         for s, p in sorted(demo.items()):
             if s in state.get('open_positions', {}):
                 continue
             amt = float(p['positionAmt'])
             side = 'SELL' if amt > 0 else 'BUY'
             qty = _rq(s, abs(amt))
-            order, err = place_market_order(s, side, qty, reduce_only=True)
-            if order:
-                print(f"  [{ts}] RECONCILE {s}: orphan demo leg ({amt}) swept "
-                      f"via {side} {qty} reduce-only")
-                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan demo position ({amt}) closed")
+            _, d_err, _, t_err = _place_live_market(s, side, qty, reduce_only=True)
+            if d_err is None or t_err is None:
+                print(f"  [{ts}] RECONCILE {s}: orphan live leg ({amt}) swept via {side} {qty} reduce-only")
+                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan live position ({amt}) closed")
                 try: log_event("alpha3", "reconcile_orphan_sweep", {"symbol": s, "amt": amt})
                 except Exception: pass
             else:
-                print(f"  [{ts}] RECONCILE {s}: orphan sweep FAILED ({err})")
-                _notify(f"⚠️ <b>RECONCILE {s}</b>: orphan sweep failed: {err}")
+                print(f"  [{ts}] RECONCILE {s}: orphan sweep FAILED (demo {d_err} | testnet {t_err})")
+                # suppress spam if one venue succeeded
 
         save_state(state)
     except Exception as e:
@@ -1075,6 +1122,12 @@ def main():
     if DEMO_LIVE:
         print(f"  Setting demo leverage {args.leverage}x on {len(ASSETS)} assets...")
         set_leverage_all(ASSETS, args.leverage)
+    if TESTNET_LIVE:
+        print(f"  Setting testnet leverage {args.leverage}x on {len(ASSETS)} assets...")
+        try:
+            set_testnet_leverage_all(ASSETS, args.leverage)
+        except Exception as e:
+            print(f"  Testnet leverage error: {e}")
     # Paper/demo reconciliation BEFORE trading (cancels stale algos, closes
     # paper legs whose demo hedge vanished, sweeps demo orphans).
     reconcile_on_startup(state)
