@@ -21,6 +21,9 @@ import requests
 import joblib
 import numpy as np
 
+# Import orderbook feature extraction
+from scripts.meta_features import compute_orderbook_features_at_index
+
 sys.path.insert(0, '/home/nkhekhe')
 sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
@@ -244,7 +247,7 @@ STAKE_PCT = 0.20
 LEVERAGE = 20.0
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.035
-LOSS_PCT = -0.035
+LOSS_PCT = -0.02
 
 # Meta-labeler config
 META_LABELER_PATH = Path('/home/nkhekhe/alpha_system/models/meta_labeler.joblib')
@@ -436,6 +439,24 @@ def compute_meta_features(closes, highs, lows, volumes, idx, ob_history=None):
     feat['dow_sin'] = np.sin(2 * np.pi * ((idx // 1440) % 7) / 7)
     feat['dow_cos'] = np.cos(2 * np.pi * ((idx // 1440) % 7) / 7)
 
+    # Orderbook microstructure features (always present, NaN for historical data)
+    feat['spread_bps'] = np.nan
+    feat['imb_1'] = np.nan
+    feat['imb_5'] = np.nan
+    feat['depth_5'] = np.nan
+    feat['depth_10'] = np.nan
+    feat['vwap_mid_5'] = np.nan
+    feat['kyle_lambda_5'] = np.nan
+    feat['spread_roll_10'] = np.nan
+    feat['imb_5_roll_20'] = np.nan
+    feat['spread_bps_dup'] = np.nan
+
+    # If orderbook history is available, compute actual values
+    if ob_history is not None and len(ob_history) > idx:
+        ob_feat = compute_orderbook_features_at_index(ob_history, idx)
+        if ob_feat:
+            feat.update(ob_feat)
+
     return feat
 
 
@@ -451,6 +472,10 @@ FEATURE_ORDER = [
     'ma50_ma20_cross', 'ma100_ma50_cross', 'trend_slope',
     'consec_direction', 'hh_streak_5', 'll_streak_5', 'momentum_accel',
     'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos',
+    # Orderbook microstructure features (10) - NaN for training, live at inference
+    'spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10',
+    'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20',
+    'spread_bps_dup',
 ]
 
 
@@ -695,8 +720,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
             continue
         # Back-compat: flip-era positions lack tp/sl
         if 'tp_price' not in pos:
-            pos['tp_price'] = pos['entry_price'] * (0.98 if pos['direction'] == 'short' else 1.02)
-            pos['sl_price'] = pos['entry_price'] * (1.02 if pos['direction'] == 'short' else 0.98)
+            pos['tp_price'] = pos['entry_price'] * ((1 + LOSS_PCT) if pos['direction'] == 'short' else (1 + WIN_PCT))
+            pos['sl_price'] = pos['entry_price'] * ((1 - WIN_PCT) if pos['direction'] == 'short' else (1 + LOSS_PCT))
         direction = pos['direction']
         entry = pos['entry_price']
         tp = pos['tp_price']
@@ -823,8 +848,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     qty = _rq(s, qty) if DEMO_LIVE else qty
                 except Exception:
                     pass
-                tp_p = prices[s] * (0.98 if d == 'short' else 1.02)
-                sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
+                tp_p = prices[s] * ((1 + LOSS_PCT) if d == 'short' else (1 + WIN_PCT))
+                sl_p = prices[s] * ((1 - WIN_PCT) if d == 'short' else (1 + LOSS_PCT))
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
                     'entry_price': prices[s], 'quantity': qty,

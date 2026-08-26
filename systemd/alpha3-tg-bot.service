@@ -6,10 +6,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/home/nkhekhe/alpha_system
-ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/tg_bot_alpha2.py
+ExecStart=/bin/bash -c "PYTHONPATH=/home/nkhekhe/alpha_system /usr/bin/python3 /home/nkhekhe/alpha_system/tg_bot_alpha2.py"
 Restart=always
 RestartSec=30
-StartLimitIntervalSec=600
+StartLimitInterval=600
 StartLimitBurst=10
 
 [Install]

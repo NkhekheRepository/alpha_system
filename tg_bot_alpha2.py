@@ -14,8 +14,11 @@ from telegram import Update, BotCommand, MenuButtonDefault
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, '/home/nkhekhe/alpha_system/scripts')
 from notify import generate_equity_chart, generate_trade_chart
 import analytics as vis
+from meta_labeler_config import H, TP_PCT, SL_PCT, K, WIN_PCT, LOSS_PCT, LEVERAGE, STAKE_PCT
+from binance_config import ALPHA3_ASSETS
 
 DATA_DIR = Path('/home/nkhekhe/alpha_system')
 STATE_FILE = DATA_DIR / 'dry_data' / 'alpha3_state.json'
@@ -173,12 +176,15 @@ async def error_handler(update, context):
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
+    lev = LEVERAGE
+    stake_pct = STAKE_PCT * 100
+    notional = 100 * STAKE_PCT * LEVERAGE
     await update.message.reply_text(
-        "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
-        "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
-        "Engine: momentum-K10, H15 hold, CB 3/50\n"
-        "Exits: TP/SL ±2% market | TIMEOUT bar 75 at market price\n"
-        "Staking: 7.5% margin × 50x lev = $375/trade (compounds, 100 USDT base)\n"
+        f"🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
+        f"Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
+        f"Engine: momentum-K{K}, H{H} hold, CB {MAX_CONSEC}/{COOLDOWN}\n"
+        f"Exits: TP/SL ±{abs(WIN_PCT)*100:.1f}% market | TIMEOUT bar {H} at market price\n"
+        f"Staking: {stake_pct:.1f}% margin × {lev:.0f}x lev = ${notional:.0f}/trade (compounds, 100 USDT base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
         "/positions — Open positions with bar countdown\n"
@@ -268,7 +274,7 @@ def build_status_text(state, live=False):
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
             pos_lines += (f"     {base_s}: bar {age}/15 | stake ${stake:,.0f} | resolves → "
-                          f"+2% ({fmt_price(entry*1.02)}) / −2% ({fmt_price(entry*0.98)})\n")
+                          f"+{abs(WIN_PCT)*100:g}% ({fmt_price(entry*(1+WIN_PCT))}) / {LOSS_PCT*100:g}% ({fmt_price(entry*(1+LOSS_PCT))})\n")
     elif positions:
         for sym, pos in positions.items():
             base_s = sym.replace('USDT', '')
@@ -297,7 +303,7 @@ def build_status_text(state, live=False):
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Exits: TP/SL ±2% market barriers | TIMEOUT bar 75\n"
+        f"Exits: TP/SL ±{abs(WIN_PCT)*100:.1f}% market barriers | TIMEOUT bar {H}\n"
         f"{testnet_line}\n"
         f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${100*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
         f"💰 <b>Portfolio (Paper)</b>\n"
@@ -384,14 +390,14 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"TP ${entry*1.02:,.2f} / SL ${entry*0.98:,.2f} (market) | TIMEOUT bar 75\n"
+            f"TP ${entry*(1+WIN_PCT):,.2f} / SL ${entry*(1+LOSS_PCT):,.2f} (market) | TIMEOUT bar {H}\n"
             f"Hold: bar {age}/15 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
     # Show paper TP/SL levels
     for sym2, pos2 in state.get('open_positions', {}).items():
         if 'tp_price' in pos2:
-            msg += f"     {base_s}: bar {age}/15 | resolves → +2% (${entry*1.02:,.2f}) / −2% (${entry*0.98:,.2f})\n"
+            msg += f"     {base_s}: bar {age}/15 | resolves → +{abs(WIN_PCT)*100:g}% (${entry*(1+WIN_PCT):,.2f}) / {LOSS_PCT*100:g}% (${entry*(1+LOSS_PCT):,.2f})\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 

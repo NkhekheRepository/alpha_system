@@ -35,7 +35,12 @@ def test_parity_at_later_idx():
     fm = MF.compute_features_at_index(c, h, l, v, idx)
     assert fr is not None and fm is not None
     for f in R.FEATURE_ORDER:
-        assert np.isclose(fr[f], fm[f], equal_nan=True), f"mismatch at {f}"
+        assert np.isclose(fr[f], fm[f], equal_nan=True), f"mismatch at {f}: {fr[f]} vs {fm[f]}"
+    # Verify orderbook features are NaN (not available for historical data)
+    for f in ['spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10', 
+              'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20', 'spread_bps_dup']:
+        assert np.isnan(fr[f]), f"orderbook feature {f} should be NaN for historical data"
+        assert np.isnan(fm[f]), f"orderbook feature {f} should be NaN for historical data"
 
 
 def test_boundary_asymmetry_documented():

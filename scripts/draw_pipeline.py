@@ -59,7 +59,7 @@ box(ax, 2.2, 15.9, 3.0, 1.1, "META-FILTER\nREJECT → skip,\naudit next cycle", 
 box(ax, 9.8, 15.9, 3.0, 1.1, "META-PASS\nACCEPT → ENTER", C_GATE)
 
 box(ax, 9.8, 13.6, 3.4, 1.2, "DEMO MARKET ENTRY\n+ bracket TP/SL orders", C_TRADE)
-box(ax, 9.8, 11.4, 4.6, 1.3, "TRIPLE-BARRIER MONITOR\n(every 60s) TP +2% / SL −2% / TIMEOUT H=75", C_EXIT)
+box(ax, 9.8, 11.4, 4.6, 1.3, "TRIPLE-BARRIER MONITOR\n(every 60s) TP +2% / SL −2% / TIMEOUT H=100", C_EXIT)
 diamond(ax, 9.8, 8.9, 3.2, 1.8, "EXIT\nTRIGGERED ?", C_EXIT)
 box(ax, 9.8, 6.4, 4.4, 1.2, "REALIZE PnL\nupdate equity + effective_equity", C_TRADE)
 box(ax, 9.8, 4.3, 4.6, 1.2, "CIRCUIT BREAKER\n3 consecutive losses → 50-bar cooldown", C_FEED)

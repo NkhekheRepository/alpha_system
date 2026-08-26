@@ -16,7 +16,7 @@ def test_k_horizon_match():
 
 def test_tp_sl_fee_match():
     assert R.WIN_PCT == MC.TP_PCT == 0.035
-    assert R.LOSS_PCT == MC.SL_PCT == -0.035
+    assert R.LOSS_PCT == MC.SL_PCT == -0.02
     assert R.FEE_RATE == MC.FEE_RATE == 0.0002
 
 

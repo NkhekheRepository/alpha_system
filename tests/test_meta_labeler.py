@@ -14,7 +14,7 @@ def test_model_loads():
 def test_feature_order_matches_training():
     # The runner's FEATURE_ORDER must equal the one used at training time.
     assert R.FEATURE_ORDER == MF.FEATURE_ORDER
-    assert len(R.FEATURE_ORDER) == 36
+    assert len(R.FEATURE_ORDER) == 46  # 36 original + 10 orderbook features
 
 
 def test_predict_proba_in_range():
@@ -30,7 +30,7 @@ def test_predict_proba_in_range():
 def test_features_to_array_shape():
     feat = {f: 1.0 for f in R.FEATURE_ORDER}
     arr = R.features_to_array(feat)
-    assert arr.shape == (1, 36)
+    assert arr.shape == (1, 46)
     assert arr.dtype == np.float32
 
 

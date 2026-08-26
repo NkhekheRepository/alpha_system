@@ -8,12 +8,14 @@ K = 10            # momentum lookback (bars)
 H = 100            # hold horizon (bars)
 WARMUP = H + 10   # bars before first entry allowed
 TP_PCT = 0.035     # +3.5% take-profit
-SL_PCT = -0.035    # -3.5% stop-loss (as fraction of entry, negative)
+SL_PCT = -0.02     # -2% stop-loss (as fraction of entry, negative)
+WIN_PCT = 0.035    # +3.5% win threshold (for compatibility with runner)
+LOSS_PCT = -0.02   # -2% loss threshold (for compatibility with runner)
 FEE_RATE = 0.0002  # 0.02% taker fee per side
 INTERVAL_SEC = 60  # 1-minute bars
 HOLDINGS = ['HANAUSDT', 'STRKUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT', 'PROMUSDT', 'PLAYUSDT']
-
-# Training parameters
+LEVERAGE = 20.0     # leverage multiplier
+STAKE_PCT = 0.035   # stake percentage (3.5% of capital)
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)
 EMBARGO_BARS = H      # embargo after test set to prevent leakage
 N_SPLITS = 5          # purged K-fold splits
