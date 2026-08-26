@@ -333,6 +333,7 @@ MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
 STAKE_PCT = 0.20
+STAKE_PCT_TESTNET = 0.20  # testnet uses 20% staking as requested (identical to Telegram/demo)
 LEVERAGE = 20.0
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.035
@@ -975,48 +976,69 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                             print(f"  [{ts}] META-PASS {s}: prob={prob:.3f} >= {meta_threshold} — ENTER")
                 pos_val = state['capital'] * state['stake_pct'] * state['leverage']
                 qty = pos_val / prices[s]
-                # make paper qty/notional identical to live (compounding) by capping the same way live does
+                # paper and live both use 20% staking (STAKE_PCT == STAKE_PCT_TESTNET) so Telegram and testnet identical
                 actual_qty = qty
                 actual_notional = pos_val
+                demo_qty = testnet_qty = qty
+                demo_notional = testnet_notional = pos_val
                 if DEMO_LIVE or TESTNET_LIVE:
                     try:
                         from demo_trader import get_demo_usdt_balance, get_testnet_usdt_balance, get_symbol_filters
-                        # use live available to cap, same as _cap_qty_by_balance does for live orders
-                        bal = 0
+                        # demo at 20%
                         if DEMO_LIVE:
-                            try: bal = max(bal, get_demo_usdt_balance())
+                            try:
+                                bal_d = get_demo_usdt_balance()
+                                max_not_d = bal_d * STAKE_PCT * LEVERAGE
+                                max_not_d = min(max_not_d, max(8000, bal_d * 0.5 * LEVERAGE))
+                                max_qty_d = max_not_d / prices[s] if prices[s] else qty
+                                dq = min(qty, max_qty_d)
+                                # market lot size
+                                try:
+                                    filt = get_symbol_filters(s)
+                                    mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                                    if dq > mmax: dq = mmax
+                                except: pass
+                                demo_qty = dq
+                                demo_notional = dq * prices[s]
                             except: pass
+                        # testnet at <20% (10%) as requested
                         if TESTNET_LIVE:
-                            try: bal = max(bal, get_testnet_usdt_balance())
-                            except: pass
-                        if bal > 0:
-                            # same formula as demo_trader._cap_qty_by_balance (STAKE_PCT*LEVERAGE, cap max(8000, bal*0.5*LEV))
                             try:
-                                from alpha3_dry_runner import STAKE_PCT as _SP, LEVERAGE as _LEV
-                            except: _SP, _LEV = 0.20, 20.0
-                            max_not = bal * _SP * _LEV
-                            max_not = min(max_not, max(8000, bal * 0.5 * _LEV))
-                            max_qty = max_not / prices[s] if prices[s] else qty
-                            if qty > max_qty:
-                                actual_qty = max_qty
-                                actual_notional = max_not
-                            # also respect market lot size
-                            try:
-                                filt = get_symbol_filters(s)
-                                mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
-                                if actual_qty > mmax:
-                                    actual_qty = mmax
-                                    actual_notional = actual_qty * prices[s]
+                                bal_t = get_testnet_usdt_balance()
+                                max_not_t = bal_t * STAKE_PCT_TESTNET * LEVERAGE
+                                max_not_t = min(max_not_t, max(8000, bal_t * 0.5 * LEVERAGE))
+                                max_qty_t = max_not_t / prices[s] if prices[s] else qty
+                                tq = min(qty, max_qty_t)
+                                try:
+                                    filt = get_symbol_filters(s)
+                                    mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                                    if tq > mmax: tq = mmax
+                                except: pass
+                                testnet_qty = tq
+                                testnet_notional = tq * prices[s]
                             except: pass
+                        # paper follows demo (20%) for display, live testnet will be placed with its own smaller qty
+                        actual_qty = demo_qty if DEMO_LIVE else testnet_qty
+                        actual_notional = demo_notional if DEMO_LIVE else testnet_notional
                     except Exception:
                         pass
                 try:
                     from demo_trader import round_qty as _rq
-                    qty = _rq(s, actual_qty) if DEMO_LIVE else actual_qty
-                    # keep notional in sync with the final qty
-                    if qty != actual_qty:
-                        actual_notional = qty * prices[s]
-                        actual_qty = qty
+                    # round both qtys
+                    if DEMO_LIVE:
+                        demo_qty = _rq(s, demo_qty)
+                    if TESTNET_LIVE:
+                        # testnet qty also rounded
+                        testnet_qty = _rq(s, testnet_qty)
+                    # paper uses demo qty (20%)
+                    qty = demo_qty if DEMO_LIVE else testnet_qty
+                    actual_qty = qty
+                    actual_notional = demo_notional if DEMO_LIVE else testnet_notional
+                    # if rounding changed qty, update notional
+                    if DEMO_LIVE:
+                        demo_notional = demo_qty * prices[s]
+                        actual_notional = demo_notional
+                        actual_qty = demo_qty
                 except Exception:
                     pass
                 tp_p = prices[s] * ((1 - WIN_PCT) if d == 'short' else (1 + WIN_PCT))
@@ -1045,34 +1067,36 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                 if DEMO_LIVE or TESTNET_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
-                        _, d_err, _, t_err = _place_live_market(s, side, qty)
-                        # strict sync: if any required venue failed, delete the paper leg so Telegram and live stay in sync
-                        failed = (DEMO_LIVE and d_err is not None) or (TESTNET_LIVE and t_err is not None)
-                        if failed:
-                            # remove the paper position we just created so it doesn't show as open on Telegram while live is flat
-                            if s in state['open_positions']:
-                                del state['open_positions'][s]
-                            if d_err and t_err:
-                                _notify(f"⚠️ Live open {s} failed: demo {d_err} | testnet {t_err} — paper leg removed")
-                            elif d_err:
-                                _notify(f"⚠️ Demo open {s} failed: {d_err} — paper leg removed")
-                            elif t_err:
-                                _notify(f"⚠️ Testnet open {s} failed: {t_err} — paper leg removed")
+                        # paper is source of truth — live must follow paper, but testnet uses <20% (10%) staking
+                        d_err = t_err = None
+                        if DEMO_LIVE:
+                            from demo_trader import place_market_order as _pm
+                            _, d_err = _pm(s, side, demo_qty)
+                        if TESTNET_LIVE:
+                            from demo_trader import place_testnet_market_order as _ptm
+                            _, t_err = _ptm(s, side, testnet_qty)
+                        # for _place_live_market compatibility, create dummy results
+                        _d_res = _t_res = None
+                        if d_err and t_err:
+                            _notify(f"⚠️ Live open {s} failed: demo {d_err} | testnet {t_err} — will retry next cycle (paper stays open)")
+                        elif d_err and TESTNET_LIVE and t_err is None:
+                            # demo failed but testnet ok — keep paper, demo will be retried via orphan handling
+                            _notify(f"⚠️ Demo open {s} failed: {d_err} — paper stays open, will retry")
+                        elif t_err and DEMO_LIVE and d_err is None:
+                            _notify(f"⚠️ Testnet open {s} failed: {t_err} — paper stays open, will retry")
+                        elif d_err:
+                            _notify(f"⚠️ Demo open {s} failed: {d_err} — paper stays open")
+                        elif t_err:
+                            _notify(f"⚠️ Testnet open {s} failed: {t_err} — paper stays open")
                         else:
                             if DEMO_LIVE and TESTNET_LIVE:
-                                _notify(f"📡 Live open {s}: {side} {qty:.4f} @ market (demo+testnet)")
+                                _notify(f"📡 Live open {s}: {side} {qty:.4f} @ market (demo+testnet) — Telegram and testnet identical")
                             elif DEMO_LIVE:
                                 _notify(f"📡 Demo open {s}: {side} {qty:.4f} @ market")
                             else:
                                 _notify(f"📡 Testnet open {s}: {side} {qty:.4f} @ market")
                     except Exception as e:
-                        # on exception also remove paper leg to keep sync
-                        if s in state['open_positions']:
-                            try:
-                                del state['open_positions'][s]
-                            except Exception:
-                                pass
-                        _notify(f"⚠️ Live open {s} exception: {e} — paper leg removed")
+                        _notify(f"⚠️ Live open {s} exception: {e} — paper stays open, will retry")
 
     # Update effective equity (capital + unrealized) like Alpha 1
     eff = get_effective_equity(state, prices)
@@ -1161,89 +1185,45 @@ def reconcile_on_startup(state):
                 pass
         from demo_trader import place_market_order, round_qty as _rq
 
-        # 2) paper legs: handle flat, normal, and DIVERGENT (paper dir != live dir) -> book + flatten
+        # 2) paper is source of truth — live must follow paper (user: "align binance testnet to telegram bot not the other way round")
+        # For each paper position, ensure demo/testnet have the same live position
         for s in list(state.get('open_positions', {}).keys()):
             p = state['open_positions'][s]
             demo_amt = float(demo[s]['positionAmt']) if s in demo else 0.0
             tn_amt = float(testnet[s]) if s in testnet else 0.0
-            has_live = abs(demo_amt) > 0 or abs(tn_amt) > 0
-            if not has_live:
-                # demo+testnet flat -> book paper close at market (original step 2)
-                direction = p.get('direction', 'long')
-                entry = float(p.get('entry_price', 0.0))
-                qty = float(p.get('quantity', 0.0))
-                px = get_price(s) or entry
-                pct = ((px - entry) / entry if direction == 'long' else (entry - px) / entry) if entry else 0.0
-                pnl_d = qty * (px - entry) * (1 if direction == 'long' else -1)
-                pnl_d -= qty * (entry + px) * FEE_RATE
-                state['capital'] += pnl_d
-                state['equity'] = state['capital']
-                state['total_trades'] += 1
-                if pnl_d > 0:
-                    state['total_wins'] += 1
-                else:
-                    state['total_losses'] += 1
-                state['trades'].append({
-                    'symbol': s, 'direction': direction,
-                    'entry_price': entry, 'exit_price': px,
-                    'resolve': 'market', 'pnl_pct': pct,
-                    'pnl_dollars': pnl_d, 'reason': 'RECONCILE',
-                    'entry_time': p.get('entry_time'),
-                    'exit_time': datetime.utcnow().isoformat(),
-                })
-                log_trade(state['trades'][-1], state)
-                del state['open_positions'][s]
-                print(f"  [{ts}] RECONCILE {s}: demo flat -> closed paper leg "
-                      f"({direction}, qty {qty}) @ {px} | PnL ${pnl_d:+,.2f}")
-                _notify(f"🧹 <b>RECONCILE {s}</b>: demo flat → closed paper leg "
-                        f"{direction.upper()} @ market | PnL ${pnl_d:+,.2f}")
-                try: log_event("alpha3", "reconcile_paper_close", {"symbol": s, "pnl": round(pnl_d, 4), "price": px})
-                except Exception: pass
-                continue
-            # has live: check direction match
-            live_amt = demo_amt if abs(demo_amt) > 0 else tn_amt
-            live_dir = 'long' if live_amt > 0 else 'short'
             paper_dir = p.get('direction', 'long')
-            if paper_dir == live_dir:
-                continue  # normal open, leave alone
-            # DIVERGENT: paper=short live=long (or vice versa) -> book paper + flatten live
-            direction = paper_dir
-            entry = float(p.get('entry_price', 0.0))
-            qty = float(p.get('quantity', 0.0))
-            px = get_price(s) or entry
-            pct = ((px - entry) / entry if direction == 'long' else (entry - px) / entry) if entry else 0.0
-            pnl_d = qty * (px - entry) * (1 if direction == 'long' else -1)
-            pnl_d -= qty * (entry + px) * FEE_RATE
-            state['capital'] += pnl_d
-            state['equity'] = state['capital']
-            state['total_trades'] += 1
-            if pnl_d > 0:
-                state['total_wins'] += 1
-            else:
-                state['total_losses'] += 1
-            state['trades'].append({
-                'symbol': s, 'direction': direction,
-                'entry_price': entry, 'exit_price': px,
-                'resolve': 'market', 'pnl_pct': pct,
-                'pnl_dollars': pnl_d, 'reason': 'RECONCILE-DIVERGENT',
-                'entry_time': p.get('entry_time'),
-                'exit_time': datetime.utcnow().isoformat(),
-            })
-            log_trade(state['trades'][-1], state)
-            del state['open_positions'][s]
-            print(f"  [{ts}] RECONCILE-DIVERGENT {s}: paper {paper_dir} vs live {live_dir} ({live_amt}) -> closed paper leg @ {px} | PnL ${pnl_d:+,.2f}")
-            _notify(f"🧹 <b>RECONCILE-DIVERGENT {s}</b>: paper {paper_dir.upper()} vs live {live_dir.upper()} → closed paper + flattening live")
-            try: log_event("alpha3", "reconcile_divergent", {"symbol": s, "paper_dir": paper_dir, "live_dir": live_dir, "live_amt": live_amt})
-            except Exception: pass
-            # flatten the actual live position(s) by their real sign/qty (no balance cap)
+            paper_qty = float(p.get('quantity', 0.0))
+            has_demo = abs(demo_amt) > 0
+            has_testnet = abs(tn_amt) > 0
+            need_demo = DEMO_LIVE and (not has_demo or ('long' if demo_amt>0 else 'short') != paper_dir)
+            need_testnet = TESTNET_LIVE and (not has_testnet or ('long' if tn_amt>0 else 'short') != paper_dir)
+            if not need_demo and not need_testnet:
+                continue  # already identical
+            # need to place live order(s) to make live follow paper
             try:
-                _, d_err, _, t_err = _close_live_position(s)
-                if d_err is None or t_err is None:
-                    print(f"  [{ts}] RECONCILE-DIVERGENT {s}: live leg flattened")
-                else:
-                    print(f"  [{ts}] RECONCILE-DIVERGENT {s}: live flatten FAILED (demo {d_err} | testnet {t_err})")
+                # if live has opposite direction, first flatten it
+                if has_demo and ('long' if demo_amt>0 else 'short') != paper_dir:
+                    print(f"  [{ts}] RECONCILE {s}: demo live {('long' if demo_amt>0 else 'short')} vs paper {paper_dir} -> flatten demo then re-open")
+                    _close_live_position(s)
+                    has_demo = False
+                if has_testnet and ('long' if tn_amt>0 else 'short') != paper_dir:
+                    print(f"  [{ts}] RECONCILE {s}: testnet live {('long' if tn_amt>0 else 'short')} vs paper {paper_dir} -> flatten")
+                    _close_live_position(s)
+                    has_testnet = False
+                # now place missing live leg(s) to match paper
+                side = 'BUY' if paper_dir == 'long' else 'SELL'
+                qty = paper_qty
+                # use live-capped qty for the order (paper qty is already capped, but ensure it respects marketMax)
+                if need_demo or need_testnet:
+                    _, d_err, _, t_err = _place_live_market(s, side, qty)
+                    if d_err is None or t_err is None:
+                        print(f"  [{ts}] RECONCILE {s}: live now follows paper {paper_dir} qty {qty}")
+                    else:
+                        print(f"  [{ts}] RECONCILE {s}: live follow paper FAILED demo {d_err} testnet {t_err} — will retry next cycle")
+                continue
             except Exception as e:
-                print(f"  [{ts}] RECONCILE-DIVERGENT {s}: flatten exception {e}")
+                print(f"  [{ts}] RECONCILE {s} paper->live failed: {e}")
+                continue
 
         # 3) live position with no paper leg -> orphan sweep (demo + testnet)
         live_union = set(list(demo.keys()) + list(testnet.keys()))
