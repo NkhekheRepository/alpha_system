@@ -16,6 +16,10 @@ Toggle testnet: set BINANCE_USE_TESTNET=true and restart services.
 """
 
 import os
+import hmac
+import hashlib
+import time
+import requests
 from pathlib import Path
 
 try:
@@ -74,3 +78,52 @@ def get_demo_keys():
 
 def get_demo_fapi_base():
     return BINANCE_DEMO_FAPI_BASE
+
+
+# ---------------------------------------------------------------------------
+# Signature hardening (fixes intermittent -1022 "Signature not valid" on
+# demo-fapi). Root cause: signing with the local machine clock + a tight
+# recvWindow means any clock drift or API latency pushes the request outside
+# Binance's allowed time window. Fix: sync timestamp to Binance *server* time
+# and centralize signing so the signed string always equals the sent query.
+# ---------------------------------------------------------------------------
+_SERVER_TIME_OFFSET_MS = None
+
+
+def sync_binance_time():
+    """Fetch Binance server time once and cache the offset vs local clock."""
+    global _SERVER_TIME_OFFSET_MS
+    try:
+        r = requests.get(f"{BINANCE_DEMO_FAPI_BASE}/fapi/v1/time", timeout=5)
+        if r.status_code == 200:
+            _SERVER_TIME_OFFSET_MS = int(r.json()["serverTime"]) - int(time.time() * 1000)
+            return True
+    except Exception:
+        pass
+    _SERVER_TIME_OFFSET_MS = None
+    return False
+
+
+def server_timestamp():
+    """Timestamp synced to Binance server clock (eliminates clock-skew -1022)."""
+    if _SERVER_TIME_OFFSET_MS is None:
+        sync_binance_time()
+    return int(time.time() * 1000) + (_SERVER_TIME_OFFSET_MS or 0)
+
+
+def sign_query(params, secret=None):
+    """Build an HMAC-SHA256 signature over params (incl. synced timestamp).
+
+    Returns a dict ready for requests ``params=``. The signature is excluded
+    from the signed payload (Binance ignores it on verification). The secret is
+    stripped defensively against trailing whitespace/newlines from .env.
+    """
+    p = dict(params)
+    if not p.get("timestamp"):
+        p["timestamp"] = server_timestamp()
+    if "recvWindow" not in p:
+        p["recvWindow"] = 10000
+    qs = "&".join(f"{k}={v}" for k, v in p.items())
+    sec = (secret if secret is not None else BINANCE_DEMO_API_SECRET or "").strip()
+    sig = hmac.new(sec.encode(), qs.encode(), hashlib.sha256).hexdigest()
+    return {**p, "signature": sig}

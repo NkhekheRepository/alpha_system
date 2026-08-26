@@ -20,9 +20,9 @@ BASE = BINANCE_DEMO_FAPI_BASE
 _lot_cache = {}
 
 def _sign(params):
-    qs = '&'.join([f"{k}={v}" for k, v in params.items()])
-    sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
-    return {**params, 'signature': sig}
+    # Delegate to the centralized, server-time-synced signer (binance_config.sign_query)
+    from binance_config import sign_query
+    return sign_query(params)
 
 def _headers():
     return {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
@@ -80,6 +80,7 @@ def place_limit_order(symbol, side, quantity, price, reduce_only=False):
         j = r.json()
         if r.status_code == 200:
             return j, None
+        print(f"[demo_trader] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side})")
         return None, f"{r.status_code}: {j.get('msg','')} {j}"
     except Exception as e:
         return None, str(e)
@@ -110,6 +111,7 @@ def place_market_order(symbol, side, quantity, reduce_only=False):
         j = r.json()
         if r.status_code == 200:
             return j, None
+        print(f"[demo_trader] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side})")
         return None, f"{r.status_code}: {j.get('msg','')} {j}"
     except Exception as e:
         return None, str(e)
@@ -122,7 +124,7 @@ def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
         close_side = 'SELL' if entry_side == 'BUY' else 'BUY'
         qty = round_qty(symbol, quantity)
         # Take profit
-        ts = int(time.time() * 1000)
+        from binance_config import sign_query
         tp_params = {
             'symbol': symbol,
             'side': close_side,
@@ -130,14 +132,11 @@ def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
             'quantity': qty,
             'triggerPrice': round(tp_price, 2),
             'algotype': 'CONDITIONAL',
-            'timestamp': ts,
         }
-        qs = '&'.join([f"{k}={v}" for k, v in tp_params.items()])
-        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        signed_tp = sign_query(tp_params)
         h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
-        requests.post(f"{BASE}/fapi/v1/algoOrder", params={**tp_params, 'signature': sig}, headers=h, timeout=10)
+        requests.post(f"{BASE}/fapi/v1/algoOrder", params=signed_tp, headers=h, timeout=10)
         time.sleep(0.15)
-        ts2 = int(time.time() * 1000)
         sl_params = {
             'symbol': symbol,
             'side': close_side,
@@ -145,11 +144,9 @@ def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
             'quantity': qty,
             'triggerPrice': round(sl_price, 2),
             'algotype': 'CONDITIONAL',
-            'timestamp': ts2,
         }
-        qs2 = '&'.join([f"{k}={v}" for k, v in sl_params.items()])
-        sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
-        requests.post(f"{BASE}/fapi/v1/algoOrder", params={**sl_params, 'signature': sig2}, headers=h, timeout=10)
+        signed_sl = sign_query(sl_params)
+        requests.post(f"{BASE}/fapi/v1/algoOrder", params=signed_sl, headers=h, timeout=10)
     except Exception:
         pass
 
@@ -158,21 +155,17 @@ def cancel_algo_orders(symbol):
     if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
         return
     try:
-        ts = int(time.time() * 1000)
-        params = {'timestamp': ts}
-        qs = '&'.join([f"{k}={v}" for k, v in params.items()])
-        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        from binance_config import sign_query
+        params = sign_query({'timestamp': 0})  # timestamp auto-filled by sign_query
         h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
-        r = requests.get(f"{BASE}/fapi/v1/openAlgoOrders", params={**params, 'signature': sig}, headers=h, timeout=10)
+        r = requests.get(f"{BASE}/fapi/v1/openAlgoOrders", params=params, headers=h, timeout=10)
         if r.status_code != 200:
             return
         for o in r.json():
             if o.get('symbol') == symbol:
                 algo_id = o.get('algoId')
-                ts2 = int(time.time() * 1000)
-                qs2 = f"algoId={algo_id}&timestamp={ts2}"
-                sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
-                requests.delete(f"{BASE}/fapi/v1/algoOrder", params={'algoId': algo_id, 'timestamp': ts2, 'signature': sig2}, headers=h, timeout=10)
+                del_params = sign_query({'algoId': algo_id})
+                requests.delete(f"{BASE}/fapi/v1/algoOrder", params=del_params, headers=h, timeout=10)
                 time.sleep(0.1)
     except Exception:
         pass
@@ -194,6 +187,7 @@ def set_leverage(symbol, leverage=50):
         j = r.json()
         if r.status_code == 200:
             return j, None
+        print(f"[demo_trader] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side})")
         return None, f"{r.status_code}: {j.get('msg','')} {j}"
     except Exception as e:
         return None, str(e)

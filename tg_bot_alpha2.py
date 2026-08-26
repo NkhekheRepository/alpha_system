@@ -127,8 +127,7 @@ def calc_unrealized(state, prices):
 def fetch_testnet_orders():
     """Fetch real open orders from Binance Testnet (if keys valid)."""
     try:
-        import hmac, hashlib, time as _t
-        from binance_config import BINANCE_API_BASE, ACTIVE_API_KEY, ACTIVE_API_SECRET, USE_TESTNET
+        from binance_config import BINANCE_API_BASE, ACTIVE_API_KEY, ACTIVE_API_SECRET, USE_TESTNET, sign_query
         if not USE_TESTNET or not ACTIVE_API_KEY or not ACTIVE_API_SECRET:
             return None, "Testnet keys not configured"
         # Use demo-fapi host directly for futures positions (BINANCE_API_BASE includes version)
@@ -145,11 +144,9 @@ def fetch_testnet_orders():
             key, sec = ACTIVE_API_KEY, ACTIVE_API_SECRET
             if not key:
                 return None, "Testnet keys not configured"
-        ts = int(_t.time() * 1000)
-        qs = f'timestamp={ts}'
-        sig = hmac.new(sec.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        signed = sign_query({'timestamp': 0}, secret=sec)
         h = {'X-MBX-APIKEY': key}
-        r = requests.get(f'{base}{path}', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
+        r = requests.get(f'{base}{path}', params=signed, headers=h, timeout=10)
         if r.status_code == 200:
             data = r.json()
             if is_futures:
@@ -158,6 +155,7 @@ def fetch_testnet_orders():
                 orders = data
             return orders, None
         else:
+            print(f"[tg_bot] TESTNET GET FAIL {r.status_code}: {r.text[:200]}")
             return None, f"Testnet API {r.status_code}: {r.json().get('msg','')}"
     except Exception as e:
         return None, str(e)

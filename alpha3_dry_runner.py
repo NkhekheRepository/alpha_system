@@ -909,15 +909,18 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
 
 
 def _signed_get(path, params=''):
-    import hmac, hashlib
-    from binance_config import BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
-    ts = int(time.time() * 1000)
-    q = f"timestamp={ts}&recvWindow=10000"
+    from binance_config import BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, sign_query
+    p = {}
     if params:
-        q += "&" + params
-    sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), q.encode(), hashlib.sha256).hexdigest()
-    r = requests.get(f"{BINANCE_DEMO_FAPI_BASE}{path}", params=f"{q}&signature={sig}",
+        for kv in params.split('&'):
+            if '=' in kv:
+                k, v = kv.split('=', 1)
+                p[k] = v
+    signed = sign_query(p)
+    r = requests.get(f"{BINANCE_DEMO_FAPI_BASE}{path}", params=signed,
                      headers={'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}, timeout=10)
+    if r.status_code != 200:
+        print(f"[alpha3] SIGNED GET FAIL {r.status_code}: {r.text[:200]} path={path}")
     return (r.json() if r.status_code == 200 else None)
 
 
