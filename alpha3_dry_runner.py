@@ -324,11 +324,11 @@ FLATTEN_ON_SHUTDOWN = True  # systemctl stop / SIGTERM flattens all open positio
 from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS
 ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
-INTERVAL = 20  # 20s polls -> 3x more responsive vs 60s; K/H scaled to keep wall-clock windows (K*INTERVAL=600s, H*INTERVAL=6000s)
+INTERVAL = 10  # 10s polls -> 6x more responsive (was 60s); bulk/parallel fetch keeps cycle <5s for <10s Telegram<->Binance sync
 
-K = 30  # 30*20s = 600s momentum window (was 10*60s)
-H = 300  # 300*20s = 6000s hold (was 100*60s)
-WARMUP = 60  # keep low to allow immediate trading with existing 200-bar history (was H+10=310, which blocked opens)
+K = 60  # 60*10s = 600s momentum window (was 10*60s)
+H = 600  # 600*10s = 6000s hold (was 100*60s)
+WARMUP = 60  # keep low to allow immediate trading with existing 200-bar history
 MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 100.0
@@ -741,15 +741,30 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         log_equity(state)
         return state
 
+    # parallel fetch for 7 assets -> ~2-3s vs 14s sequential (needed for <10s sync)
     ohlcv_data = {}
     orderbook_data = {}
-    for s in ASSETS:
-        o = get_ohlcv(s)
-        if o is not None:
-            ohlcv_data[s] = o
-        ob = get_orderbook(s)
-        if ob is not None:
-            orderbook_data[s] = ob
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        def _fetch_one(sym):
+            return sym, get_ohlcv(sym), get_orderbook(sym)
+        with ThreadPoolExecutor(max_workers=7) as ex:
+            futs = {ex.submit(_fetch_one, s): s for s in ASSETS}
+            for fut in as_completed(futs):
+                sym, o, ob = fut.result()
+                if o is not None:
+                    ohlcv_data[sym] = o
+                if ob is not None:
+                    orderbook_data[sym] = ob
+    except Exception:
+        # fallback sequential
+        for s in ASSETS:
+            o = get_ohlcv(s)
+            if o is not None:
+                ohlcv_data[s] = o
+            ob = get_orderbook(s)
+            if ob is not None:
+                orderbook_data[s] = ob
     if not ohlcv_data:
         print(f"  [{ts}] No OHLCV data, skip")
         return state
@@ -984,14 +999,18 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
                         _, d_err, _, t_err = _place_live_market(s, side, qty)
-                        if d_err and t_err:
-                            _notify(f"⚠️ Live open {s} failed: demo {d_err} | testnet {t_err}")
-                        elif d_err and TESTNET_LIVE:
-                            pass
-                        elif d_err:
-                            _notify(f"⚠️ Demo open {s} failed: {d_err}")
-                        elif t_err and DEMO_LIVE:
-                            pass
+                        # strict sync: if any required venue failed, delete the paper leg so Telegram and live stay in sync
+                        failed = (DEMO_LIVE and d_err is not None) or (TESTNET_LIVE and t_err is not None)
+                        if failed:
+                            # remove the paper position we just created so it doesn't show as open on Telegram while live is flat
+                            if s in state['open_positions']:
+                                del state['open_positions'][s]
+                            if d_err and t_err:
+                                _notify(f"⚠️ Live open {s} failed: demo {d_err} | testnet {t_err} — paper leg removed")
+                            elif d_err:
+                                _notify(f"⚠️ Demo open {s} failed: {d_err} — paper leg removed")
+                            elif t_err:
+                                _notify(f"⚠️ Testnet open {s} failed: {t_err} — paper leg removed")
                         else:
                             if DEMO_LIVE and TESTNET_LIVE:
                                 _notify(f"📡 Live open {s}: {side} {qty:.4f} @ market (demo+testnet)")
@@ -1000,7 +1019,13 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                             else:
                                 _notify(f"📡 Testnet open {s}: {side} {qty:.4f} @ market")
                     except Exception as e:
-                        _notify(f"⚠️ Live open {s} exception: {e}")
+                        # on exception also remove paper leg to keep sync
+                        if s in state['open_positions']:
+                            try:
+                                del state['open_positions'][s]
+                            except Exception:
+                                pass
+                        _notify(f"⚠️ Live open {s} exception: {e} — paper leg removed")
 
     # Update effective equity (capital + unrealized) like Alpha 1
     eff = get_effective_equity(state, prices)

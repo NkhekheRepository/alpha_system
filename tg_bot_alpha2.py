@@ -77,6 +77,17 @@ except Exception:
     ALPHA3_ASSETS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
 
 def get_prices():
+    # bulk fetch -> 1 request vs 7 sequential (2s vs 14s) for <10s sync
+    try:
+        r = requests.get(f"{API}/ticker/price", timeout=5)
+        data = r.json()
+        # data is list of {symbol, price} when no symbol param
+        if isinstance(data, list):
+            wanted = set(ALPHA3_ASSETS)
+            return {d['symbol']: float(d['price']) for d in data if d['symbol'] in wanted}
+    except Exception:
+        pass
+    # fallback per-symbol
     prices = {}
     for sym in ALPHA3_ASSETS:
         try:
@@ -296,7 +307,7 @@ def build_status_text(state, live=False):
             testnet_line = f"🔗 {net_label} | Testnet auth: {err} — paper positions above"
     except Exception:
         testnet_line = "🔗 Paper trading (dry mode)"
-    header = "🟢 LIVE — auto-updating every 15s" if live else "DRY MODE"
+    header = "🟢 LIVE — auto-updating every 10s" if live else "DRY MODE"
     return (
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
@@ -577,7 +588,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Auto-edit error: {e}")
 
     job = context.job_queue.run_repeating(
-        auto_edit, interval=15, first=15, chat_id=chat_id
+        auto_edit, interval=10, first=10, chat_id=chat_id
     )
     live_messages[chat_id] = {"msg_id": msg_id, "job": job}
 
