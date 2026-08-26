@@ -128,8 +128,14 @@ def _cap_qty_by_balance(symbol, qty, price=None, is_market=True, for_close=False
                 price = None
         if price and price > 0:
             bal = get_demo_usdt_balance()
-            max_notional = bal * 0.19 * 20
-            max_notional = min(max_notional, 8000)
+            # use actual STAKE_PCT (0.20) for live compounding; cap at 50% of wallet*leverage to allow compounding beyond 8000 as equity grows
+            try:
+                from alpha3_dry_runner import STAKE_PCT as _SP, LEVERAGE as _LEV
+            except Exception:
+                _SP, _LEV = 0.20, 20.0
+            max_notional = bal * _SP * _LEV
+            # allow compounding: cap scales with balance, but keep a hard max of 20000 to avoid exchange max-position errors
+            max_notional = min(max_notional, max(8000, bal * 0.5 * _LEV))
             max_qty_by_notional = max_notional / price
             if qty > max_qty_by_notional:
                 qty = max_qty_by_notional
@@ -536,8 +542,12 @@ def _format_testnet_qty(symbol, qty, price=None, is_market=True, for_close=False
                     price = None
             if price and price > 0:
                 bal = get_testnet_usdt_balance()
-                max_notional = bal * 0.19 * 20
-                max_notional = min(max_notional, 8000)
+                try:
+                    from alpha3_dry_runner import STAKE_PCT as _SP, LEVERAGE as _LEV
+                except Exception:
+                    _SP, _LEV = 0.20, 20.0
+                max_notional = bal * _SP * _LEV
+                max_notional = min(max_notional, max(8000, bal * 0.5 * _LEV))
                 max_qty = max_notional / price
                 if qty > max_qty:
                     qty = max_qty

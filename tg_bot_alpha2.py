@@ -280,10 +280,14 @@ def build_status_text(state, live=False):
         for sym, pos in positions.items():
             base_s = sym.replace('USDT', '')
             entry = pos['entry_price']
+            direction = pos.get('direction', 'long')
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
+            # direction-aware TP/SL (short TP is down, SL is up)
+            tp_disp = entry * (1 - WIN_PCT) if direction == 'short' else entry * (1 + WIN_PCT)
+            sl_disp = entry * (1 - LOSS_PCT) if direction == 'short' else entry * (1 + LOSS_PCT)
             pos_lines += (f"     {base_s}: bar {age}/{H} | stake ${stake:,.0f} | resolves → "
-                          f"+{abs(WIN_PCT)*100:g}% ({fmt_price(entry*(1+WIN_PCT))}) / {LOSS_PCT*100:g}% ({fmt_price(entry*(1+LOSS_PCT))})\n")
+                          f"+{abs(WIN_PCT)*100:g}% ({fmt_price(tp_disp)}) / {LOSS_PCT*100:g}% ({fmt_price(sl_disp)})\n")
     elif positions:
         for sym, pos in positions.items():
             base_s = sym.replace('USDT', '')
@@ -394,19 +398,26 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pnl_d = (current - entry) * qty
             pnl_pct = (current - entry) / entry * 100
         emoji = '🟢' if pnl_d >= 0 else '🔴'
+        tp_d = entry * (1 - WIN_PCT) if direction == 'short' else entry * (1 + WIN_PCT)
+        sl_d = entry * (1 - LOSS_PCT) if direction == 'short' else entry * (1 + LOSS_PCT)
         msg += (
             f"{emoji} <b>{base}/USDT</b> — {direction.upper()}\n"
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"TP ${entry*(1+WIN_PCT):,.2f} / SL ${entry*(1+LOSS_PCT):,.2f} (market) | TIMEOUT bar {H}\n"
+            f"TP ${tp_d:,.2f} / SL ${sl_d:,.2f} (market) | TIMEOUT bar {H}\n"
             f"Hold: bar {age}/{H} (~{remaining * 20 // 60} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
-    # Show paper TP/SL levels
+    # Show paper TP/SL levels (direction-aware)
     for sym2, pos2 in state.get('open_positions', {}).items():
         if 'tp_price' in pos2:
-            msg += f"     {base_s}: bar {age}/{H} | resolves → +{abs(WIN_PCT)*100:g}% (${entry*(1+WIN_PCT):,.2f}) / {LOSS_PCT*100:g}% (${entry*(1+LOSS_PCT):,.2f})\n"
+            e2 = pos2['entry_price']
+            d2 = pos2.get('direction', 'long')
+            tp2 = e2 * (1 - WIN_PCT) if d2 == 'short' else e2 * (1 + WIN_PCT)
+            sl2 = e2 * (1 - LOSS_PCT) if d2 == 'short' else e2 * (1 + LOSS_PCT)
+            a2 = pos2.get('age', age)
+            msg += f"     {sym2.replace('USDT','')}: bar {a2}/{H} | resolves → +{abs(WIN_PCT)*100:g}% ({tp2:,.2f}) / {LOSS_PCT*100:g}% ({sl2:,.2f})\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 

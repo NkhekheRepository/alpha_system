@@ -822,10 +822,15 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         pos['age'] = max(pos.get('age', 0), wc_age)
         if s not in prices:
             continue
-        # Back-compat: flip-era positions lack tp/sl
+        # Back-compat: flip-era positions lack tp/sl + fix wrong short TP/SL (was swapped 0.98/0.965, both below)
         if 'tp_price' not in pos:
-            pos['tp_price'] = pos['entry_price'] * ((1 + LOSS_PCT) if pos['direction'] == 'short' else (1 + WIN_PCT))
-            pos['sl_price'] = pos['entry_price'] * ((1 - WIN_PCT) if pos['direction'] == 'short' else (1 + LOSS_PCT))
+            pos['tp_price'] = pos['entry_price'] * ((1 - WIN_PCT) if pos['direction'] == 'short' else (1 + WIN_PCT))
+            pos['sl_price'] = pos['entry_price'] * ((1 - LOSS_PCT) if pos['direction'] == 'short' else (1 + LOSS_PCT))
+        # Fix existing shorts that have wrong TP/SL (both below entry, tp > sl)
+        if pos['direction'] == 'short' and pos['tp_price'] < pos['entry_price'] and pos['sl_price'] < pos['entry_price']:
+            # wrong: both below, correct is tp below, sl above
+            pos['tp_price'] = pos['entry_price'] * (1 - WIN_PCT)
+            pos['sl_price'] = pos['entry_price'] * (1 - LOSS_PCT)
         direction = pos['direction']
         entry = pos['entry_price']
         tp = pos['tp_price']
@@ -975,8 +980,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     qty = _rq(s, qty) if DEMO_LIVE else qty
                 except Exception:
                     pass
-                tp_p = prices[s] * ((1 + LOSS_PCT) if d == 'short' else (1 + WIN_PCT))
-                sl_p = prices[s] * ((1 - WIN_PCT) if d == 'short' else (1 + LOSS_PCT))
+                tp_p = prices[s] * ((1 - WIN_PCT) if d == 'short' else (1 + WIN_PCT))
+                sl_p = prices[s] * ((1 - LOSS_PCT) if d == 'short' else (1 + LOSS_PCT))
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
                     'entry_price': prices[s], 'quantity': qty,
