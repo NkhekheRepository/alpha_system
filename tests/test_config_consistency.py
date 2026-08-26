@@ -11,12 +11,12 @@ from binance_config import ALPHA3_ASSETS
 
 def test_k_horizon_match():
     assert R.K == MC.K == 10
-    assert R.H == MC.H == 75
+    assert R.H == MC.H == 100
 
 
 def test_tp_sl_fee_match():
-    assert R.WIN_PCT == MC.TP_PCT == 0.02
-    assert R.LOSS_PCT == MC.SL_PCT == -0.02
+    assert R.WIN_PCT == MC.TP_PCT == 0.035
+    assert R.LOSS_PCT == MC.SL_PCT == -0.035
     assert R.FEE_RATE == MC.FEE_RATE == 0.0002
 
 

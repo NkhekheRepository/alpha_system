@@ -5,10 +5,10 @@ must label what the runner actually trades.
 """
 
 K = 10            # momentum lookback (bars)
-H = 75            # hold horizon (bars)
+H = 100            # hold horizon (bars)
 WARMUP = H + 10   # bars before first entry allowed
-TP_PCT = 0.02     # +2% take-profit
-SL_PCT = -0.02    # -2% stop-loss (as fraction of entry, negative)
+TP_PCT = 0.035     # +3.5% take-profit
+SL_PCT = -0.035    # -3.5% stop-loss (as fraction of entry, negative)
 FEE_RATE = 0.0002  # 0.02% taker fee per side
 INTERVAL_SEC = 60  # 1-minute bars
 HOLDINGS = ['HANAUSDT', 'STRKUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT', 'PROMUSDT', 'PLAYUSDT']

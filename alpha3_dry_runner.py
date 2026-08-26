@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""ALPHA 3 DRY MODE RUNNER - triple-barrier paper + demo-fapi live hedge.
+"""ALPHA 3 DRY MODE RUNNER - triple-barrier paper (testnet spot, 5m cadence).
 
-Engine: Alpha 1/2 clone — 5 assets (BTC/ETH/SOL/BNB/XRP, 60s polls),
-momentum-K10 direction, H=50 hold, TP/SL +/-2% market barriers every poll,
-TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar cooldown. Staking:
-margin fraction of current equity (compounding) x leverage (--stake 0.075 = $7.5,
---leverage 50) on a 100 USDT synthetic base; demo orders via demo-fapi hedge
-equally sized (cross margin, ~$37.5 margin for 5 assets, $11.25k notional at 50x).
+Engine: Alpha 3 / Alpha 1% clone — 7 assets (ALPHA3_ASSETS, 5m polls),
+momentum-K10 direction, H=15 hold (75 min wall-clock), TP/SL +/-2% market
+barriers every poll, TIMEOUT at bar 15. Circuit breaker 3 losses -> 50-bar
+cooldown. Staking: 3% equity per trade (POS_PCT=0.03, compounding, no leverage)
+on a 100 USDT synthetic base; barriers sourced from TB_CONFIG (alpha_1percent
+parity: 2%/2%, vol flags). Matches alpha_3.py simulation energy & frequency
+(5m candles, 50-min momentum window). Telegram bot is the main remote control
+(state -> alpha3_live_state.json, commands <- alpha3_cmd.json).
+
 Credibility: real-market resolution only — no synthetic flip.
+Exchange: testnet spot (testnet.binance.vision/api/v3) when BINANCE_USE_TESTNET=true.
 """
 
 import sys, os, json, csv, time, signal, argparse
@@ -231,7 +235,7 @@ API = BINANCE_API_BASE
 INTERVAL = 60
 
 K = 10
-H = 75
+H = 100
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
@@ -239,12 +243,40 @@ CAP = 100.0
 STAKE_PCT = 0.20
 LEVERAGE = 20.0
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
-WIN_PCT = 0.02
-LOSS_PCT = -0.02
+WIN_PCT = 0.035
+LOSS_PCT = -0.035
 
 # Meta-labeler config
 META_LABELER_PATH = Path('/home/nkhekhe/alpha_system/models/meta_labeler.joblib')
 META_THRESHOLD = 0.50  # from training
+
+# Orderbook cache for microstructure features
+_orderbook_cache = {}  # {symbol: {'bookTicker': {...}, 'depth': [...], 'ts': timestamp}}
+
+def get_orderbook(symbol):
+    """Fetch orderbook + bookTicker for symbol. Returns dict or None."""
+    global _orderbook_cache
+    now = time.time()
+    # Return cached if fresh (< 60s)
+    cached = _orderbook_cache.get(symbol)
+    if cached and now - cached['ts'] < 60:
+        return cached
+    try:
+        # Fetch bookTicker (top of book)
+        r1 = requests.get(f"{API}/ticker/bookTicker", params={'symbol': symbol}, timeout=5)
+        if r1.status_code != 200:
+            return None
+        bt = r1.json()
+        # Fetch depth (top 20 levels)
+        r2 = requests.get(f"{API}/depth", params={'symbol': symbol, 'limit': 20}, timeout=5)
+        if r2.status_code != 200:
+            return None
+        depth = r2.json()
+        ob = {'bookTicker': bt, 'depth': depth, 'ts': time.time()}
+        _orderbook_cache[symbol] = ob
+        return ob
+    except Exception:
+        return None
 
 
 def load_meta_labeler():
@@ -287,7 +319,7 @@ def _ema(x, span):
     return ema
 
 
-def compute_meta_features(closes, highs, lows, volumes, idx):
+def compute_meta_features(closes, highs, lows, volumes, idx, ob_history=None):
     """Compute all 36 features at bar index idx (no look-ahead)."""
     n = len(closes)
     if idx < 199 or idx >= n:
@@ -596,10 +628,14 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         return state
 
     ohlcv_data = {}
+    orderbook_data = {}
     for s in ASSETS:
         o = get_ohlcv(s)
         if o is not None:
             ohlcv_data[s] = o
+        ob = get_orderbook(s)
+        if ob is not None:
+            orderbook_data[s] = ob
     if not ohlcv_data:
         print(f"  [{ts}] No OHLCV data, skip")
         return state
@@ -637,6 +673,14 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
             ph.append(ohlcv_data[s])
             if len(ph) > 200:
                 state['price_history'][s] = ph[-200:]
+
+    # Continuous orderbook history — for microstructure features
+    for s in ASSETS:
+        if s in orderbook_data:
+            ob_hist = state.setdefault('orderbook_history', {}).setdefault(s, [])
+            ob_hist.append(orderbook_data[s])
+            if len(ob_hist) > 200:
+                ob_hist[:] = ob_hist[-200:]
 
     # Exit evaluation ALWAYS runs, even during cooldown (cooldown gates entries only)
     for s in list(state['open_positions'].keys()):
@@ -761,7 +805,9 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     highs = np.array([c['high'] for c in ph])
                     lows = np.array([c['low'] for c in ph])
                     volumes = np.array([c['volume'] for c in ph])
-                    feat = compute_meta_features(closes, highs, lows, volumes, idx)
+                    # Get orderbook history for this symbol (if available)
+                    ob_history = state.get('orderbook_history', {}).get(s, [])
+                    feat = compute_meta_features(closes, highs, lows, volumes, idx, ob_history)
                     if feat is not None:
                         feat_arr = features_to_array(feat)
                         if feat_arr is not None and not np.any(np.isnan(feat_arr)):

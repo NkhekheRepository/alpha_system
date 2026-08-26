@@ -41,8 +41,8 @@ from backtest_alpha2 import ASSETS, DATA_DIR, CAP, FEE
 try:
     from nkhekhe_quant_core.alpha_engine.labeling import AlphaTripleBarrierConfig
     TB_CONFIG = AlphaTripleBarrierConfig(
-        upper_barrier=0.02,     # 2% take-profit (alpha_1percent parity)
-        lower_barrier=0.02,     # 2% stop-loss (alpha_1percent parity; user confirmed SL 2%)
+        upper_barrier=0.035,     # 3.5% take-profit
+        lower_barrier=0.035,     # 3.5% stop-loss
         vertical_horizon=15,    # 15 bars (alpha_1percent TB_CONFIG:77)
         volatility_scaling=True,
         volatility_method='madt',
@@ -54,8 +54,8 @@ except Exception:  # fallback if core package unavailable (offline env)
     from dataclasses import dataclass
     @dataclass
     class _TB:  # minimal mirror
-        upper_barrier: float = 0.02
-        lower_barrier: float = 0.02
+        upper_barrier: float = 0.035
+        lower_barrier: float = 0.035
         vertical_horizon: int = 15
         volatility_scaling: bool = True
         volatility_method: str = 'madt'
@@ -69,8 +69,8 @@ ADDENDUM_HASH = '2026-08-24: declarative alignment to alpha_1percent TB_CONFIG (
 OUT = Path('/home/nkhekhe/alpha_system/experiments/alpha3_results_20260819.json')
 
 P_WIN = 0.85
-WIN = 0.02
-LOSS = -0.02
+WIN = 0.035
+LOSS = -0.035
 SYNTH_SIZING = [0.03, 1.0, 8.75, 35.0, 10.0]
 
 K = 10
