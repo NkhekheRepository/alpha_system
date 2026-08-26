@@ -289,7 +289,7 @@ def place_limit_order(symbol, side, quantity, price, reduce_only=False):
         return None, str(e)
 
 def place_market_order(symbol, side, quantity, reduce_only=False):
-    """Place MARKET order on demo futures. Returns (order_json, error)."""
+    """Place MARKET order on demo futures. Returns (order_json, error). Retries on -2019/-2027."""
     if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
         return None, "Demo keys not configured"
     try:
@@ -301,32 +301,49 @@ def place_market_order(symbol, side, quantity, reduce_only=False):
                 price_hint = float(r0.json().get('price', 0))
         except:
             pass
-        qty_str = _format_qty(symbol, quantity, price_hint, is_market=True, for_close=reduce_only)
-        try:
-            if float(qty_str) <= 0:
-                filt = get_symbol_filters(symbol)
-                qty_str = filt['stepSize']
+        qty_try = quantity
+        last_err = None
+        for attempt in range(3):
+            qty_str = _format_qty(symbol, qty_try, price_hint, is_market=True, for_close=reduce_only)
+            try:
                 if float(qty_str) <= 0:
-                    return None, f"qty {quantity} -> 0 after rounding"
-        except:
-            pass
-        ts = int(time.time() * 1000)
-        params = {
-            'symbol': symbol,
-            'side': side.upper(),
-            'type': 'MARKET',
-            'quantity': qty_str,
-            'timestamp': ts,
-        }
-        if reduce_only:
-            params['reduceOnly'] = 'true'
-        signed = _sign(params)
-        r = requests.post(f"{BASE}/fapi/v1/order", params=signed, headers=_headers(), timeout=10)
-        j = r.json()
-        if r.status_code == 200:
-            return j, None
-        print(f"[demo_trader] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side} qty={qty_str})")
-        return None, f"{r.status_code}: {j.get('msg','')} {j}"
+                    filt = get_symbol_filters(symbol)
+                    qty_str = filt['stepSize']
+                    if float(qty_str) <= 0:
+                        return None, f"qty {quantity} -> 0 after rounding"
+            except:
+                pass
+            ts = int(time.time() * 1000)
+            params = {
+                'symbol': symbol,
+                'side': side.upper(),
+                'type': 'MARKET',
+                'quantity': qty_str,
+                'timestamp': ts,
+            }
+            if reduce_only:
+                params['reduceOnly'] = 'true'
+            signed = _sign(params)
+            r = requests.post(f"{BASE}/fapi/v1/order", params=signed, headers=_headers(), timeout=10)
+            j = r.json()
+            if r.status_code == 200:
+                return j, None
+            print(f"[demo_trader] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side} qty={qty_str})")
+            code = j.get('code')
+            # retry on margin/leverage errors with smaller size
+            if code in (-2019, -2027) and attempt < 2 and not reduce_only:
+                # try halving qty (for -2019) or lowering leverage (for -2027)
+                if code == -2027:
+                    try:
+                        set_leverage(symbol, 10)
+                        print(f"[demo_trader] retry {symbol} with 10x leverage after -2027")
+                    except: pass
+                qty_try = qty_try * 0.5
+                last_err = f"{r.status_code}: {j.get('msg','')} {j}"
+                time.sleep(0.3)
+                continue
+            return None, f"{r.status_code}: {j.get('msg','')} {j}"
+        return None, last_err or f"failed after 3 attempts"
     except Exception as e:
         return None, str(e)
 
@@ -623,23 +640,38 @@ def place_testnet_market_order(symbol, side, quantity, reduce_only=False):
                 price_hint = float(r0.json().get('price', 0))
         except:
             pass
-        qty_str = _format_testnet_qty(symbol, quantity, price_hint, is_market=True, for_close=reduce_only)
-        try:
-            if float(qty_str) <= 0:
-                qty_str = get_testnet_symbol_filters(symbol)['stepSize']
-        except:
-            pass
-        ts = int(time.time() * 1000)
-        params = {'symbol': symbol, 'side': side.upper(), 'type': 'MARKET', 'quantity': qty_str, 'timestamp': ts}
-        if reduce_only:
-            params['reduceOnly'] = 'true'
-        signed = _sign_testnet(params)
-        r = requests.post(f"{TESTNET_FAPI_BASE}/fapi/v1/order", params=signed, headers=_headers_testnet(), timeout=10)
-        j = r.json()
-        if r.status_code == 200:
-            return j, None
-        print(f"[testnet] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side} qty={qty_str})")
-        return None, f"{r.status_code}: {j.get('msg','')} {j}"
+        qty_try = quantity
+        for attempt in range(3):
+            qty_str = _format_testnet_qty(symbol, qty_try, price_hint, is_market=True, for_close=reduce_only)
+            try:
+                if float(qty_str) <= 0:
+                    qty_str = get_testnet_symbol_filters(symbol)['stepSize']
+            except:
+                pass
+            ts = int(time.time() * 1000)
+            params = {'symbol': symbol, 'side': side.upper(), 'type': 'MARKET', 'quantity': qty_str, 'timestamp': ts}
+            if reduce_only:
+                params['reduceOnly'] = 'true'
+            signed = _sign_testnet(params)
+            r = requests.post(f"{TESTNET_FAPI_BASE}/fapi/v1/order", params=signed, headers=_headers_testnet(), timeout=10)
+            j = r.json()
+            if r.status_code == 200:
+                return j, None
+            print(f"[testnet] ORDER FAIL {r.status_code}: {j} (symbol={symbol} side={side} qty={qty_str})")
+            code = j.get('code')
+            if code in (-2019, -2027) and attempt < 2 and not reduce_only:
+                if code == -2027:
+                    try:
+                        # lower leverage to 10x for this symbol and retry
+                        ts2 = int(time.time() * 1000)
+                        p2 = _sign_testnet({'symbol': symbol, 'leverage': 10, 'timestamp': ts2})
+                        requests.post(f"{TESTNET_FAPI_BASE}/fapi/v1/leverage", params=p2, headers=_headers_testnet(), timeout=10)
+                        print(f"[testnet] retry {symbol} with 10x leverage after -2027")
+                    except: pass
+                qty_try = qty_try * 0.5
+                time.sleep(0.3)
+                continue
+            return None, f"{r.status_code}: {j.get('msg','')} {j}"
     except Exception as e:
         return None, str(e)
 
