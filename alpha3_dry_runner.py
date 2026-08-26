@@ -79,6 +79,64 @@ def _place_live_market(symbol, side, qty, reduce_only=False):
     return (demo_res, demo_err, tn_res, tn_err)
 
 
+def _close_live_position(symbol):
+    """Close the *actual* live position(s) by querying exchange state.
+    Derives side/qty from the real position (SELL if long, BUY if short) and
+    uses reduce_only so the order never increases size. Handles positions
+    larger than MARKET_LOT_SIZE (e.g. STRK 60k > 30k) by chunking into
+    marketMax-sized reduce-only orders. Fixes -4118/-2019/-2022/-4005.
+    Returns (demo_res, demo_err, tn_res, tn_err) of the last chunk."""
+    import math, time
+    demo_res = demo_err = tn_res = tn_err = None
+    # Demo — chunk if needed (refetch each iteration for accuracy)
+    if DEMO_LIVE:
+        try:
+            from demo_trader import get_demo_position, get_symbol_filters
+            filt = get_symbol_filters(symbol)
+            mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+            last_res = last_err = None
+            for _ in range(10):  # safety cap 10 chunks
+                amt = get_demo_position(symbol)
+                if abs(amt) < 1e-9:
+                    last_err = None
+                    break
+                side = 'SELL' if amt > 0 else 'BUY'
+                chunk = min(abs(amt), mmax)
+                last_res, last_err = place_market_order(symbol, side, chunk, reduce_only=True)  # type: ignore
+                if last_err is not None:
+                    break
+                time.sleep(0.25)
+            demo_res, demo_err = last_res, last_err
+            if demo_res is None and demo_err is None:
+                demo_err = None  # already flat
+        except Exception as e:
+            demo_err = str(e)
+    # Testnet — same chunking
+    if TESTNET_LIVE:
+        try:
+            from demo_trader import get_testnet_position, get_testnet_symbol_filters
+            filt = get_testnet_symbol_filters(symbol)
+            mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+            last_res = last_err = None
+            for _ in range(10):
+                amt = get_testnet_position(symbol)
+                if abs(amt) < 1e-9:
+                    last_err = None
+                    break
+                side = 'SELL' if amt > 0 else 'BUY'
+                chunk = min(abs(amt), mmax)
+                last_res, last_err = place_testnet_market_order(symbol, side, chunk, reduce_only=True)  # type: ignore
+                if last_err is not None:
+                    break
+                time.sleep(0.25)
+            tn_res, tn_err = last_res, last_err
+            if tn_res is None and tn_err is None:
+                tn_err = None
+        except Exception as e:
+            tn_err = str(e)
+    return (demo_res, demo_err, tn_res, tn_err)
+
+
 def check_commands(state):
     try:
         # External one-way kill trigger (flag file created by any process / human)
@@ -159,8 +217,7 @@ def _flatten_positions(state):
                 from demo_trader import cancel_algo_orders
                 if DEMO_LIVE:
                     cancel_algo_orders(s)
-                side = 'SELL' if direction == 'long' else 'BUY'
-                _place_live_market(s, side, qty, reduce_only=True)
+                _close_live_position(s)
             except Exception as e:
                 _notify(f"⚠️ Kill close {s} failed: {e}")
         del state['open_positions'][s]
@@ -835,21 +892,20 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
             except Exception:
                 pass
             try:
-                side = 'SELL' if direction == 'long' else 'BUY'
-                _, d_err, _, t_err = _place_live_market(s, side, pos['quantity'], reduce_only=True)
-                # only notify on success or if both failed
+                _, d_err, _, t_err = _close_live_position(s)
                 if d_err and t_err:
                     _notify(f"⚠️ Live close {s} failed: demo {d_err} | testnet {t_err}")
                 elif d_err and TESTNET_LIVE:
-                    pass  # testnet succeeded, suppress demo -1111 spam
+                    pass  # testnet succeeded, suppress spam
                 elif d_err:
                     _notify(f"⚠️ Demo close {s} failed: {d_err}")
                 else:
-                    # success on at least one venue
                     if DEMO_LIVE and TESTNET_LIVE:
-                        _notify(f"📡 Live close {s}: {side} {pos['quantity']:.4f} filled (demo+testnet)")
+                        _notify(f"📡 Live close {s}: fully flattened (demo+testnet)")
                     elif DEMO_LIVE:
-                        _notify(f"📡 Demo close {s}: {side} {pos['quantity']:.4f} filled")
+                        _notify(f"📡 Demo close {s}: fully flattened")
+                    else:
+                        _notify(f"📡 Testnet close {s}: fully flattened")
             except Exception as e:
                 _notify(f"⚠️ Live close {s} exception: {e}")
 
@@ -1006,14 +1062,66 @@ def reconcile_on_startup(state):
             print(f"  [{ts}] RECONCILE skipped: positionRisk unavailable")
             return
         demo = {p['symbol']: p for p in pos if abs(float(p.get('positionAmt', 0))) > 0}
+        # also fetch testnet positions for divergent/orphan detection
+        testnet = {}
+        if TESTNET_LIVE:
+            try:
+                from demo_trader import get_testnet_position
+                for _s in ASSETS:
+                    _amt = get_testnet_position(_s)
+                    if abs(_amt) > 0:
+                        testnet[_s] = _amt
+            except Exception:
+                pass
         from demo_trader import place_market_order, round_qty as _rq
 
-        # 2) paper open but demo flat -> book paper close at market
+        # 2) paper legs: handle flat, normal, and DIVERGENT (paper dir != live dir) -> book + flatten
         for s in list(state.get('open_positions', {}).keys()):
-            if s in demo:
-                continue
             p = state['open_positions'][s]
-            direction = p.get('direction', 'long')
+            demo_amt = float(demo[s]['positionAmt']) if s in demo else 0.0
+            tn_amt = float(testnet[s]) if s in testnet else 0.0
+            has_live = abs(demo_amt) > 0 or abs(tn_amt) > 0
+            if not has_live:
+                # demo+testnet flat -> book paper close at market (original step 2)
+                direction = p.get('direction', 'long')
+                entry = float(p.get('entry_price', 0.0))
+                qty = float(p.get('quantity', 0.0))
+                px = get_price(s) or entry
+                pct = ((px - entry) / entry if direction == 'long' else (entry - px) / entry) if entry else 0.0
+                pnl_d = qty * (px - entry) * (1 if direction == 'long' else -1)
+                pnl_d -= qty * (entry + px) * FEE_RATE
+                state['capital'] += pnl_d
+                state['equity'] = state['capital']
+                state['total_trades'] += 1
+                if pnl_d > 0:
+                    state['total_wins'] += 1
+                else:
+                    state['total_losses'] += 1
+                state['trades'].append({
+                    'symbol': s, 'direction': direction,
+                    'entry_price': entry, 'exit_price': px,
+                    'resolve': 'market', 'pnl_pct': pct,
+                    'pnl_dollars': pnl_d, 'reason': 'RECONCILE',
+                    'entry_time': p.get('entry_time'),
+                    'exit_time': datetime.utcnow().isoformat(),
+                })
+                log_trade(state['trades'][-1], state)
+                del state['open_positions'][s]
+                print(f"  [{ts}] RECONCILE {s}: demo flat -> closed paper leg "
+                      f"({direction}, qty {qty}) @ {px} | PnL ${pnl_d:+,.2f}")
+                _notify(f"🧹 <b>RECONCILE {s}</b>: demo flat → closed paper leg "
+                        f"{direction.upper()} @ market | PnL ${pnl_d:+,.2f}")
+                try: log_event("alpha3", "reconcile_paper_close", {"symbol": s, "pnl": round(pnl_d, 4), "price": px})
+                except Exception: pass
+                continue
+            # has live: check direction match
+            live_amt = demo_amt if abs(demo_amt) > 0 else tn_amt
+            live_dir = 'long' if live_amt > 0 else 'short'
+            paper_dir = p.get('direction', 'long')
+            if paper_dir == live_dir:
+                continue  # normal open, leave alone
+            # DIVERGENT: paper=short live=long (or vice versa) -> book paper + flatten live
+            direction = paper_dir
             entry = float(p.get('entry_price', 0.0))
             qty = float(p.get('quantity', 0.0))
             px = get_price(s) or entry
@@ -1031,31 +1139,37 @@ def reconcile_on_startup(state):
                 'symbol': s, 'direction': direction,
                 'entry_price': entry, 'exit_price': px,
                 'resolve': 'market', 'pnl_pct': pct,
-                'pnl_dollars': pnl_d, 'reason': 'RECONCILE',
+                'pnl_dollars': pnl_d, 'reason': 'RECONCILE-DIVERGENT',
                 'entry_time': p.get('entry_time'),
                 'exit_time': datetime.utcnow().isoformat(),
             })
             log_trade(state['trades'][-1], state)
             del state['open_positions'][s]
-            print(f"  [{ts}] RECONCILE {s}: demo flat -> closed paper leg "
-                  f"({direction}, qty {qty}) @ {px} | PnL ${pnl_d:+,.2f}")
-            _notify(f"🧹 <b>RECONCILE {s}</b>: demo flat → closed paper leg "
-                    f"{direction.upper()} @ market | PnL ${pnl_d:+,.2f}")
-            try: log_event("alpha3", "reconcile_paper_close", {"symbol": s, "pnl": round(pnl_d, 4), "price": px})
+            print(f"  [{ts}] RECONCILE-DIVERGENT {s}: paper {paper_dir} vs live {live_dir} ({live_amt}) -> closed paper leg @ {px} | PnL ${pnl_d:+,.2f}")
+            _notify(f"🧹 <b>RECONCILE-DIVERGENT {s}</b>: paper {paper_dir.upper()} vs live {live_dir.upper()} → closed paper + flattening live")
+            try: log_event("alpha3", "reconcile_divergent", {"symbol": s, "paper_dir": paper_dir, "live_dir": live_dir, "live_amt": live_amt})
             except Exception: pass
+            # flatten the actual live position(s) by their real sign/qty (no balance cap)
+            try:
+                _, d_err, _, t_err = _close_live_position(s)
+                if d_err is None or t_err is None:
+                    print(f"  [{ts}] RECONCILE-DIVERGENT {s}: live leg flattened")
+                else:
+                    print(f"  [{ts}] RECONCILE-DIVERGENT {s}: live flatten FAILED (demo {d_err} | testnet {t_err})")
+            except Exception as e:
+                print(f"  [{ts}] RECONCILE-DIVERGENT {s}: flatten exception {e}")
 
-        # 3) demo position with no paper leg -> orphan sweep (demo + testnet)
-        for s, p in sorted(demo.items()):
+        # 3) live position with no paper leg -> orphan sweep (demo + testnet)
+        live_union = set(list(demo.keys()) + list(testnet.keys()))
+        for s in sorted(live_union):
             if s in state.get('open_positions', {}):
                 continue
-            amt = float(p['positionAmt'])
-            side = 'SELL' if amt > 0 else 'BUY'
-            qty = _rq(s, abs(amt))
-            _, d_err, _, t_err = _place_live_market(s, side, qty, reduce_only=True)
+            # prefer demo amt for reporting but _close_live_position handles both venues
+            _, d_err, _, t_err = _close_live_position(s)
             if d_err is None or t_err is None:
-                print(f"  [{ts}] RECONCILE {s}: orphan live leg ({amt}) swept via {side} {qty} reduce-only")
-                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan live position ({amt}) closed")
-                try: log_event("alpha3", "reconcile_orphan_sweep", {"symbol": s, "amt": amt})
+                print(f"  [{ts}] RECONCILE {s}: orphan live leg swept (demo+testnet) reduce-only")
+                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan live position closed")
+                try: log_event("alpha3", "reconcile_orphan_sweep", {"symbol": s})
                 except Exception: pass
             else:
                 print(f"  [{ts}] RECONCILE {s}: orphan sweep FAILED (demo {d_err} | testnet {t_err})")

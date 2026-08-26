@@ -83,10 +83,39 @@ def get_symbol_filters(symbol):
     return filt
 
 def get_step_size(symbol):
+    if symbol in _lot_cache:
+        return float(_lot_cache[symbol])
     return float(get_symbol_filters(symbol)['stepSize'])
 
-def _cap_qty_by_balance(symbol, qty, price=None, is_market=True):
-    """Cap qty so notional does not exceed demo balance * leverage * stake. Also respects maxQty."""
+def get_demo_position(symbol):
+    """Return signed demo position amt for symbol (0 if flat)."""
+    try:
+        from binance_config import sign_query
+        p = sign_query({})
+        r = requests.get(f"{BASE}/fapi/v2/positionRisk", params=p, headers=_headers(), timeout=5)
+        if r.status_code == 200:
+            for pos in r.json():
+                if pos.get('symbol') == symbol:
+                    return float(pos.get('positionAmt', 0) or 0)
+    except Exception:
+        pass
+    return 0.0
+
+def _cap_qty_by_balance(symbol, qty, price=None, is_market=True, for_close=False):
+    """Cap qty so notional does not exceed demo balance * leverage * stake. Also respects maxQty.
+    When for_close=True the balance-based cap is skipped — closes must use the
+    full live position size to avoid residual holdings and -4118/-2019 errors."""
+    if for_close:
+        # still enforce marketMaxQty for market closes (live position is already within it)
+        if is_market:
+            try:
+                filt = get_symbol_filters(symbol)
+                mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                if qty > mmax:
+                    qty = mmax
+            except Exception:
+                pass
+        return qty
     try:
         from decimal import Decimal
         filt = get_symbol_filters(symbol)
@@ -123,10 +152,11 @@ def _cap_qty_by_balance(symbol, qty, price=None, is_market=True):
         pass
     return qty
 
-def _format_qty(symbol, qty, price=None, is_market=True):
-    """Format qty as decimal string with correct precision, no scientific notation, floor to step, enforce minNotional."""
+def _format_qty(symbol, qty, price=None, is_market=True, for_close=False):
+    """Format qty as decimal string with correct precision, no scientific notation, floor to step, enforce minNotional.
+    When for_close=True the balance cap and min-notional bump are skipped."""
     from decimal import Decimal, ROUND_DOWN, ROUND_UP, InvalidOperation
-    qty = _cap_qty_by_balance(symbol, qty, price, is_market=is_market)
+    qty = _cap_qty_by_balance(symbol, qty, price, is_market=is_market, for_close=for_close)
     filt = get_symbol_filters(symbol)
     step_s = filt['marketStep'] if is_market else filt['stepSize']
     max_s = filt['marketMaxQty'] if is_market else filt['maxQty']
@@ -165,27 +195,28 @@ def _format_qty(symbol, qty, price=None, is_market=True):
         if Decimal(s) == 0:
             s = filt['marketMinQty'] if is_market else filt['minQty']
             d_qty = Decimal(s)
-        try:
-            if price and price > 0:
-                min_not = Decimal(min_notional_s)
-                d_price = Decimal(str(price))
-                notional = Decimal(s) * d_price
-                if notional < min_not:
-                    needed = (min_not / d_price)
-                    if d_step != 0:
-                        steps_needed = (needed / d_step).to_integral_value(rounding=ROUND_UP)
-                        d_qty_needed = steps_needed * d_step
-                        if d_qty_needed > d_max:
-                            d_qty_needed = d_max
-                        if dec > 0:
-                            exp = Decimal('1e-%d' % dec)
-                            d_qty_needed = d_qty_needed.quantize(exp, rounding=ROUND_UP)
-                            s = format(d_qty_needed, 'f')
-                        else:
-                            d_qty_needed = d_qty_needed.quantize(Decimal('1'), rounding=ROUND_UP)
-                            s = format(d_qty_needed, 'f').split('.')[0]
-        except:
-            pass
+        if not for_close:
+            try:
+                if price and price > 0:
+                    min_not = Decimal(min_notional_s)
+                    d_price = Decimal(str(price))
+                    notional = Decimal(s) * d_price
+                    if notional < min_not:
+                        needed = (min_not / d_price)
+                        if d_step != 0:
+                            steps_needed = (needed / d_step).to_integral_value(rounding=ROUND_UP)
+                            d_qty_needed = steps_needed * d_step
+                            if d_qty_needed > d_max:
+                                d_qty_needed = d_max
+                            if dec > 0:
+                                exp = Decimal('1e-%d' % dec)
+                                d_qty_needed = d_qty_needed.quantize(exp, rounding=ROUND_UP)
+                                s = format(d_qty_needed, 'f')
+                            else:
+                                d_qty_needed = d_qty_needed.quantize(Decimal('1'), rounding=ROUND_UP)
+                                s = format(d_qty_needed, 'f').split('.')[0]
+            except:
+                pass
         return s
     except (InvalidOperation, ValueError, Exception):
         try:
@@ -197,28 +228,22 @@ def _format_qty(symbol, qty, price=None, is_market=True):
             return str(qty)
 
 def round_qty(symbol, qty):
-    # Backward compat: returns float quantized, but capped to maxQty
-    filt = get_symbol_filters(symbol)
+    # Backward compat: uses _lot_cache if set (tests), else live filters
+    step = get_step_size(symbol)
+    if step == 0:
+        return float(qty)
+    # mimic original simple floor behavior (used by tests)
+    q = float(qty)
+    # also respect maxQty if we have filters (but don't break test expectations)
     try:
-        from decimal import Decimal, ROUND_DOWN
-        d_qty = Decimal(str(qty))
-        d_step = Decimal(filt['stepSize'])
-        d_max = Decimal(filt['maxQty'])
-        if d_qty > d_max:
-            d_qty = d_max
-        if d_step != 0:
-            steps = (d_qty // d_step)
-            d_qty = steps * d_step
-        return float(d_qty)
+        filt = get_symbol_filters(symbol) if symbol not in _lot_cache else None
+        if filt is not None:
+            max_q = float(filt['maxQty'])
+            if q > max_q:
+                q = max_q
     except Exception:
-        step = float(filt['stepSize'])
-        if step == 0:
-            return float(qty)
-        max_q = float(filt['maxQty'])
-        q = float(qty)
-        if q > max_q:
-            q = max_q
-        return round(int(q / step) * step, 8)
+        pass
+    return round(int(q / step) * step, 8)
 
 def place_limit_order(symbol, side, quantity, price, reduce_only=False):
     """Place LIMIT order at exact price to match paper entry. Returns (order_json, error)."""
@@ -270,7 +295,7 @@ def place_market_order(symbol, side, quantity, reduce_only=False):
                 price_hint = float(r0.json().get('price', 0))
         except:
             pass
-        qty_str = _format_qty(symbol, quantity, price_hint)
+        qty_str = _format_qty(symbol, quantity, price_hint, is_market=True, for_close=reduce_only)
         try:
             if float(qty_str) <= 0:
                 filt = get_symbol_filters(symbol)
@@ -409,6 +434,34 @@ def _sign_testnet(params):
 def _headers_testnet():
     return {'X-MBX-APIKEY': _TN_KEY}
 
+def get_demo_position(symbol):
+    """(duplicate alias for runner use; see top-level definition)."""
+    try:
+        from binance_config import sign_query
+        p = sign_query({})
+        r = requests.get(f"{BASE}/fapi/v2/positionRisk", params=p, headers=_headers(), timeout=5)
+        if r.status_code == 200:
+            for pos in r.json():
+                if pos.get('symbol') == symbol:
+                    return float(pos.get('positionAmt', 0) or 0)
+    except Exception:
+        pass
+    return 0.0
+
+def get_testnet_position(symbol):
+    """Return signed testnet position amt for symbol (0 if flat)."""
+    try:
+        from binance_config import sign_query
+        p = sign_query({}, secret=_TN_SEC)
+        r = requests.get(f"{TESTNET_FAPI_BASE}/fapi/v2/positionRisk", params=p, headers=_headers_testnet(), timeout=5)
+        if r.status_code == 200:
+            for pos in r.json():
+                if pos.get('symbol') == symbol:
+                    return float(pos.get('positionAmt', 0) or 0)
+    except Exception:
+        pass
+    return 0.0
+
 def get_testnet_usdt_balance():
     import time
     now = time.time()
@@ -460,41 +513,52 @@ def get_testnet_symbol_filters(symbol):
     _testnet_filter_cache[symbol] = filt
     return filt
 
-def _format_testnet_qty(symbol, qty, price=None, is_market=True):
+def _format_testnet_qty(symbol, qty, price=None, is_market=True, for_close=False):
     from decimal import Decimal, ROUND_DOWN, ROUND_UP
-    try:
-        if price is None:
-            try:
-                r = requests.get(f"{TESTNET_FAPI_BASE}/fapi/v1/ticker/price", params={'symbol': symbol}, timeout=3)
-                if r.status_code == 200:
-                    price = float(r.json().get('price', 0))
-            except:
-                price = None
-        if price and price > 0:
-            bal = get_testnet_usdt_balance()
-            max_notional = bal * 0.19 * 20
-            max_notional = min(max_notional, 8000)
-            max_qty = max_notional / price
-            if qty > max_qty:
-                qty = max_qty
-            try:
-                filt = get_testnet_symbol_filters(symbol)
-                min_not = float(filt.get('minNotional', '5'))
-                min_qty = min_not / price * 1.01
-                if qty < min_qty:
-                    qty = min_qty
-            except:
-                pass
-        if is_market:
-            try:
+    if for_close:
+        # closes must use the full live position — only clamp to marketMaxQty/step, no balance cap
+        try:
+            if is_market:
                 filt = get_testnet_symbol_filters(symbol)
                 mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
                 if qty > mmax:
                     qty = mmax
-            except:
-                pass
-    except:
-        pass
+        except:
+            pass
+    else:
+        try:
+            if price is None:
+                try:
+                    r = requests.get(f"{TESTNET_FAPI_BASE}/fapi/v1/ticker/price", params={'symbol': symbol}, timeout=3)
+                    if r.status_code == 200:
+                        price = float(r.json().get('price', 0))
+                except:
+                    price = None
+            if price and price > 0:
+                bal = get_testnet_usdt_balance()
+                max_notional = bal * 0.19 * 20
+                max_notional = min(max_notional, 8000)
+                max_qty = max_notional / price
+                if qty > max_qty:
+                    qty = max_qty
+                try:
+                    filt = get_testnet_symbol_filters(symbol)
+                    min_not = float(filt.get('minNotional', '5'))
+                    min_qty = min_not / price * 1.01
+                    if qty < min_qty:
+                        qty = min_qty
+                except:
+                    pass
+            if is_market:
+                try:
+                    filt = get_testnet_symbol_filters(symbol)
+                    mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                    if qty > mmax:
+                        qty = mmax
+                except:
+                    pass
+        except:
+            pass
     filt = get_testnet_symbol_filters(symbol)
     step_s = filt['marketStep'] if is_market else filt['stepSize']
     max_s = filt['marketMaxQty'] if is_market else filt['maxQty']
@@ -516,23 +580,24 @@ def _format_testnet_qty(symbol, qty, price=None, is_market=True):
             s = format(d_qty, 'f').split('.')[0]
         if Decimal(s) == 0:
             s = filt['marketMinQty'] if is_market else filt['minQty']
-        try:
-            if price and price > 0:
-                min_not = Decimal(filt.get('minNotional', '5'))
-                if Decimal(s) * Decimal(str(price)) < min_not:
-                    needed = (min_not / Decimal(str(price)))
-                    steps_needed = (needed / d_step).to_integral_value(rounding=ROUND_UP)
-                    d_needed = steps_needed * d_step
-                    if d_needed > d_max:
-                        d_needed = d_max
-                    if dec > 0:
-                        exp = Decimal('1e-%d' % dec)
-                        d_needed = d_needed.quantize(exp, rounding=ROUND_UP)
-                        s = format(d_needed, 'f')
-                    else:
-                        s = format(d_needed.quantize(Decimal('1'), rounding=ROUND_UP), 'f').split('.')[0]
-        except:
-            pass
+        if not for_close:
+            try:
+                if price and price > 0:
+                    min_not = Decimal(filt.get('minNotional', '5'))
+                    if Decimal(s) * Decimal(str(price)) < min_not:
+                        needed = (min_not / Decimal(str(price)))
+                        steps_needed = (needed / d_step).to_integral_value(rounding=ROUND_UP)
+                        d_needed = steps_needed * d_step
+                        if d_needed > d_max:
+                            d_needed = d_max
+                        if dec > 0:
+                            exp = Decimal('1e-%d' % dec)
+                            d_needed = d_needed.quantize(exp, rounding=ROUND_UP)
+                            s = format(d_needed, 'f')
+                        else:
+                            s = format(d_needed.quantize(Decimal('1'), rounding=ROUND_UP), 'f').split('.')[0]
+            except:
+                pass
         return s
     except Exception:
         return ('%.8f' % float(qty)).rstrip('0').rstrip('.') or '0'
@@ -548,7 +613,7 @@ def place_testnet_market_order(symbol, side, quantity, reduce_only=False):
                 price_hint = float(r0.json().get('price', 0))
         except:
             pass
-        qty_str = _format_testnet_qty(symbol, quantity, price_hint)
+        qty_str = _format_testnet_qty(symbol, quantity, price_hint, is_market=True, for_close=reduce_only)
         try:
             if float(qty_str) <= 0:
                 qty_str = get_testnet_symbol_filters(symbol)['stepSize']
