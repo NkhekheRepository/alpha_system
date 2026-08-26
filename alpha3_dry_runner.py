@@ -975,30 +975,72 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                             print(f"  [{ts}] META-PASS {s}: prob={prob:.3f} >= {meta_threshold} — ENTER")
                 pos_val = state['capital'] * state['stake_pct'] * state['leverage']
                 qty = pos_val / prices[s]
+                # make paper qty/notional identical to live (compounding) by capping the same way live does
+                actual_qty = qty
+                actual_notional = pos_val
+                if DEMO_LIVE or TESTNET_LIVE:
+                    try:
+                        from demo_trader import get_demo_usdt_balance, get_testnet_usdt_balance, get_symbol_filters
+                        # use live available to cap, same as _cap_qty_by_balance does for live orders
+                        bal = 0
+                        if DEMO_LIVE:
+                            try: bal = max(bal, get_demo_usdt_balance())
+                            except: pass
+                        if TESTNET_LIVE:
+                            try: bal = max(bal, get_testnet_usdt_balance())
+                            except: pass
+                        if bal > 0:
+                            # same formula as demo_trader._cap_qty_by_balance (STAKE_PCT*LEVERAGE, cap max(8000, bal*0.5*LEV))
+                            try:
+                                from alpha3_dry_runner import STAKE_PCT as _SP, LEVERAGE as _LEV
+                            except: _SP, _LEV = 0.20, 20.0
+                            max_not = bal * _SP * _LEV
+                            max_not = min(max_not, max(8000, bal * 0.5 * _LEV))
+                            max_qty = max_not / prices[s] if prices[s] else qty
+                            if qty > max_qty:
+                                actual_qty = max_qty
+                                actual_notional = max_not
+                            # also respect market lot size
+                            try:
+                                filt = get_symbol_filters(s)
+                                mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                                if actual_qty > mmax:
+                                    actual_qty = mmax
+                                    actual_notional = actual_qty * prices[s]
+                            except: pass
+                    except Exception:
+                        pass
                 try:
                     from demo_trader import round_qty as _rq
-                    qty = _rq(s, qty) if DEMO_LIVE else qty
+                    qty = _rq(s, actual_qty) if DEMO_LIVE else actual_qty
+                    # keep notional in sync with the final qty
+                    if qty != actual_qty:
+                        actual_notional = qty * prices[s]
+                        actual_qty = qty
                 except Exception:
                     pass
                 tp_p = prices[s] * ((1 - WIN_PCT) if d == 'short' else (1 + WIN_PCT))
                 sl_p = prices[s] * ((1 - LOSS_PCT) if d == 'short' else (1 + LOSS_PCT))
+                # use live-capped qty/notional so Telegram and testnet are identical (was huge synthetic pos_val)
+                paper_qty = qty
+                paper_notional = actual_notional
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
-                    'entry_price': prices[s], 'quantity': qty,
-                    'notional': pos_val, 'age': 0,
+                    'entry_price': prices[s], 'quantity': paper_qty,
+                    'notional': paper_notional, 'age': 0,
                     'tp_price': tp_p, 'sl_price': sl_p,
                     'entry_time': datetime.utcnow().isoformat(),
                 }
                 print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} | "
-                      f"stake ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} x {state['leverage']:g}x) "
+                      f"stake ${paper_notional:,.2f} (margin ${paper_notional/ state['leverage']:,.2f} x {state['leverage']:g}x) "
                       f"| TP ${tp_p:,.2f} SL ${sl_p:,.2f} | TIMEOUT bar {H}")
                 _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
-                        f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
+                        f"Notional: ${paper_notional:,.2f} (margin ${paper_notional/ state['leverage']:,.2f} × {state['leverage']:g}x)\n"
                         f"Exit: TP +2% | SL −2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
-                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
+                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(paper_notional,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
                 if DEMO_LIVE or TESTNET_LIVE:
                     try:
