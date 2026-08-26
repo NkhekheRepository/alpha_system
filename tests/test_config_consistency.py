@@ -11,7 +11,7 @@ from binance_config import ALPHA3_ASSETS
 
 def test_k_horizon_match():
     assert R.K == MC.K == 60
-    assert R.H == MC.H == 600
+    assert R.H == MC.H == 100
     assert R.INTERVAL == MC.INTERVAL_SEC == 10
 
 

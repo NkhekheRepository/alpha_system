@@ -5,7 +5,7 @@ must label what the runner actually trades.
 """
 
 K = 60            # momentum lookback (bars) — 60*10s = 600s (was 10*60s)
-H = 600            # hold horizon (bars) — 600*10s = 6000s (was 100*60s)
+H = 100            # hold horizon (bars) — 100*10s = 1000s (was 600*10s = 6000s)
 WARMUP = 60        # keep low for immediate trading
 TP_PCT = 0.035     # +3.5% take-profit
 SL_PCT = -0.02     # -2% stop-loss (as fraction of entry, negative)

@@ -327,7 +327,7 @@ API = BINANCE_API_BASE
 INTERVAL = 10  # 10s polls -> 6x more responsive (was 60s); bulk/parallel fetch keeps cycle <5s for <10s Telegram<->Binance sync
 
 K = 60  # 60*10s = 600s momentum window (was 10*60s)
-H = 600  # 600*10s = 6000s hold (was 100*60s)
+H = 100  # 100*10s = 1000s hold (was 600*10s = 6000s; now 100 bars for lighter hold)
 WARMUP = 60  # keep low to allow immediate trading with existing 200-bar history
 MAX_CONSEC = 3
 COOLDOWN = 50
