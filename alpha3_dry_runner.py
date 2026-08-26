@@ -324,10 +324,10 @@ FLATTEN_ON_SHUTDOWN = True  # systemctl stop / SIGTERM flattens all open positio
 from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS
 ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
-INTERVAL = 60
+INTERVAL = 20  # 20s polls -> 3x more responsive vs 60s; K/H scaled to keep wall-clock windows (K*INTERVAL=600s, H*INTERVAL=6000s)
 
-K = 10
-H = 100
+K = 30  # 30*20s = 600s momentum window (was 10*60s)
+H = 300  # 300*20s = 6000s hold (was 100*60s)
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
@@ -917,6 +917,20 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
                 and state['cooldown_remaining'] == 0:
+            # staking guard: don't open if available margin is too low (prevents -2019/-2027 spam when fully invested)
+            if DEMO_LIVE or TESTNET_LIVE:
+                try:
+                    from demo_trader import get_demo_usdt_balance, get_testnet_usdt_balance
+                    avail = 0
+                    if DEMO_LIVE:
+                        avail = max(avail, get_demo_usdt_balance())
+                    if TESTNET_LIVE:
+                        avail = max(avail, get_testnet_usdt_balance())
+                    if avail < 5:  # minNotional is 5 USDT; need at least that plus buffer
+                        print(f"  [{ts}] SKIP {s}: available ${avail:.2f} < $5 — insufficient margin for new position")
+                        continue
+                except Exception:
+                    pass
             d = momentum_direction(state['price_history'][s])
             if state.get('trading_enabled', True) and not state.get('kill_armed', False) and d is not None and len(state['price_history'][s]) >= WARMUP:
                 # Meta-labeler filter
@@ -1249,7 +1263,7 @@ def main():
     print("=" * 60)
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
     print("=" * 60)
-    print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} (60s polls, {len(ASSETS)} assets)")
+    print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} ({INTERVAL}s polls, {len(ASSETS)} assets)")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
     print(f"  Exits:    TP/SL +/-2% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")

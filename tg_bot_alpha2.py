@@ -271,7 +271,7 @@ def build_status_text(state, live=False):
             entry = pos['entry_price']
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
-            pos_lines += (f"     {base_s}: bar {age}/15 | stake ${stake:,.0f} | resolves → "
+            pos_lines += (f"     {base_s}: bar {age}/{H} | stake ${stake:,.0f} | resolves → "
                           f"+{abs(WIN_PCT)*100:g}% ({fmt_price(entry*(1+WIN_PCT))}) / {LOSS_PCT*100:g}% ({fmt_price(entry*(1+LOSS_PCT))})\n")
     elif positions:
         for sym, pos in positions.items():
@@ -296,7 +296,7 @@ def build_status_text(state, live=False):
             testnet_line = f"🔗 {net_label} | Testnet auth: {err} — paper positions above"
     except Exception:
         testnet_line = "🔗 Paper trading (dry mode)"
-    header = "🟢 LIVE — auto-updating every 30s" if live else "DRY MODE"
+    header = "🟢 LIVE — auto-updating every 15s" if live else "DRY MODE"
     return (
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
@@ -373,7 +373,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         entry = pos['entry_price']
         current = prices.get(sym, entry)
         age = pos.get('age', 0)
-        remaining = max(0, 15 - age)
+        remaining = max(0, H - age)
         notional = pos.get('notional', pos.get('quantity', 0) * entry)
         qty = pos.get('quantity', 0)
         if direction == 'short':
@@ -389,13 +389,13 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
             f"TP ${entry*(1+WIN_PCT):,.2f} / SL ${entry*(1+LOSS_PCT):,.2f} (market) | TIMEOUT bar {H}\n"
-            f"Hold: bar {age}/15 (~{remaining} min left)\n"
+            f"Hold: bar {age}/{H} (~{remaining * 20 // 60} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
     # Show paper TP/SL levels
     for sym2, pos2 in state.get('open_positions', {}).items():
         if 'tp_price' in pos2:
-            msg += f"     {base_s}: bar {age}/15 | resolves → +{abs(WIN_PCT)*100:g}% (${entry*(1+WIN_PCT):,.2f}) / {LOSS_PCT*100:g}% (${entry*(1+LOSS_PCT):,.2f})\n"
+            msg += f"     {base_s}: bar {age}/{H} | resolves → +{abs(WIN_PCT)*100:g}% (${entry*(1+WIN_PCT):,.2f}) / {LOSS_PCT*100:g}% (${entry*(1+LOSS_PCT):,.2f})\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 
@@ -577,7 +577,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Auto-edit error: {e}")
 
     job = context.job_queue.run_repeating(
-        auto_edit, interval=30, first=35, chat_id=chat_id
+        auto_edit, interval=15, first=15, chat_id=chat_id
     )
     live_messages[chat_id] = {"msg_id": msg_id, "job": job}
 

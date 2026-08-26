@@ -10,8 +10,9 @@ from binance_config import ALPHA3_ASSETS
 
 
 def test_k_horizon_match():
-    assert R.K == MC.K == 10
-    assert R.H == MC.H == 100
+    assert R.K == MC.K == 30
+    assert R.H == MC.H == 300
+    assert R.INTERVAL == MC.INTERVAL_SEC == 20
 
 
 def test_tp_sl_fee_match():

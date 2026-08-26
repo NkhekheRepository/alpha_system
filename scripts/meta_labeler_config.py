@@ -4,18 +4,18 @@ All parameters match alpha3_dry_runner.py exactly — the meta-labeler
 must label what the runner actually trades.
 """
 
-K = 10            # momentum lookback (bars)
-H = 100            # hold horizon (bars)
+K = 30            # momentum lookback (bars) — 30*20s = 600s (was 10*60s)
+H = 300            # hold horizon (bars) — 300*20s = 6000s (was 100*60s)
 WARMUP = H + 10   # bars before first entry allowed
 TP_PCT = 0.035     # +3.5% take-profit
 SL_PCT = -0.02     # -2% stop-loss (as fraction of entry, negative)
 WIN_PCT = 0.035    # +3.5% win threshold (for compatibility with runner)
 LOSS_PCT = -0.02   # -2% loss threshold (for compatibility with runner)
 FEE_RATE = 0.0002  # 0.02% taker fee per side
-INTERVAL_SEC = 60  # 1-minute bars
+INTERVAL_SEC = 20  # 20s bars — 3x more responsive than 60s
 HOLDINGS = ['HANAUSDT', 'STRKUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT', 'PROMUSDT', 'PLAYUSDT']
 LEVERAGE = 20.0     # leverage multiplier
-STAKE_PCT = 0.035   # stake percentage (3.5% of capital)
+STAKE_PCT = 0.20    # stake percentage (20% of capital) — synced to runner
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)
 EMBARGO_BARS = H      # embargo after test set to prevent leakage
 N_SPLITS = 5          # purged K-fold splits
