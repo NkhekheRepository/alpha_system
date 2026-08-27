@@ -2,7 +2,7 @@
 """ALPHA 3 DRY MODE RUNNER - triple-barrier paper (testnet spot, 5m cadence).
 
 Engine: Alpha 3 / Alpha 1% clone — 7 assets (ALPHA3_ASSETS, 5m polls),
-momentum-K10 direction, H=15 hold (75 min wall-clock), TP/SL +/-2% market
+momentum-K10 direction, H=15 hold (75 min wall-clock), TP +3.5% / SL −2% market
 barriers every poll, TIMEOUT at bar 15. Circuit breaker 3 losses -> 50-bar
 cooldown. Staking: 3% equity per trade (POS_PCT=0.03, compounding, no leverage)
 on a 100 USDT synthetic base; barriers sourced from TB_CONFIG (alpha_1percent
@@ -229,7 +229,7 @@ KILL_FILE = DATA_DIR / 'alpha3_kill.flag'
 KILL_LOG = DATA_DIR / 'alpha3_kill_log.csv'
 FLATTEN_ON_SHUTDOWN = True  # systemctl stop / SIGTERM flattens all open positions
 
-from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS
+from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS, ALPHA3_GROUP
 ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
 INTERVAL = 60
@@ -239,12 +239,12 @@ H = 100
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
-CAP = 100.0
+CAP = 10.0
 STAKE_PCT = 0.20
 LEVERAGE = 20.0
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.035
-LOSS_PCT = -0.035
+LOSS_PCT = -0.02
 
 # Meta-labeler config
 META_LABELER_PATH = Path('/home/nkhekhe/alpha_system/models/meta_labeler.joblib')
@@ -695,7 +695,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
             continue
         # Back-compat: flip-era positions lack tp/sl
         if 'tp_price' not in pos:
-            pos['tp_price'] = pos['entry_price'] * (0.98 if pos['direction'] == 'short' else 1.02)
+            pos['tp_price'] = pos['entry_price'] * (0.965 if pos['direction'] == 'short' else 1.035)
             pos['sl_price'] = pos['entry_price'] * (1.02 if pos['direction'] == 'short' else 0.98)
         direction = pos['direction']
         entry = pos['entry_price']
@@ -823,7 +823,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     qty = _rq(s, qty) if DEMO_LIVE else qty
                 except Exception:
                     pass
-                tp_p = prices[s] * (0.98 if d == 'short' else 1.02)
+                tp_p = prices[s] * (0.965 if d == 'short' else 1.035)
                 sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
@@ -839,7 +839,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
-                        f"Exit: TP +2% | SL −2% | TIMEOUT bar {H} (real-market)\n"
+                        f"Exit: TP +3.5% | SL −2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
                 try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
@@ -1055,8 +1055,9 @@ def main():
     print("  ALPHA 3 DRY MODE RUNNER - TRIPLE-BARRIER (TP/SL/TIMEOUT)")
     print("=" * 60)
     print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} (60s polls, {len(ASSETS)} assets)")
+    print(f"  Group:    {ALPHA3_GROUP}")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Exits:    TP/SL +/-2% market | TIMEOUT at bar {H} (market price)")
+    print(f"  Exits:    TP +3.5% / SL −2% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")

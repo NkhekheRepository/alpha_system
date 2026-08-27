@@ -69,9 +69,10 @@ def check_chat(update: Update) -> bool:
     return str(update.effective_chat.id) == CHAT_ID
 
 try:
-    from binance_config import ALPHA3_ASSETS
+    from binance_config import ALPHA3_ASSETS, ALPHA3_GROUP
 except Exception:
     ALPHA3_ASSETS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
+    ALPHA3_GROUP = 'unknown'
 
 def get_prices():
     prices = {}
@@ -299,6 +300,7 @@ def build_status_text(state, live=False):
         f"{header}\n"
         f"Exits: TP/SL ±2% market barriers | TIMEOUT bar 75\n"
         f"{testnet_line}\n"
+        f"Group: {ALPHA3_GROUP}\n"
         f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${100*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
         f"💰 <b>Portfolio (Paper)</b>\n"
         f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"

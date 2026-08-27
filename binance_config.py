@@ -44,7 +44,9 @@ BINANCE_DEMO_API_KEY = os.environ.get('BINANCE_DEMO_API_KEY', '')
 BINANCE_DEMO_API_SECRET = os.environ.get('BINANCE_DEMO_API_SECRET', '')
 
 # Alpha 3 tradable universe — single source of truth
-ALPHA3_ASSETS = ['HANAUSDT', 'STRKUSDT', 'ONGUSDT', 'BMTUSDT', 'STXUSDT', 'PROMUSDT', 'PLAYUSDT']
+# "pump" group (user-named): 6 futures-only symbols
+ALPHA3_ASSETS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT']
+ALPHA3_GROUP = 'pump'  # user-named universe group, surfaced in /status + dashboards
 
 # Demo Futures (https://demo.binance.com) — XRPUSDT futures
 BINANCE_DEMO_FAPI_BASE = 'https://demo-fapi.binance.com'
