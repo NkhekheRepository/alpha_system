@@ -229,7 +229,7 @@ KILL_FILE = DATA_DIR / 'alpha3_kill.flag'
 KILL_LOG = DATA_DIR / 'alpha3_kill_log.csv'
 FLATTEN_ON_SHUTDOWN = True  # systemctl stop / SIGTERM flattens all open positions
 
-from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS, ALPHA3_GROUP
+from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS, ALPHA3_GROUP, USE_LIVE
 ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
 INTERVAL = 60
@@ -1040,6 +1040,17 @@ def main():
         return
 
     state = load_state(args.stake, args.leverage)
+    # Source real equity from exchange when live (for correct position sizing)
+    if USE_LIVE:
+        try:
+            from demo_trader import get_balance
+            bal = get_balance()
+            if bal is not None:
+                state['capital'] = bal
+                state['equity'] = bal
+                print(f"  Live equity sourced from exchange: ${bal:,.2f}")
+        except Exception as e:
+            print(f"  WARNING: Could not fetch live balance for sizing: {e}")
     if state.get('kill_armed', False):
         print("  ⚠️  KILL SWITCH ARMED — runner is COOL (no new entries). Send /disarm to re-arm.")
     # Load meta-labeler

@@ -25,11 +25,15 @@ except Exception:
     pass
 
 USE_TESTNET = os.environ.get('BINANCE_USE_TESTNET', '').lower() in ('1', 'true', 'yes', 'on')
+USE_LIVE = os.environ.get('BINANCE_USE_LIVE', '').lower() in ('1', 'true', 'yes', 'on')
 
 # Demo Futures keys from https://demo.binance.com — use demo-fapi as testnet when present
 USE_DEMO = USE_TESTNET and bool(os.environ.get('BINANCE_DEMO_API_KEY', ''))
 
-if USE_DEMO:
+# Priority: LIVE (real money) > DEMO (testnet futures) > TESTNET (spot) > mainnet spot (price feed only)
+if USE_LIVE:
+    BINANCE_API_BASE = 'https://fapi.binance.com/fapi/v1'
+elif USE_DEMO:
     BINANCE_API_BASE = 'https://demo-fapi.binance.com/fapi/v1'
 elif USE_TESTNET:
     BINANCE_API_BASE = 'https://testnet.binance.vision/api/v3'
@@ -48,11 +52,16 @@ BINANCE_DEMO_API_SECRET = os.environ.get('BINANCE_DEMO_API_SECRET', '')
 ALPHA3_ASSETS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT']
 ALPHA3_GROUP = 'pump'  # user-named universe group, surfaced in /status + dashboards
 
+# Live USDT-M Futures (real money)
+BINANCE_LIVE_FAPI_BASE = 'https://fapi.binance.com'
 # Demo Futures (https://demo.binance.com) — XRPUSDT futures
 BINANCE_DEMO_FAPI_BASE = 'https://demo-fapi.binance.com'
 BINANCE_DEMO_DAPI_BASE = 'https://demo-dapi.binance.com'
 
-if USE_DEMO:
+if USE_LIVE:
+    ACTIVE_API_KEY = BINANCE_API_KEY
+    ACTIVE_API_SECRET = BINANCE_API_SECRET
+elif USE_DEMO:
     ACTIVE_API_KEY = BINANCE_DEMO_API_KEY
     ACTIVE_API_SECRET = BINANCE_DEMO_API_SECRET
 elif USE_TESTNET:

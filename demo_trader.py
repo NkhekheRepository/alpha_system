@@ -14,18 +14,48 @@ try:
 except Exception:
     pass
 
-from binance_config import BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+from binance_config import (
+    BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET,
+    BINANCE_LIVE_FAPI_BASE, BINANCE_API_KEY, BINANCE_API_SECRET,
+    USE_LIVE,
+)
 
-BASE = BINANCE_DEMO_FAPI_BASE
+# Route to live USDT-M futures when USE_LIVE, else demo futures.
+if USE_LIVE:
+    BASE = BINANCE_LIVE_FAPI_BASE
+    _API_KEY = BINANCE_API_KEY
+    _API_SECRET = BINANCE_API_SECRET
+else:
+    BASE = BINANCE_DEMO_FAPI_BASE
+    _API_KEY = BINANCE_DEMO_API_KEY
+    _API_SECRET = BINANCE_DEMO_API_SECRET
+
 _lot_cache = {}
 
 def _sign(params):
     qs = '&'.join([f"{k}={v}" for k, v in params.items()])
-    sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
     return {**params, 'signature': sig}
 
 def _headers():
-    return {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
+    return {'X-MBX-APIKEY': _API_KEY}
+
+def get_balance(asset='USDT'):
+    """Get available balance for a asset on futures account."""
+    if not _API_KEY or not _API_SECRET:
+        return None
+    params = {'timestamp': int(time.time()*1000)}
+    params = _sign(params)
+    try:
+        r = requests.get(f"{BASE}/fapi/v2/balance", params=params, headers=_headers(), timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        for b in data:
+            if b['asset'] == asset:
+                return float(b['availableBalance'])
+    except Exception:
+        return None
+    return None
 
 def get_step_size(symbol):
     if symbol in _lot_cache:
