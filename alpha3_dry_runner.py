@@ -33,7 +33,7 @@ except Exception:
 DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
 if DEMO_LIVE:
     try:
-        from demo_trader import place_market_order, place_limit_order, set_leverage_all
+        from demo_trader import place_market_order, place_limit_order, set_leverage_all, set_leverage
     except Exception:
         DEMO_LIVE = False
 
@@ -242,6 +242,10 @@ COOLDOWN = 50
 CAP = 10.0
 STAKE_PCT = 0.20
 LEVERAGE = 20.0
+# Per-symbol leverage overrides. Demo futures rejects some symbols at high leverage
+# (e.g. BICOUSDT rejects 20x -> ERROR 400). Those symbols are capped here; all others
+# use --leverage.
+LEV_OVERRIDE = {'BICOUSDT': 10.0}
 FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
 WIN_PCT = 0.035
 LOSS_PCT = -0.02
@@ -816,7 +820,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                                 print(f"  [{ts}] META-FILTER {s}: prob={prob:.3f} < {meta_threshold} — SKIP")
                                 continue
                             print(f"  [{ts}] META-PASS {s}: prob={prob:.3f} >= {meta_threshold} — ENTER")
-                pos_val = state['capital'] * state['stake_pct'] * state['leverage']
+                eff_lev = LEV_OVERRIDE.get(s, state['leverage'])
+                pos_val = state['capital'] * state['stake_pct'] * eff_lev
                 qty = pos_val / prices[s]
                 try:
                     from demo_trader import round_qty as _rq
@@ -833,12 +838,12 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     'entry_time': datetime.utcnow().isoformat(),
                 }
                 print(f"  [{ts}] OPENED {s}: {d.upper()} @ ${prices[s]:,.2f} | "
-                      f"stake ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} x {state['leverage']:g}x) "
-                      f"| TP ${tp_p:,.2f} SL ${sl_p:,.2f} | TIMEOUT bar {H}")
+                       f"stake ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} x {eff_lev:g}x) "
+                       f"| TP ${tp_p:,.2f} SL ${sl_p:,.2f} | TIMEOUT bar {H}")
                 _notify(f"🎯 <b>OPENED {s} {d.upper()} — ALPHA 3 DRY</b>\n"
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
-                        f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {state['leverage']:g}x)\n"
+                        f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {eff_lev:g}x)\n"
                         f"Exit: TP +3.5% | SL −2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
                 try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
@@ -1043,10 +1048,12 @@ def main():
         print(f"  Meta-labeler: LOADED (threshold={meta_threshold:.2f})")
     else:
         print(f"  Meta-labeler: NOT LOADED (running without filter)")
-    # Set demo leverage
+    # Set demo leverage (per-symbol overrides applied where the exchange rejects --leverage)
     if DEMO_LIVE:
-        print(f"  Setting demo leverage {args.leverage}x on {len(ASSETS)} assets...")
-        set_leverage_all(ASSETS, args.leverage)
+        for _sym in ASSETS:
+            _lev = LEV_OVERRIDE.get(_sym, args.leverage)
+            set_leverage(_sym, _lev)
+            print(f"  Set demo leverage {_lev:g}x on {_sym}")
     # Paper/demo reconciliation BEFORE trading (cancels stale algos, closes
     # paper legs whose demo hedge vanished, sweeps demo orphans).
     reconcile_on_startup(state)
