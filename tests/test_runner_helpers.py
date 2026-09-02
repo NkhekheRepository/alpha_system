@@ -14,7 +14,7 @@ def test_default_state_schema():
 def test_features_to_array_shape():
     feat = {f: 1.0 for f in R.FEATURE_ORDER}
     arr = R.features_to_array(feat)
-    assert arr.shape == (1, 36)
+    assert arr.shape == (1, 46)
     assert arr.dtype == np.float32
 
 

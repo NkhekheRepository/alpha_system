@@ -14,8 +14,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from meta_labeler_config import K, H, TP_PCT, SL_PCT, FEE_RATE, HOLDINGS
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from meta_features import compute_orderbook_features_at_index
 
 KLINE_DIR = Path(__file__).resolve().parent.parent / 'models' / 'kline_data'
 LABEL_FILE = Path(__file__).resolve().parent.parent / 'models' / 'labeled_signals.csv'
@@ -62,7 +64,7 @@ def _ema(x, span):
     return ema
 
 
-def compute_features_at_indices(closes, highs, lows, volumes, indices):
+def compute_features_at_indices(closes, highs, lows, volumes, indices, ob_history=None):
     """Compute features ONLY at specific bar indices (vectorized per feature)."""
     n = len(closes)
     feat = {}
@@ -229,6 +231,15 @@ def compute_features_at_indices(closes, highs, lows, volumes, indices):
     feat['dow_sin'] = np.sin(2 * np.pi * ((idx_arr // 1440) % 7) / 7)
     feat['dow_cos'] = np.cos(2 * np.pi * ((idx_arr // 1440) % 7) / 7)
 
+    # Orderbook microstructure features
+    if ob_history is not None:
+        for i, idx in enumerate(idx_arr):
+            if idx < len(ob_history):
+                ob_feat = compute_orderbook_features_at_index(ob_history[idx], 0)
+                if ob_feat:
+                    for k, v in ob_feat.items():
+                        feat.setdefault(k, np.full(len(idx_arr), np.nan))[i] = v
+
     return feat
 
 
@@ -262,7 +273,7 @@ def main():
         time_idxs = sym_labels['time_idx'].values.astype(int)
         print(f"  {sym}: computing {len(time_idxs):,} features...", end='', flush=True)
 
-        feat = compute_features_at_indices(k['closes'], k['highs'], k['lows'], k['volumes'], time_idxs)
+        feat = compute_features_at_indices(k['closes'], k['highs'], k['lows'], k['volumes'], time_idxs, ob_history=None)
 
         feat_names = list(feat.keys())
         feat_matrix = np.column_stack([feat[f] for f in feat_names])

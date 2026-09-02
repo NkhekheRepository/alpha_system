@@ -35,13 +35,26 @@ model_feats = md['features']
 runner_feats = list(R.FEATURE_ORDER)
 print(f"  model features : {len(model_feats)}")
 print(f"  runner features: {len(runner_feats)}")
-schema_ok = set(model_feats) == set(runner_feats)
-print(f"  schema match (set equality): {schema_ok}")
-if not schema_ok:
-    print("  missing in runner:", set(model_feats) - set(runner_feats))
-    print("  extra  in runner:", set(runner_feats) - set(model_feats))
 
-# numeric parity on synthetic data at idx=250 (both must agree)
+# Core 36 features must match exactly
+core_model_feats = set(model_feats)
+core_runner_feats = set(runner_feats) - {
+    'spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10',
+    'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20', 'spread_bps_dup'
+}
+schema_ok = core_model_feats == core_runner_feats
+print(f"  core schema match (36 features): {schema_ok}")
+if not schema_ok:
+    print("  missing in runner:", core_model_feats - core_runner_feats)
+    print("  extra  in runner:", core_runner_feats - core_model_feats)
+
+# Verify runner has 10 additional orderbook features (NaN for training)
+orderbook_feats = set(runner_feats) - core_runner_feats
+expected_ob = {'spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10',
+               'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20', 'spread_bps_dup'}
+print(f"  orderbook features present: {orderbook_feats == expected_ob}")
+
+# numeric parity on synthetic data at idx=250 (both must agree on core 36 features)
 rng = np.random.default_rng(0)
 n = 400
 closes = 100 + np.cumsum(rng.standard_normal(n) * 0.5)
@@ -57,6 +70,12 @@ else:
     print(f"  numeric parity @idx=250: max|diff|={max(diffs):.3e}  mean|diff|={np.mean(diffs):.3e}")
     print(f"  => live runner reproduces training features EXACTLY"
           if max(diffs) < 1e-9 else "  => MISMATCH (broken harmony)")
+
+# Verify orderbook features are NaN for historical data
+if r_f is not None:
+    ob_nan = all(np.isnan(r_f[k]) for k in ['spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10',
+                                             'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20', 'spread_bps_dup'])
+    print(f"  orderbook features NaN for historical data: {ob_nan}")
 
 print()
 print("=" * 70)

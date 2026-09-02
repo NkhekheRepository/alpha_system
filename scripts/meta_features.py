@@ -165,6 +165,18 @@ def compute_features_at_index(closes, highs, lows, volumes, idx):
     feat['dow_sin'] = np.sin(2 * np.pi * ((idx // 1440) % 7) / 7)
     feat['dow_cos'] = np.cos(2 * np.pi * ((idx // 1440) % 7) / 7)
 
+    # Orderbook microstructure features (NaN for historical data - not available for training)
+    feat['spread_bps'] = np.nan
+    feat['imb_1'] = np.nan
+    feat['imb_5'] = np.nan
+    feat['depth_5'] = np.nan
+    feat['depth_10'] = np.nan
+    feat['vwap_mid_5'] = np.nan
+    feat['kyle_lambda_5'] = np.nan
+    feat['spread_roll_10'] = np.nan
+    feat['imb_5_roll_20'] = np.nan
+    feat['spread_bps_dup'] = np.nan
+
     return feat
 
 
@@ -181,6 +193,56 @@ FEATURE_ORDER = [
     'ma50_ma20_cross', 'ma100_ma50_cross', 'trend_slope',
     'consec_direction', 'hh_streak_5', 'll_streak_5', 'momentum_accel',
     'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos',
+]
+
+
+def compute_orderbook_features_at_index(ob_history, idx):
+    """Compute 10 orderbook microstructure features at bar index idx.
+
+    NOTE: Currently returns NaN for all features since historical orderbook
+    data is not available for training. This infrastructure is kept for
+    future use when historical orderbook data becomes available.
+
+    Args:
+        ob_history: List of orderbook snapshots (each with 'bookTicker' and 'depth')
+        idx: Bar index (0-based)
+
+    Returns:
+        dict of 10 microstructure features (all NaN for now) or None if insufficient data
+    """
+    # Orderbook features are not available for historical training data
+    # Return NaN for all 10 features to maintain feature schema compatibility
+    return {
+        'spread_bps': np.nan,
+        'imb_1': np.nan,
+        'imb_5': np.nan,
+        'depth_5': np.nan,
+        'depth_10': np.nan,
+        'vwap_mid_5': np.nan,
+        'kyle_lambda_5': np.nan,
+        'spread_roll_10': np.nan,
+        'imb_5_roll_20': np.nan,
+        'spread_bps': np.nan,  # duplicate name kept for compatibility
+    }
+
+
+# Expected feature order (must match training)
+FEATURE_ORDER = [
+    'ret_5', 'ret_10', 'ret_20', 'ret_50',
+    'rsi_7', 'rsi_14',
+    'macd', 'macd_signal', 'macd_hist',
+    'vol_10', 'vol_20', 'vol_50',
+    'atr_14', 'bb_pos', 'bb_width',
+    'range_ratio', 'close_position',
+    'vol_ratio_10', 'vol_ratio_20', 'vol_ratio_50', 'vol_spike',
+    'price_vs_ma20', 'price_vs_ma50', 'price_vs_ma100', 'price_vs_ma200',
+    'ma50_ma20_cross', 'ma100_ma50_cross', 'trend_slope',
+    'consec_direction', 'hh_streak_5', 'll_streak_5', 'momentum_accel',
+    'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos',
+    # Orderbook microstructure features (10) - NaN for training, live at inference
+    'spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10',
+    'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20',
+    'spread_bps_dup',  # duplicate name kept for compatibility
 ]
 
 

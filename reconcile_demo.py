@@ -28,12 +28,11 @@ def get_demo():
         if not BINANCE_DEMO_API_KEY:
             return {}, "no keys"
         base = BINANCE_DEMO_FAPI_BASE
-        ts = int(time.time() * 1000)
-        qs = f'timestamp={ts}'
-        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        signed = sign_query({'timestamp': 0})  # server-synced timestamp
         h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
-        r = requests.get(f'{base}/fapi/v2/positionRisk', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
+        r = requests.get(f'{base}/fapi/v2/positionRisk', params=signed, headers=h, timeout=10)
         if r.status_code != 200:
+            print(f"[reconcile] DEMO GET FAIL {r.status_code}: {r.text[:200]}")
             return {}, f"api {r.status_code}"
         demo = {}
         for p in r.json():

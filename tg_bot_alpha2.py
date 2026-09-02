@@ -16,6 +16,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import generate_equity_chart, generate_trade_chart
 import analytics as vis
+from meta_labeler_config import H, TP_PCT, SL_PCT, K, WIN_PCT, LOSS_PCT, LEVERAGE, STAKE_PCT
+from binance_config import ALPHA3_ASSETS
 
 DATA_DIR = Path(str(Path(__file__).resolve().parent))
 STATE_FILE = DATA_DIR / 'dry_data' / 'alpha3_state.json'
@@ -82,6 +84,17 @@ except Exception:
     ALPHA3_GROUP = 'unknown'
 
 def get_prices():
+    # bulk fetch -> 1 request vs 7 sequential (2s vs 14s) for <10s sync
+    try:
+        r = requests.get(f"{API}/ticker/price", timeout=5)
+        data = r.json()
+        # data is list of {symbol, price} when no symbol param
+        if isinstance(data, list):
+            wanted = set(ALPHA3_ASSETS)
+            return {d['symbol']: float(d['price']) for d in data if d['symbol'] in wanted}
+    except Exception:
+        pass
+    # fallback per-symbol
     prices = {}
     for sym in ALPHA3_ASSETS:
         try:
@@ -132,8 +145,7 @@ def calc_unrealized(state, prices):
 def fetch_testnet_orders():
     """Fetch real open orders from Binance Testnet (if keys valid)."""
     try:
-        import hmac, hashlib, time as _t
-        from binance_config import BINANCE_API_BASE, ACTIVE_API_KEY, ACTIVE_API_SECRET, USE_TESTNET
+        from binance_config import BINANCE_API_BASE, ACTIVE_API_KEY, ACTIVE_API_SECRET, USE_TESTNET, sign_query
         if not USE_TESTNET or not ACTIVE_API_KEY or not ACTIVE_API_SECRET:
             return None, "Testnet keys not configured"
         # Use demo-fapi host directly for futures positions (BINANCE_API_BASE includes version)
@@ -150,11 +162,9 @@ def fetch_testnet_orders():
             key, sec = ACTIVE_API_KEY, ACTIVE_API_SECRET
             if not key:
                 return None, "Testnet keys not configured"
-        ts = int(_t.time() * 1000)
-        qs = f'timestamp={ts}'
-        sig = hmac.new(sec.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        signed = sign_query({'timestamp': 0}, secret=sec)
         h = {'X-MBX-APIKEY': key}
-        r = requests.get(f'{base}{path}', params={'timestamp': ts, 'signature': sig}, headers=h, timeout=10)
+        r = requests.get(f'{base}{path}', params=signed, headers=h, timeout=10)
         if r.status_code == 200:
             data = r.json()
             if is_futures:
@@ -163,6 +173,7 @@ def fetch_testnet_orders():
                 orders = data
             return orders, None
         else:
+            print(f"[tg_bot] TESTNET GET FAIL {r.status_code}: {r.text[:200]}")
             return None, f"Testnet API {r.status_code}: {r.json().get('msg','')}"
     except Exception as e:
         return None, str(e)
@@ -181,6 +192,9 @@ async def error_handler(update, context):
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
+    lev = LEVERAGE
+    stake_pct = STAKE_PCT * 100
+    notional = 100 * STAKE_PCT * LEVERAGE
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
@@ -266,13 +280,67 @@ def build_status_text(state, live=False):
     total_pnl_pct = total_pnl / base * 100
 
     positions = state.get('open_positions', {})
+    # fetch live testnet/demo positions for identical display
+    live_orders, live_err = None, None
+    live_by_sym = {}
+    try:
+        from binance_config import BINANCE_API_BASE, USE_TESTNET
+        live_orders, live_err = fetch_testnet_orders()
+        if live_orders is not None:
+            for o in live_orders:
+                if 'positionAmt' in o:
+                    amt = float(o.get('positionAmt', 0))
+                    if abs(amt) > 0:
+                        live_by_sym[o['symbol']] = o
+    except Exception:
+        pass
+    # check if paper and live are identical (same symbols + directions)
+    identical = False
+    if live_orders is not None and live_by_sym is not None:
+        paper_syms = set(positions.keys())
+        live_syms = set(live_by_sym.keys())
+        if paper_syms == live_syms and len(paper_syms) == len(live_syms):
+            # also check directions match
+            match = True
+            for sym in paper_syms:
+                p_dir = positions[sym].get('direction', 'long')
+                l_amt = float(live_by_sym[sym].get('positionAmt', 0))
+                l_dir = 'long' if l_amt > 0 else 'short'
+                if p_dir != l_dir:
+                    match = False
+                    break
+            identical = match
     pos_lines = ""
-    if unrealized_details:
+    if identical:
+        pos_lines = "  ✅ Telegram and Testnet identical — paper is source, live follows paper\n"
+        # show paper positions (which now have live-capped qty/notional, so they are identical to live)
+        for sym, pos in positions.items():
+            base_s = sym.replace('USDT', '')
+            entry = pos['entry_price']
+            qty = pos['quantity']
+            notional = pos['notional']
+            direction = pos.get('direction', 'long')
+            age = pos.get('age', 0)
+            tp_disp = entry * (1 - WIN_PCT) if direction == 'short' else entry * (1 + WIN_PCT)
+            sl_disp = entry * (1 - LOSS_PCT) if direction == 'short' else entry * (1 + LOSS_PCT)
+            # prefer live upnl if available
+            live = live_by_sym.get(sym, {})
+            upnl = float(live.get('unRealizedProfit', 0)) if live else 0
+            # fallback to paper calc if live upnl not available
+            if live and upnl == 0:
+                # compute paper upnl
+                cur = prices.get(sym, entry)
+                upnl = (cur - entry) * qty if direction == 'long' else (entry - cur) * qty
+            emoji_up = '🟢' if upnl >= 0 else '🔴'
+            pos_lines += (f"  {emoji_up} {base_s} {direction.upper()} {qty:.2f} @ {fmt_price(entry)} → {fmt_price(prices.get(sym, entry))} | uPnL ${upnl:+.2f}\n"
+                          f"     bar {age}/{H} | stake ${notional:,.0f} | TP {fmt_price(tp_disp)} / SL {fmt_price(sl_disp)}\n")
+    elif unrealized_details:
         for d in unrealized_details:
             pos_lines += f"  {d}\n"
         for sym, pos in positions.items():
             base_s = sym.replace('USDT', '')
             entry = pos['entry_price']
+            direction = pos.get('direction', 'long')
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
             _tp = pos.get('tp_price', entry * (1.035 if pos.get('direction') == 'long' else 0.965))
@@ -288,23 +356,31 @@ def build_status_text(state, live=False):
             pos_lines += f"  {base_s}: {direction} @ {fmt_price(pos['entry_price'])}\n"
     else:
         pos_lines = "  No open positions\n"
+        if live_by_sym:
+            pos_lines += "  ⚠️ Live has positions but paper is flat — will reconcile at next runner cycle\n"
+            for sym, live in live_by_sym.items():
+                pos_lines += f"    {sym} {live.get('positionAmt')} @ {live.get('entryPrice')}\n"
 
     # Testnet sync status
     try:
         from binance_config import BINANCE_API_BASE, USE_TESTNET
         net_label = f"TESTNET ({BINANCE_API_BASE})" if USE_TESTNET else f"MAINNET ({BINANCE_API_BASE})"
-        orders, err = fetch_testnet_orders()
-        if orders is not None:
-            is_pos = any('positionAmt' in o for o in orders) if orders else False
+        if live_orders is not None:
+            is_pos = any('positionAmt' in o for o in live_orders) if live_orders else False
             label = "positions" if is_pos else "orders"
-            testnet_line = f"🔗 Synced to {net_label} | Testnet {label}: {len(orders)} open"
-        elif "not configured" in (err or ""):
+            if identical:
+                testnet_line = f"✅ Synced to {net_label} | Testnet {label}: {len(live_orders)} open — Telegram is source, testnet follows"
+            else:
+                testnet_line = f"⚠️ Sync check: Paper {len(positions)} vs Testnet {len(live_by_sym)} — next cycle will make testnet follow paper"
+                if live_err:
+                    testnet_line += f" | {live_err}"
+        elif live_err is not None and "not configured" in live_err:
             testnet_line = f"🔗 Price feed: {net_label} (paper positions above)"
         else:
-            testnet_line = f"🔗 {net_label} | Testnet auth: {err} — paper positions above"
+            testnet_line = f"🔗 {net_label} | Testnet auth: {live_err} — paper positions above"
     except Exception:
         testnet_line = "🔗 Paper trading (dry mode)"
-    header = "🟢 LIVE — auto-updating every 30s" if live else "DRY MODE"
+    header = "🟢 LIVE — auto-updating every 10s" if live else "DRY MODE"
     return (
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
@@ -370,21 +446,67 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             testnet_section = f"\n🔗 {net_tag} | Testnet sync: {t_err} — showing paper positions\n"
 
-    if not positions:
-        await update.message.reply_text(f"🎯 No paper open positions{testnet_section}", parse_mode='HTML')
+    # check identical
+    live_by_sym = {}
+    if t_orders is not None:
+        for o in t_orders:
+            if 'positionAmt' in o and abs(float(o.get('positionAmt',0)))>0:
+                live_by_sym[o['symbol']] = o
+    identical = (set(positions.keys()) == set(live_by_sym.keys()) and len(positions)==len(live_by_sym) and all(positions[s].get('direction')==('long' if float(live_by_sym[s].get('positionAmt',0))>0 else 'short') for s in positions)) if positions and live_by_sym else False
+    if not positions and not live_by_sym:
+        await update.message.reply_text(f"🎯 No open positions — paper and testnet both flat{testnet_section}", parse_mode='HTML')
+        return
+    if not positions and live_by_sym:
+        await update.message.reply_text(f"🎯 No paper open positions but live has {len(live_by_sym)} — will reconcile{testnet_section}", parse_mode='HTML')
+        return
+    if identical:
+        # show live as source of truth
+        stake_pct = state.get('stake_pct', 0.075)
+        lev = state.get('leverage', 50)
+        msg = f"✅ <b>OPEN POSITIONS — IDENTICAL</b> Paper = Testnet ({len(live_by_sym)} positions, {net_tag})\n━━━━━━━━━━━━━━━━━\n"
+        for sym, live in live_by_sym.items():
+            pos = positions[sym]
+            base = sym.replace('USDT', '')
+            direction = pos.get('direction', 'long')
+            entry = float(live.get('entryPrice', pos['entry_price']))
+            qty = abs(float(live.get('positionAmt', pos['quantity'])))
+            notional = qty * entry
+            current = prices.get(sym, entry)
+            age = pos.get('age', 0)
+            remaining = max(0, H - age)
+            if direction == 'short':
+                pnl_d = (entry - current) * qty
+                pnl_pct = (entry - current) / entry * 100
+            else:
+                pnl_d = (current - entry) * qty
+                pnl_pct = (current - entry) / entry * 100
+            emoji = '🟢' if pnl_d >= 0 else '🔴'
+            tp_d = entry * (1 - WIN_PCT) if direction == 'short' else entry * (1 + WIN_PCT)
+            sl_d = entry * (1 - LOSS_PCT) if direction == 'short' else entry * (1 + LOSS_PCT)
+            msg += (
+                f"{emoji} <b>{base}/USDT</b> — {direction.upper()} {qty:.2f} @ {fmt_price(entry)} → {fmt_price(current)} | {pnl_pct:+.2f}% (${pnl_d:+.2f})\n"
+                f"Notional ${notional:,.2f} | TP {fmt_price(tp_d)} / SL {fmt_price(sl_d)} | bar {age}/{H} (~{remaining*10//60} min)\n\n"
+            )
+        msg += testnet_section
+        await update.message.reply_text(msg, parse_mode='HTML')
         return
     stake_pct = state.get('stake_pct', 0.075)
     lev = state.get('leverage', 50)
-    msg = f"🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b> (synced to {net_tag})\n━━━━━━━━━━━━━━━━━\n"
+    msg = f"🎯 <b>OPEN POSITIONS — ALPHA 3 DRY</b> (synced to {net_tag}) ⚠️ Paper {len(positions)} vs Live {len(live_by_sym)} — not identical\n━━━━━━━━━━━━━━━━━\n"
     for sym, pos in positions.items():
         base = sym.replace('USDT', '')
         direction = pos.get('direction', 'long')
         entry = pos['entry_price']
         current = prices.get(sym, entry)
         age = pos.get('age', 0)
-        remaining = max(0, 15 - age)
+        remaining = max(0, H - age)
         notional = pos.get('notional', pos.get('quantity', 0) * entry)
         qty = pos.get('quantity', 0)
+        # show live qty if available for this symbol
+        live_qty = abs(float(live_by_sym[sym].get('positionAmt', qty))) if sym in live_by_sym else qty
+        if live_qty != qty:
+            notional = live_qty * entry
+            qty = live_qty
         if direction == 'short':
             pnl_d = (entry - current) * qty
             pnl_pct = (entry - current) / entry * 100
@@ -392,6 +514,8 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pnl_d = (current - entry) * qty
             pnl_pct = (current - entry) / entry * 100
         emoji = '🟢' if pnl_d >= 0 else '🔴'
+        tp_d = entry * (1 - WIN_PCT) if direction == 'short' else entry * (1 + WIN_PCT)
+        sl_d = entry * (1 - LOSS_PCT) if direction == 'short' else entry * (1 + LOSS_PCT)
         msg += (
             f"{emoji} <b>{base}/USDT</b> — {direction.upper()}\n"
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
@@ -401,7 +525,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Hold: bar {age}/100 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
-    # Show paper TP/SL levels
+    # Show paper TP/SL levels (direction-aware)
     for sym2, pos2 in state.get('open_positions', {}).items():
         if 'tp_price' in pos2:
             entry_price = pos2["entry_price"]
@@ -592,7 +716,7 @@ async def cmd_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Auto-edit error: {e}")
 
     job = context.job_queue.run_repeating(
-        auto_edit, interval=30, first=35, chat_id=chat_id
+        auto_edit, interval=10, first=10, chat_id=chat_id
     )
     live_messages[chat_id] = {"msg_id": msg_id, "job": job}
 

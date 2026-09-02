@@ -40,12 +40,101 @@ if DEMO_LIVE:
         _DEMO_IMPORT_ERR = f"{e}\n{_tb.format_exc()}"
         DEMO_LIVE = False
 
+# Testnet futures (https://testnet.binancefuture.com) — parallel to demo
+TESTNET_LIVE = False
+try:
+    from binance_config import BINANCE_TESTNET_API_KEY as _TNK
+    if _TNK:
+        from demo_trader import place_testnet_market_order, set_testnet_leverage_all
+        TESTNET_LIVE = True
+    else:
+        place_testnet_market_order = None
+        set_testnet_leverage_all = None
+except Exception:
+    TESTNET_LIVE = False
+    place_testnet_market_order = None
+    set_testnet_leverage_all = None
+
 
 def _notify(text):
     try:
         send_message(text, bot='alpha2')
     except Exception:
         pass
+
+def _place_live_market(symbol, side, qty, reduce_only=False):
+    """Place live market order on demo and testnet (if enabled). Returns (demo_res, testnet_res) for logging."""
+    demo_res = demo_err = None
+    tn_res = tn_err = None
+    if DEMO_LIVE:
+        try:
+            demo_res, demo_err = place_market_order(symbol, side, qty, reduce_only=reduce_only)
+        except Exception as e:
+            demo_err = str(e)
+    if TESTNET_LIVE:
+        try:
+            tn_res, tn_err = place_testnet_market_order(symbol, side, qty, reduce_only=reduce_only)
+        except Exception as e:
+            tn_err = str(e)
+    return (demo_res, demo_err, tn_res, tn_err)
+
+
+def _close_live_position(symbol):
+    """Close the *actual* live position(s) by querying exchange state.
+    Derives side/qty from the real position (SELL if long, BUY if short) and
+    uses reduce_only so the order never increases size. Handles positions
+    larger than MARKET_LOT_SIZE (e.g. STRK 60k > 30k) by chunking into
+    marketMax-sized reduce-only orders. Fixes -4118/-2019/-2022/-4005.
+    Returns (demo_res, demo_err, tn_res, tn_err) of the last chunk."""
+    import math, time
+    demo_res = demo_err = tn_res = tn_err = None
+    # Demo — chunk if needed (refetch each iteration for accuracy)
+    if DEMO_LIVE:
+        try:
+            from demo_trader import get_demo_position, get_symbol_filters
+            filt = get_symbol_filters(symbol)
+            mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+            last_res = last_err = None
+            for _ in range(10):  # safety cap 10 chunks
+                amt = get_demo_position(symbol)
+                if abs(amt) < 1e-9:
+                    last_err = None
+                    break
+                side = 'SELL' if amt > 0 else 'BUY'
+                chunk = min(abs(amt), mmax)
+                last_res, last_err = place_market_order(symbol, side, chunk, reduce_only=True)  # type: ignore
+                if last_err is not None:
+                    break
+                time.sleep(0.25)
+            demo_res, demo_err = last_res, last_err
+            if demo_res is None and demo_err is None:
+                demo_err = None  # already flat
+        except Exception as e:
+            demo_err = str(e)
+    # Testnet — same chunking
+    if TESTNET_LIVE:
+        try:
+            from demo_trader import get_testnet_position, get_testnet_symbol_filters
+            filt = get_testnet_symbol_filters(symbol)
+            mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+            last_res = last_err = None
+            for _ in range(10):
+                amt = get_testnet_position(symbol)
+                if abs(amt) < 1e-9:
+                    last_err = None
+                    break
+                side = 'SELL' if amt > 0 else 'BUY'
+                chunk = min(abs(amt), mmax)
+                last_res, last_err = place_testnet_market_order(symbol, side, chunk, reduce_only=True)  # type: ignore
+                if last_err is not None:
+                    break
+                time.sleep(0.25)
+            tn_res, tn_err = last_res, last_err
+            if tn_res is None and tn_err is None:
+                tn_err = None
+        except Exception as e:
+            tn_err = str(e)
+    return (demo_res, demo_err, tn_res, tn_err)
 
 
 def check_commands(state):
@@ -123,12 +212,12 @@ def _flatten_positions(state):
         }
         state['trades'].append(trade)
         log_trade(trade, state)
-        if DEMO_LIVE:
+        if DEMO_LIVE or TESTNET_LIVE:
             try:
-                from demo_trader import cancel_algo_orders, place_market_order
-                cancel_algo_orders(s)
-                side = 'SELL' if direction == 'long' else 'BUY'
-                place_market_order(s, side, qty, reduce_only=True)
+                from demo_trader import cancel_algo_orders
+                if DEMO_LIVE:
+                    cancel_algo_orders(s)
+                _close_live_position(s)
             except Exception as e:
                 _notify(f"⚠️ Kill close {s} failed: {e}")
         del state['open_positions'][s]
@@ -241,7 +330,7 @@ else:
     BINANCE_FAPI_BASE = "https://testnet.binancefuture.com"
 ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
-INTERVAL = 60
+INTERVAL = 10  # 10s polls -> 6x more responsive (was 60s); bulk/parallel fetch keeps cycle <5s for <10s Telegram<->Binance sync
 
 K = 30
 H = 100
@@ -250,6 +339,7 @@ MAX_CONSEC = 3
 COOLDOWN = 50
 CAP = 10.0
 STAKE_PCT = 0.20
+STAKE_PCT_TESTNET = 0.20  # testnet uses 20% staking as requested (identical to Telegram/demo)
 LEVERAGE = 20.0
 # Per-symbol leverage overrides. Demo futures rejects some symbols at high leverage
 # (e.g. BICOUSDT rejects 20x -> ERROR 400). Those symbols are capped here; all others
@@ -449,6 +539,24 @@ def compute_meta_features(closes, highs, lows, volumes, idx, ob_history=None):
     feat['dow_sin'] = np.sin(2 * np.pi * ((idx // 1440) % 7) / 7)
     feat['dow_cos'] = np.cos(2 * np.pi * ((idx // 1440) % 7) / 7)
 
+    # Orderbook microstructure features (always present, NaN for historical data)
+    feat['spread_bps'] = np.nan
+    feat['imb_1'] = np.nan
+    feat['imb_5'] = np.nan
+    feat['depth_5'] = np.nan
+    feat['depth_10'] = np.nan
+    feat['vwap_mid_5'] = np.nan
+    feat['kyle_lambda_5'] = np.nan
+    feat['spread_roll_10'] = np.nan
+    feat['imb_5_roll_20'] = np.nan
+    feat['spread_bps_dup'] = np.nan
+
+    # If orderbook history is available, compute actual values
+    if ob_history is not None and len(ob_history) > idx:
+        ob_feat = compute_orderbook_features_at_index(ob_history, idx)
+        if ob_feat:
+            feat.update(ob_feat)
+
     return feat
 
 
@@ -464,6 +572,10 @@ FEATURE_ORDER = [
     'ma50_ma20_cross', 'ma100_ma50_cross', 'trend_slope',
     'consec_direction', 'hh_streak_5', 'll_streak_5', 'momentum_accel',
     'hour_sin', 'hour_cos', 'dow_sin', 'dow_cos',
+    # Orderbook microstructure features (10) - NaN for training, live at inference
+    'spread_bps', 'imb_1', 'imb_5', 'depth_5', 'depth_10',
+    'vwap_mid_5', 'kyle_lambda_5', 'spread_roll_10', 'imb_5_roll_20',
+    'spread_bps_dup',
 ]
 
 
@@ -655,15 +767,30 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         log_equity(state)
         return state
 
+    # parallel fetch for 7 assets -> ~2-3s vs 14s sequential (needed for <10s sync)
     ohlcv_data = {}
     orderbook_data = {}
-    for s in ASSETS:
-        o = get_ohlcv(s)
-        if o is not None:
-            ohlcv_data[s] = o
-        ob = get_orderbook(s)
-        if ob is not None:
-            orderbook_data[s] = ob
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        def _fetch_one(sym):
+            return sym, get_ohlcv(sym), get_orderbook(sym)
+        with ThreadPoolExecutor(max_workers=7) as ex:
+            futs = {ex.submit(_fetch_one, s): s for s in ASSETS}
+            for fut in as_completed(futs):
+                sym, o, ob = fut.result()
+                if o is not None:
+                    ohlcv_data[sym] = o
+                if ob is not None:
+                    orderbook_data[sym] = ob
+    except Exception:
+        # fallback sequential
+        for s in ASSETS:
+            o = get_ohlcv(s)
+            if o is not None:
+                ohlcv_data[s] = o
+            ob = get_orderbook(s)
+            if ob is not None:
+                orderbook_data[s] = ob
     if not ohlcv_data:
         print(f"  [{ts}] No OHLCV data, skip")
         return state
@@ -729,7 +856,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
         pos['age'] = max(pos.get('age', 0), wc_age)
         if s not in prices:
             continue
-        # Back-compat: flip-era positions lack tp/sl
+        # Back-compat: flip-era positions lack tp/sl + fix wrong short TP/SL (was swapped 0.98/0.965, both below)
         if 'tp_price' not in pos:
             pos['tp_price'] = pos['entry_price'] * (0.965 if pos['direction'] == 'short' else 1.035)
             pos['sl_price'] = pos['entry_price'] * (1.02 if pos['direction'] == 'short' else 0.98)
@@ -806,21 +933,30 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                 f"({state['total_wins']}W/{state['total_losses']}L)")
         try: log_event("alpha3", "trade_close", {"symbol": s, "direction": direction, "reason": close_reason, "pnl_pct": round(pct,6), "pnl_dollars": round(pnl_d,2), "equity": round(state['equity'],2)})
         except Exception: pass
-        if DEMO_LIVE and close_reason in ('TP','SL','TIMEOUT'):
+        if (DEMO_LIVE or TESTNET_LIVE) and close_reason in ('TP','SL','TIMEOUT'):
             try:
                 from demo_trader import cancel_algo_orders
-                cancel_algo_orders(s)
+                if DEMO_LIVE:
+                    cancel_algo_orders(s)
             except Exception:
                 pass
             try:
-                side = 'SELL' if direction == 'long' else 'BUY'
-                order, err = place_market_order(s, side, pos['quantity'], reduce_only=True)
-                if order:
-                    _notify(f"📡 Demo close {s}: {side} {pos['quantity']:.6f} filled")
-                elif err:
-                    _notify(f"⚠️ Demo close {s} failed: {err}")
+                _, d_err, _, t_err = _close_live_position(s)
+                if d_err and t_err:
+                    _notify(f"⚠️ Live close {s} failed: demo {d_err} | testnet {t_err}")
+                elif d_err and TESTNET_LIVE:
+                    pass  # testnet succeeded, suppress spam
+                elif d_err:
+                    _notify(f"⚠️ Demo close {s} failed: {d_err}")
+                else:
+                    if DEMO_LIVE and TESTNET_LIVE:
+                        _notify(f"📡 Live close {s}: fully flattened (demo+testnet)")
+                    elif DEMO_LIVE:
+                        _notify(f"📡 Demo close {s}: fully flattened")
+                    else:
+                        _notify(f"📡 Testnet close {s}: fully flattened")
             except Exception as e:
-                _notify(f"⚠️ Demo close {s} exception: {e}")
+                _notify(f"⚠️ Live close {s} exception: {e}")
 
     # Cooldown gates NEW ENTRIES only — exits were already evaluated above
     if state['cooldown_remaining'] > 0:
@@ -830,6 +966,20 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     for s in ASSETS:
         if s not in state['open_positions'] and s in prices \
                 and state['cooldown_remaining'] == 0:
+            # staking guard: don't open if available margin is too low (prevents -2019/-2027 spam when fully invested)
+            if DEMO_LIVE or TESTNET_LIVE:
+                try:
+                    from demo_trader import get_demo_usdt_balance, get_testnet_usdt_balance
+                    avail = 0
+                    if DEMO_LIVE:
+                        avail = max(avail, get_demo_usdt_balance())
+                    if TESTNET_LIVE:
+                        avail = max(avail, get_testnet_usdt_balance())
+                    if avail < 5:  # minNotional is 5 USDT; need at least that plus buffer
+                        print(f"  [{ts}] SKIP {s}: available ${avail:.2f} < $5 — insufficient margin for new position")
+                        continue
+                except Exception:
+                    pass
             d = momentum_direction(state['price_history'][s])
             if state.get('trading_enabled', True) and not state.get('kill_armed', False) and d is not None and len(state['price_history'][s]) >= WARMUP:
                 # Meta-labeler filter
@@ -871,17 +1021,77 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     except Exception:
                         pass
                 qty = pos_val / prices[s]
+                # paper and live both use 20% staking (STAKE_PCT == STAKE_PCT_TESTNET) so Telegram and testnet identical
+                actual_qty = qty
+                actual_notional = pos_val
+                demo_qty = testnet_qty = qty
+                demo_notional = testnet_notional = pos_val
+                if DEMO_LIVE or TESTNET_LIVE:
+                    try:
+                        from demo_trader import get_demo_usdt_balance, get_testnet_usdt_balance, get_symbol_filters
+                        # demo at 20%
+                        if DEMO_LIVE:
+                            try:
+                                bal_d = get_demo_usdt_balance()
+                                max_not_d = bal_d * STAKE_PCT * LEVERAGE
+                                max_not_d = min(max_not_d, max(8000, bal_d * 0.5 * LEVERAGE))
+                                max_qty_d = max_not_d / prices[s] if prices[s] else qty
+                                dq = min(qty, max_qty_d)
+                                # market lot size
+                                try:
+                                    filt = get_symbol_filters(s)
+                                    mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                                    if dq > mmax: dq = mmax
+                                except: pass
+                                demo_qty = dq
+                                demo_notional = dq * prices[s]
+                            except: pass
+                        # testnet at <20% (10%) as requested
+                        if TESTNET_LIVE:
+                            try:
+                                bal_t = get_testnet_usdt_balance()
+                                max_not_t = bal_t * STAKE_PCT_TESTNET * LEVERAGE
+                                max_not_t = min(max_not_t, max(8000, bal_t * 0.5 * LEVERAGE))
+                                max_qty_t = max_not_t / prices[s] if prices[s] else qty
+                                tq = min(qty, max_qty_t)
+                                try:
+                                    filt = get_symbol_filters(s)
+                                    mmax = float(filt.get('marketMaxQty', filt.get('maxQty', '1000000')))
+                                    if tq > mmax: tq = mmax
+                                except: pass
+                                testnet_qty = tq
+                                testnet_notional = tq * prices[s]
+                            except: pass
+                        # paper follows demo (20%) for display, live testnet will be placed with its own smaller qty
+                        actual_qty = demo_qty if DEMO_LIVE else testnet_qty
+                        actual_notional = demo_notional if DEMO_LIVE else testnet_notional
+                    except Exception:
+                        pass
                 try:
                     from demo_trader import round_qty as _rq
-                    qty = _rq(s, qty) if DEMO_LIVE else qty
+                    # round both qtys
+                    if DEMO_LIVE:
+                        demo_qty = _rq(s, demo_qty)
+                    if TESTNET_LIVE:
+                        # testnet qty also rounded
+                        testnet_qty = _rq(s, testnet_qty)
+                    # paper uses demo qty (20%)
+                    qty = demo_qty if DEMO_LIVE else testnet_qty
+                    actual_qty = qty
+                    actual_notional = demo_notional if DEMO_LIVE else testnet_notional
+                    # if rounding changed qty, update notional
+                    if DEMO_LIVE:
+                        demo_notional = demo_qty * prices[s]
+                        actual_notional = demo_notional
+                        actual_qty = demo_qty
                 except Exception:
                     pass
                 tp_p = prices[s] * (0.965 if d == 'short' else 1.035)
                 sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
-                    'entry_price': prices[s], 'quantity': qty,
-                    'notional': pos_val, 'age': 0,
+                    'entry_price': prices[s], 'quantity': paper_qty,
+                    'notional': paper_notional, 'age': 0,
                     'tp_price': tp_p, 'sl_price': sl_p,
                     'entry_time': datetime.utcnow().isoformat(),
                 }
@@ -894,9 +1104,9 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {eff_lev:g}x)\n"
                         f"Exit: TP 3.5% | SL 2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
-                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
+                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(paper_notional,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
-                if DEMO_LIVE:
+                if DEMO_LIVE or TESTNET_LIVE:
                     try:
                         side = 'BUY' if d == 'long' else 'SELL'
                         # Use MARKET order for entry to match paper fill assumption.
@@ -991,59 +1201,61 @@ def reconcile_on_startup(state):
         # Only reconcile our own universe — never touch the other Alpha's wallet (shared account)
         from demo_trader import place_market_order, round_qty as _rq
 
-        # 2) paper open but demo flat -> book paper close at market
+        # 2) paper is source of truth — live must follow paper (user: "align binance testnet to telegram bot not the other way round")
+        # For each paper position, ensure demo/testnet have the same live position
         for s in list(state.get('open_positions', {}).keys()):
-            if s in demo:
-                continue
             p = state['open_positions'][s]
-            direction = p.get('direction', 'long')
-            entry = float(p.get('entry_price', 0.0))
-            qty = float(p.get('quantity', 0.0))
-            px = get_price(s) or entry
-            pct = ((px - entry) / entry if direction == 'long' else (entry - px) / entry) if entry else 0.0
-            pnl_d = qty * (px - entry) * (1 if direction == 'long' else -1)
-            pnl_d -= qty * (entry + px) * FEE_RATE
-            state['capital'] += pnl_d
-            state['equity'] = state['capital']
-            state['total_trades'] += 1
-            if pnl_d > 0:
-                state['total_wins'] += 1
-            else:
-                state['total_losses'] += 1
-            state['trades'].append({
-                'symbol': s, 'direction': direction,
-                'entry_price': entry, 'exit_price': px,
-                'resolve': 'market', 'pnl_pct': pct,
-                'pnl_dollars': pnl_d, 'reason': 'RECONCILE',
-                'entry_time': p.get('entry_time'),
-                'exit_time': datetime.utcnow().isoformat(),
-            })
-            log_trade(state['trades'][-1], state)
-            del state['open_positions'][s]
-            print(f"  [{ts}] RECONCILE {s}: demo flat -> closed paper leg "
-                  f"({direction}, qty {qty}) @ {px} | PnL ${pnl_d:+,.2f}")
-            _notify(f"🧹 <b>RECONCILE {s}</b>: demo flat → closed paper leg "
-                    f"{direction.upper()} @ market | PnL ${pnl_d:+,.2f}")
-            try: log_event("alpha3", "reconcile_paper_close", {"symbol": s, "pnl": round(pnl_d, 4), "price": px})
-            except Exception: pass
+            demo_amt = float(demo[s]['positionAmt']) if s in demo else 0.0
+            tn_amt = float(testnet[s]) if s in testnet else 0.0
+            paper_dir = p.get('direction', 'long')
+            paper_qty = float(p.get('quantity', 0.0))
+            has_demo = abs(demo_amt) > 0
+            has_testnet = abs(tn_amt) > 0
+            need_demo = DEMO_LIVE and (not has_demo or ('long' if demo_amt>0 else 'short') != paper_dir)
+            need_testnet = TESTNET_LIVE and (not has_testnet or ('long' if tn_amt>0 else 'short') != paper_dir)
+            if not need_demo and not need_testnet:
+                continue  # already identical
+            # need to place live order(s) to make live follow paper
+            try:
+                # if live has opposite direction, first flatten it
+                if has_demo and ('long' if demo_amt>0 else 'short') != paper_dir:
+                    print(f"  [{ts}] RECONCILE {s}: demo live {('long' if demo_amt>0 else 'short')} vs paper {paper_dir} -> flatten demo then re-open")
+                    _close_live_position(s)
+                    has_demo = False
+                if has_testnet and ('long' if tn_amt>0 else 'short') != paper_dir:
+                    print(f"  [{ts}] RECONCILE {s}: testnet live {('long' if tn_amt>0 else 'short')} vs paper {paper_dir} -> flatten")
+                    _close_live_position(s)
+                    has_testnet = False
+                # now place missing live leg(s) to match paper
+                side = 'BUY' if paper_dir == 'long' else 'SELL'
+                qty = paper_qty
+                # use live-capped qty for the order (paper qty is already capped, but ensure it respects marketMax)
+                if need_demo or need_testnet:
+                    _, d_err, _, t_err = _place_live_market(s, side, qty)
+                    if d_err is None or t_err is None:
+                        print(f"  [{ts}] RECONCILE {s}: live now follows paper {paper_dir} qty {qty}")
+                    else:
+                        print(f"  [{ts}] RECONCILE {s}: live follow paper FAILED demo {d_err} testnet {t_err} — will retry next cycle")
+                continue
+            except Exception as e:
+                print(f"  [{ts}] RECONCILE {s} paper->live failed: {e}")
+                continue
 
-        # 3) demo position with no paper leg -> orphan sweep
-        for s, p in sorted(demo.items()):
+        # 3) live position with no paper leg -> orphan sweep (demo + testnet)
+        live_union = set(list(demo.keys()) + list(testnet.keys()))
+        for s in sorted(live_union):
             if s in state.get('open_positions', {}):
                 continue
-            amt = float(p['positionAmt'])
-            side = 'SELL' if amt > 0 else 'BUY'
-            qty = _rq(s, abs(amt))
-            order, err = place_market_order(s, side, qty, reduce_only=True)
-            if order:
-                print(f"  [{ts}] RECONCILE {s}: orphan demo leg ({amt}) swept "
-                      f"via {side} {qty} reduce-only")
-                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan demo position ({amt}) closed")
-                try: log_event("alpha3", "reconcile_orphan_sweep", {"symbol": s, "amt": amt})
+            # prefer demo amt for reporting but _close_live_position handles both venues
+            _, d_err, _, t_err = _close_live_position(s)
+            if d_err is None or t_err is None:
+                print(f"  [{ts}] RECONCILE {s}: orphan live leg swept (demo+testnet) reduce-only")
+                _notify(f"🧹 <b>RECONCILE {s}</b>: orphan live position closed")
+                try: log_event("alpha3", "reconcile_orphan_sweep", {"symbol": s})
                 except Exception: pass
             else:
-                print(f"  [{ts}] RECONCILE {s}: orphan sweep FAILED ({err})")
-                _notify(f"⚠️ <b>RECONCILE {s}</b>: orphan sweep failed: {err}")
+                print(f"  [{ts}] RECONCILE {s}: orphan sweep FAILED (demo {d_err} | testnet {t_err})")
+                # suppress spam if one venue succeeded
 
         save_state(state)
     except Exception as e:

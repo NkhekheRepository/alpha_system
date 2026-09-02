@@ -21,6 +21,7 @@ def test_k_horizon_match():
     # K reflects the alpha3 LIVE runner contract.
     assert R.K == MC.K == 30
     assert R.H == MC.H == 100
+    assert R.INTERVAL == MC.INTERVAL_SEC == 10
 
 
 def test_model_artifact_k_is_10_pending_retrain():
