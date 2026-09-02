@@ -13,19 +13,26 @@ from dotenv import load_dotenv
 from telegram import Update, BotCommand, MenuButtonDefault
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import generate_equity_chart, generate_trade_chart
 import analytics as vis
 
-DATA_DIR = Path('/home/nkhekhe/alpha_system')
+DATA_DIR = Path(str(Path(__file__).resolve().parent))
 STATE_FILE = DATA_DIR / 'dry_data' / 'alpha3_state.json'
 CMD_FILE = DATA_DIR / 'dry_data' / 'alpha3_cmd.json'
 
-load_dotenv('/home/nkhekhe/alpha_system/.env')
+load_dotenv(Path(__file__).resolve().parent / '.env')
 
 TOKEN = os.environ.get('ALPHA2_TELEGRAM_BOT_TOKEN', '')
 CHAT_ID = os.environ.get('ALPHA2_TELEGRAM_CHAT_ID', '')
 from binance_config import BINANCE_API_BASE
+# Trading mode switch: testnet (default) or live
+TRADING_MODE = os.getenv("TRADING_MODE", "testnet").lower()
+if TRADING_MODE == "live":
+    BINANCE_FAPI_BASE = "https://fapi.binance.com"
+    print("LIVE TRADING ENABLED – REAL CAPITAL AT RISK")
+else:
+    BINANCE_FAPI_BASE = "https://testnet.binancefuture.com"
 API = BINANCE_API_BASE
 
 
@@ -130,9 +137,9 @@ def fetch_testnet_orders():
         if not USE_TESTNET or not ACTIVE_API_KEY or not ACTIVE_API_SECRET:
             return None, "Testnet keys not configured"
         # Use demo-fapi host directly for futures positions (BINANCE_API_BASE includes version)
-        from binance_config import BINANCE_DEMO_FAPI_BASE, USE_DEMO, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+        from binance_config import BINANCE_FAPI_BASE, USE_DEMO, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
         if USE_DEMO and BINANCE_DEMO_API_KEY:
-            base = BINANCE_DEMO_FAPI_BASE
+            base = BINANCE_FAPI_BASE
             path = '/fapi/v2/positionRisk'
             key, sec = BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
             is_futures = True
@@ -177,9 +184,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
-        "Engine: momentum-K10, H15 hold, CB 3/50\n"
-        "Exits: TP/SL ±2% market | TIMEOUT bar 75 at market price\n"
-        "Staking: 7.5% margin × 50x lev = $375/trade (compounds, 100 USDT base)\n"
+        "Engine: momentum-K30, H100 hold, CB 3/50\n"
+        "Exits: TP 3.5% / SL 2% market | TIMEOUT bar 100 at market price\n"
+        "Staking: 20% margin × 20x lev (compounds, $10 base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
         "/positions — Open positions with bar countdown\n"
@@ -268,8 +275,12 @@ def build_status_text(state, live=False):
             entry = pos['entry_price']
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
-            pos_lines += (f"     {base_s}: bar {age}/15 | stake ${stake:,.0f} | resolves → "
-                          f"+2% ({fmt_price(entry*1.02)}) / −2% ({fmt_price(entry*0.98)})\n")
+            _tp = pos.get('tp_price', entry * (1.035 if pos.get('direction') == 'long' else 0.965))
+            _sl = pos.get('sl_price', entry * (0.98 if pos.get('direction') == 'long' else 1.02))
+            _tp_pct = abs(_tp - entry) / entry * 100 if entry else 0
+            _sl_pct = abs(_sl - entry) / entry * 100 if entry else 0
+            pos_lines += (f"     {base_s}: bar {age}/100 | stake ${stake:,.0f} | resolves → "
+                          f"TP {_tp_pct:.2f}% ({fmt_price(_tp)}) / SL {_sl_pct:.2f}% ({fmt_price(_sl)})\n")
     elif positions:
         for sym, pos in positions.items():
             base_s = sym.replace('USDT', '')
@@ -298,10 +309,10 @@ def build_status_text(state, live=False):
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Exits: TP/SL ±2% market barriers | TIMEOUT bar 75\n"
+        f"Exits: TP 3.5% / SL 2% market barriers | TIMEOUT bar 100\n"
         f"{testnet_line}\n"
         f"Group: {ALPHA3_GROUP}\n"
-        f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${100*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
+        f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${base*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
         f"💰 <b>Portfolio (Paper)</b>\n"
         f"Equity: ${equity:,.2f} (base ${base:,.0f})\n"
         f"Realized: ${pnl:+,.2f} ({pnl_pct:+.2f}%)\n"
@@ -386,14 +397,19 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"TP ${entry*1.02:,.2f} / SL ${entry*0.98:,.2f} (market) | TIMEOUT bar 75\n"
-            f"Hold: bar {age}/15 (~{remaining} min left)\n"
+            f"TP ${tp_price:,.2f} / SL ${sl_price:,.2f} (market) | TIMEOUT bar 100\n"
+            f"Hold: bar {age}/100 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
     # Show paper TP/SL levels
     for sym2, pos2 in state.get('open_positions', {}).items():
         if 'tp_price' in pos2:
-            msg += f"     {base_s}: bar {age}/15 | resolves → +2% (${entry*1.02:,.2f}) / −2% (${entry*0.98:,.2f})\n"
+            entry_price = pos2["entry_price"]
+            tp_price = pos2["tp_price"]
+            sl_price = pos2["sl_price"]
+            abs_tp_pct = abs(tp_price - entry_price) / entry_price * 100
+            abs_sl_pct = abs(sl_price - entry_price) / entry_price * 100
+            msg += f"     {base_s}: bar {age}/100 | resolves → TP {abs_tp_pct:.2f}% (${pos2["tp_price"]:,.2f}) / SL {abs_sl_pct:.2f}% (${pos2["sl_price"]:,.2f})\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 
@@ -516,8 +532,9 @@ async def cmd_health(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines = [f"{emoji} <b>Alpha 3% HEALTH</b>", f"Level: <b>{h['level']}</b>", f"DD {h['dd']*100:.2f}% PF {h['pf']:.2f} Sharpe {h['sharpe']:.2f}"]
         if h['alerts']:
             lines.append("Alerts:")
+            esc = lambda s: (s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
             for a in h['alerts']:
-                lines.append(f"  • {a}")
+                lines.append(f"  • {esc(a)}")
         else:
             lines.append("✅ All thresholds OK")
         lines.append(f"\n<i>Thresholds: DD 5%/10%, PF 1.0, Sharpe 0.5, Ulcer 3%, Corr 0.80, TO 85%</i>")

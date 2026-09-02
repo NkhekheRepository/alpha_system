@@ -30,7 +30,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from backtest_alpha2 import ASSETS, DATA_DIR, CAP, FEE
 
 # Aligned barrier config — byte-for-byte parity with alpha_1percent.py TB_CONFIG (alpha_1percent.py:74-83).

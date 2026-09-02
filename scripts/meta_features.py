@@ -7,7 +7,9 @@ Computes the same 36 features at signal time using only historical data
 
 import numpy as np
 
-# Feature computation functions (copied from engineer_features.py for consistency)
+# Feature computation functions. _ema is intentionally the SAME manual-recursion
+# implementation as engineer_features._ema and alpha3_dry_runner._ema — the
+# meta-labeler is only valid if train and live compute EMA identically.
 def _rolling_mean(x, w):
     out = np.full(len(x), np.nan)
     cs = np.cumsum(np.insert(x, 0, 0))

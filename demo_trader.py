@@ -10,7 +10,7 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv
-    load_dotenv('/home/nkhekhe/alpha_system/.env')
+    load_dotenv(Path(__file__).resolve().parent / '.env')
 except Exception:
     pass
 
@@ -84,8 +84,8 @@ def round_qty(symbol, qty):
 
 def place_limit_order(symbol, side, quantity, price, reduce_only=False):
     """Place LIMIT order at exact price to match paper entry. Returns (order_json, error)."""
-    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
-        return None, "Demo keys not configured"
+    if not _API_KEY or not _API_SECRET:
+        return None, f"Keys not configured (USE_LIVE={USE_LIVE}, BASE={BASE})"
     try:
         qty = round_qty(symbol, quantity)
         if qty <= 0:
@@ -115,9 +115,9 @@ def place_limit_order(symbol, side, quantity, price, reduce_only=False):
         return None, str(e)
 
 def place_market_order(symbol, side, quantity, reduce_only=False):
-    """Place MARKET order on demo futures. Returns (order_json, error)."""
-    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
-        return None, "Demo keys not configured"
+    """Place MARKET order on futures. Returns (order_json, error)."""
+    if not _API_KEY or not _API_SECRET:
+        return None, f"Keys not configured (USE_LIVE={USE_LIVE}, BASE={BASE})"
     try:
         qty = round_qty(symbol, quantity)
         if qty <= 0:
@@ -146,7 +146,7 @@ def place_market_order(symbol, side, quantity, reduce_only=False):
 
 def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
     """Place TP/SL bracket via AlgoOrder (CONDITIONAL) — survives runner death."""
-    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
+    if not _API_KEY or not _API_SECRET:
         return
     try:
         close_side = 'SELL' if entry_side == 'BUY' else 'BUY'
@@ -163,8 +163,8 @@ def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
             'timestamp': ts,
         }
         qs = '&'.join([f"{k}={v}" for k, v in tp_params.items()])
-        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
-        h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
+        sig = hmac.new(_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        h = {'X-MBX-APIKEY': _API_KEY}
         requests.post(f"{BASE}/fapi/v1/algoOrder", params={**tp_params, 'signature': sig}, headers=h, timeout=10)
         time.sleep(0.15)
         ts2 = int(time.time() * 1000)
@@ -178,21 +178,21 @@ def place_bracket_orders(symbol, entry_side, quantity, tp_price, sl_price):
             'timestamp': ts2,
         }
         qs2 = '&'.join([f"{k}={v}" for k, v in sl_params.items()])
-        sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
+        sig2 = hmac.new(_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
         requests.post(f"{BASE}/fapi/v1/algoOrder", params={**sl_params, 'signature': sig2}, headers=h, timeout=10)
     except Exception:
         pass
 
 def cancel_algo_orders(symbol):
     """Cancel all open algo orders for symbol."""
-    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
+    if not _API_KEY or not _API_SECRET:
         return
     try:
         ts = int(time.time() * 1000)
         params = {'timestamp': ts}
         qs = '&'.join([f"{k}={v}" for k, v in params.items()])
-        sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
-        h = {'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}
+        sig = hmac.new(_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        h = {'X-MBX-APIKEY': _API_KEY}
         r = requests.get(f"{BASE}/fapi/v1/openAlgoOrders", params={**params, 'signature': sig}, headers=h, timeout=10)
         if r.status_code != 200:
             return
@@ -201,7 +201,7 @@ def cancel_algo_orders(symbol):
                 algo_id = o.get('algoId')
                 ts2 = int(time.time() * 1000)
                 qs2 = f"algoId={algo_id}&timestamp={ts2}"
-                sig2 = hmac.new(BINANCE_DEMO_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
+                sig2 = hmac.new(_API_SECRET.encode(), qs2.encode(), hashlib.sha256).hexdigest()
                 requests.delete(f"{BASE}/fapi/v1/algoOrder", params={'algoId': algo_id, 'timestamp': ts2, 'signature': sig2}, headers=h, timeout=10)
                 time.sleep(0.1)
     except Exception:
@@ -209,9 +209,9 @@ def cancel_algo_orders(symbol):
 
 
 def set_leverage(symbol, leverage=50):
-    """Set leverage for a symbol on demo futures."""
-    if not BINANCE_DEMO_API_KEY or not BINANCE_DEMO_API_SECRET:
-        return None, "Demo keys not configured"
+    """Set leverage for a symbol on futures. Falls back to max allowed if requested leverage invalid."""
+    if not _API_KEY or not _API_SECRET:
+        return None, f"Keys not configured (USE_LIVE={USE_LIVE}, BASE={BASE})"
     try:
         ts = int(time.time() * 1000)
         params = {
@@ -224,6 +224,24 @@ def set_leverage(symbol, leverage=50):
         j = r.json()
         if r.status_code == 200:
             return j, None
+        # Fallback: if leverage not valid, query max and retry once
+        if 'Leverage' in j.get('msg','') and 'not valid' in j.get('msg',''):
+            try:
+                ts2 = str(int(time.time()*1000))
+                sig2 = hmac.new(_API_SECRET.encode(), f'symbol={symbol}&timestamp={ts2}'.encode(), hashlib.sha256).hexdigest()
+                rb = requests.get(f"{BASE}/fapi/v1/leverageBracket?symbol={symbol}&timestamp={ts2}&signature={sig2}", headers=_headers(), timeout=10)
+                if rb.status_code==200:
+                    maxLev = rb.json()[0]['brackets'][0]['initialLeverage']
+                    if int(maxLev) != int(leverage):
+                        ts3 = int(time.time()*1000)
+                        p2 = {'symbol': symbol, 'leverage': int(maxLev), 'timestamp': ts3}
+                        s2 = _sign(p2)
+                        r2 = requests.post(f"{BASE}/fapi/v1/leverage", params=s2, headers=_headers(), timeout=10)
+                        j2 = r2.json()
+                        if r2.status_code==200:
+                            return j2, None
+            except Exception:
+                pass
         return None, f"{r.status_code}: {j.get('msg','')} {j}"
     except Exception as e:
         return None, str(e)

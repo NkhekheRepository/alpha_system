@@ -18,7 +18,7 @@ from datetime import datetime, timezone, timedelta
 from collections import defaultdict, Counter
 import numpy as np
 
-DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
+DATA_DIR = Path(__file__).resolve().parent / 'dry_data'
 
 # ── helpers ──────────────────────────────────────────────────────────────
 def _load_state(state_file: Path) -> dict:
@@ -31,9 +31,10 @@ def _load_trades(state_file: Path):
     trades = s.get('trades', [])
     # also fallback to trades.csv for richer history
     csv_trades = state_file.parent / state_file.stem.replace('state','trades').replace('dry','dry_trades')
-    # handle alpha3 naming
-    if 'alpha3' in str(state_file):
-        csv_trades = DATA_DIR / 'alpha3_trades.csv'
+    # handle alpha3/alpha4 naming
+    if 'alpha3' in str(state_file) or 'alpha4' in str(state_file):
+        pref = 'alpha4' if 'alpha4' in str(state_file) else 'alpha3'
+        csv_trades = DATA_DIR / f'{pref}_trades.csv'
     else:
         csv_trades = DATA_DIR / 'dry_trades.csv'
     return trades, s
@@ -385,7 +386,8 @@ def health_checks(state_file: Path):
     eq_curve = None
     eq_times = None
     try:
-        eq_csv = state_file.parent / ('alpha3_equity.csv' if 'alpha3' in str(state_file) else 'dry_equity.csv')
+        _pref = 'alpha4' if 'alpha4' in str(state_file) else ('alpha3' if 'alpha3' in str(state_file) else None)
+        eq_csv = state_file.parent / (f'{_pref}_equity.csv' if _pref else 'dry_equity.csv')
         if eq_csv.exists():
             with open(eq_csv) as f:
                 reader = csv.DictReader(f)
@@ -441,7 +443,8 @@ def get_risk_report(state_file: Path):
     eq_curve = None
     eq_times = None
     try:
-        eq_csv = state_file.parent / ('alpha3_equity.csv' if 'alpha3' in str(state_file) else 'dry_equity.csv')
+        _pref = 'alpha4' if 'alpha4' in str(state_file) else ('alpha3' if 'alpha3' in str(state_file) else None)
+        eq_csv = state_file.parent / (f'{_pref}_equity.csv' if _pref else 'dry_equity.csv')
         if eq_csv.exists():
             with open(eq_csv) as f:
                 reader = csv.DictReader(f)
@@ -482,7 +485,7 @@ def get_risk_report(state_file: Path):
         'dd_stats': dd_stats, 'var': varc, 'vol': vol,
         'pf': pf, 'expectancy': exp, 'health': health,
         'annualization': ann,
-        'base': state.get('capital', 100 if 'alpha3' in str(state_file) else 100000),
+        'base': state.get('capital', 100 if ('alpha3' in str(state_file) or 'alpha4' in str(state_file)) else 100000),
         'equity': state.get('equity', 0),
         'peak': state.get('peak_equity', 0),
     }
@@ -526,7 +529,10 @@ def format_risk_telegram(report: dict, name: str = "Alpha") -> str:
 
     # health note with threshold reference
     # health note: show alerts if any, otherwise OK
-    alert_text = "  ".join(h['alerts']) if h['alerts'] else "✅ All thresholds OK"
+    # NOTE: alert strings contain raw '<'/'>' (e.g. "Sharpe -0.07 <0.5") which is
+    # invalid HTML for Telegram's parse; escape them so the message parses.
+    esc = lambda s: (s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+    alert_text = esc("  ".join(h['alerts'])) if h['alerts'] else "✅ All thresholds OK"
     health_note = f"🏥 <b>Health</b>: {h['level']} {level_badge} {alert_text}"
 
     lines = [
@@ -569,8 +575,9 @@ def format_attribution_telegram(report: dict, name: str = "Alpha") -> str:
     if report['by_duration']:
         lines.append(f"⏱ <b>By Duration</b>")
         # Sort by win rate descending
+        _esc = lambda s: s.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
         for k, v in sorted(report['by_duration'].items(), key=lambda x: x[1]['wr'], reverse=True):
-            lines.append(f"  {k}: {v['count']}t PnL ${v['pnl']:+.2f} WR {v['wr']:.1f}%")
+            lines.append(f"  {_esc(k)}: {v['count']}t PnL ${v['pnl']:+.2f} WR {v['wr']:.1f}%")
         lines.append(f"")
     if report['by_hour']:
         # top 3 best performing hours
@@ -595,9 +602,9 @@ def format_exposure_telegram(state_file: Path, name: str = "Alpha") -> str:
     s = _load_state(state_file)
     trades, _ = _load_trades(state_file)
     open_pos = s.get('open_positions', {})
-    base = s.get('capital', 100 if 'alpha3' in str(state_file) else 100000)
+    base = s.get('capital', 100 if ('alpha3' in str(state_file) or 'alpha4' in str(state_file)) else 100000)
     equity = s.get('equity', base)
-    stake_pct = s.get('stake_pct', 0.075 if 'alpha3' in str(state_file) else 0.03)
+    stake_pct = s.get('stake_pct', 0.075 if ('alpha3' in str(state_file) or 'alpha4' in str(state_file)) else 0.03)
     lev = s.get('leverage', 50)
     cap_per_slot = stake_pct * lev
     # current exposure

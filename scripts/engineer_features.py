@@ -45,8 +45,21 @@ def _rolling_std(x, w):
 
 
 def _ema(x, span):
-    """Exponential moving average."""
-    return pd.Series(x).ewm(span=span, min_periods=span).mean().values
+    """Exponential moving average (manual recursion, seeded at x[0]).
+
+    MUST match the live inference EMA (alpha3_dry_runner._ema and
+    meta_features._ema) exactly — the meta-labeler is only valid if the feature
+    the live runner feeds at inference is the same function the model was
+    trained on. Previously this used pandas ewm(adjust=True, min_periods=span),
+    which differs in interior values; unified to the recursive form so the
+    train/serve _ema is one formula everywhere.
+    """
+    alpha = 2 / (span + 1)
+    ema = np.full(len(x), np.nan)
+    ema[0] = x[0]
+    for i in range(1, len(x)):
+        ema[i] = alpha * x[i] + (1 - alpha) * ema[i-1]
+    return ema
 
 
 def compute_features_at_indices(closes, highs, lows, volumes, indices):

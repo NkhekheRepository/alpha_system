@@ -3,6 +3,8 @@ import csv
 import json
 from pathlib import Path
 
+import pytest
+
 import alpha3_dry_runner as R
 
 
@@ -37,10 +39,12 @@ def test_engage_flattens_open_positions(monkeypatch, tmp_path):
     assert s['open_positions'] == {}
     assert s['kill_armed'] is True
     assert s['trading_enabled'] is False
-    # PnL booked into equity + trade log
+    # PnL booked into equity + trade log (position-size + fee exact)
     assert len(s['trades']) == 1
     assert s['trades'][0]['reason'] == 'KILL'
-    assert s['equity'] > 100.0  # profit realized
+    qty, entry, exit = 0.1, 100.0, 105.0
+    expected = qty * (exit - entry) - qty * (entry + exit) * R.FEE_RATE
+    assert s['equity'] == pytest.approx(R.CAP + expected)
     # kill ledger written
     assert R.KILL_LOG.exists()
     rows = list(csv.reader(open(R.KILL_LOG)))
@@ -122,8 +126,11 @@ def test_kill_ledger_records_metrics(monkeypatch, tmp_path):
     assert rec[4] == '1'                       # n_closed
     assert rec[5] == 'BTCUSDT'                 # symbols
     assert float(rec[3]) > 0                   # kill PnL
-    assert float(rec[1]) == 100.0              # equity_before
-    assert float(rec[2]) > 100.0               # equity_after (profit)
+    qty, entry, exit = 0.1, 100.0, 105.0
+    expected = qty * (exit - entry) - qty * (entry + exit) * R.FEE_RATE
+    # ledger formats equity to 2dp (f"{...:.2f}")
+    assert float(rec[1]) == round(R.CAP, 2)              # equity_before
+    assert float(rec[2]) == round(R.CAP + expected, 2)   # equity_after
 
 
 def test_pause_keeps_positions(monkeypatch, tmp_path):

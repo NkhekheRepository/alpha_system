@@ -17,9 +17,9 @@ from pathlib import Path
 import numpy as np
 import requests
 
-sys.path.insert(0, '/home/nkhekhe')
-sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'nkhekhe_quant_core'))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from nkhekhe_quant_core.alpha_engine.labeling import AlphaTripleBarrierConfig, run_triple_barrier
 from nkhekhe_quant_core.alpha_engine.risk import PositionSizingConfig, RiskGovernor
 from notify import notify_trade_open, notify_trade_close, notify_circuit_breaker, notify_daily_summary, send_message
@@ -28,7 +28,7 @@ try:
 except Exception:
     log_event = lambda *a, **k: None  # no-op if audit unavailable
 
-DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
+DATA_DIR = Path(__file__).resolve().parent / 'dry_data'
 STATE_FILE = DATA_DIR / 'dry_state.json'
 TRADE_LOG = DATA_DIR / 'dry_trades.csv'
 EQUITY_LOG = DATA_DIR / 'dry_equity.csv'

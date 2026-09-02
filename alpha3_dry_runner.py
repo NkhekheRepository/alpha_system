@@ -2,7 +2,7 @@
 """ALPHA 3 DRY MODE RUNNER - triple-barrier paper (testnet spot, 5m cadence).
 
 Engine: Alpha 3 / Alpha 1% clone — 7 assets (ALPHA3_ASSETS, 5m polls),
-momentum-K10 direction, H=15 hold (75 min wall-clock), TP +3.5% / SL −2% market
+momentum-K10 direction, H=15 hold (75 min wall-clock), TP 3.5% / SL 2% market
 barriers every poll, TIMEOUT at bar 15. Circuit breaker 3 losses -> 50-bar
 cooldown. Staking: 3% equity per trade (POS_PCT=0.03, compounding, no leverage)
 on a 100 USDT synthetic base; barriers sourced from TB_CONFIG (alpha_1percent
@@ -14,16 +14,16 @@ Credibility: real-market resolution only — no synthetic flip.
 Exchange: testnet spot (testnet.binance.vision/api/v3) when BINANCE_USE_TESTNET=true.
 """
 
-import sys, os, json, csv, time, signal, argparse
+import sys, os, json, csv, time, signal, argparse, tempfile
 from pathlib import Path
 from datetime import datetime
 import requests
 import joblib
 import numpy as np
 
-sys.path.insert(0, '/home/nkhekhe')
-sys.path.insert(0, '/home/nkhekhe/nkhekhe_quant_core')
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'nkhekhe_quant_core'))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import send_message
 try:
     from audit import log_event
@@ -31,10 +31,13 @@ except Exception:
     log_event = lambda *a, **k: None  # no-op if audit unavailable
 
 DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
+_DEMO_IMPORT_ERR = None
 if DEMO_LIVE:
     try:
         from demo_trader import place_market_order, place_limit_order, set_leverage_all, set_leverage
-    except Exception:
+    except Exception as e:
+        import traceback as _tb
+        _DEMO_IMPORT_ERR = f"{e}\n{_tb.format_exc()}"
         DEMO_LIVE = False
 
 
@@ -220,7 +223,7 @@ def check_daily_summary(state):
         pass
     return False
 
-DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
+DATA_DIR = Path(__file__).resolve().parent / 'dry_data'
 STATE_FILE = DATA_DIR / 'alpha3_state.json'
 TRADE_LOG = DATA_DIR / 'alpha3_trades.csv'
 EQUITY_LOG = DATA_DIR / 'alpha3_equity.csv'
@@ -230,11 +233,17 @@ KILL_LOG = DATA_DIR / 'alpha3_kill_log.csv'
 FLATTEN_ON_SHUTDOWN = True  # systemctl stop / SIGTERM flattens all open positions
 
 from binance_config import BINANCE_API_BASE, ALPHA3_ASSETS, ALPHA3_GROUP, USE_LIVE
+# Trading mode switch: testnet (default) or live
+TRADING_MODE = os.getenv("TRADING_MODE", "testnet").lower()
+if TRADING_MODE == "live":
+    BINANCE_FAPI_BASE = "https://fapi.binance.com"
+else:
+    BINANCE_FAPI_BASE = "https://testnet.binancefuture.com"
 ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
 INTERVAL = 60
 
-K = 10
+K = 30
 H = 100
 WARMUP = H + 10
 MAX_CONSEC = 3
@@ -251,7 +260,7 @@ WIN_PCT = 0.035
 LOSS_PCT = -0.02
 
 # Meta-labeler config
-META_LABELER_PATH = Path('/home/nkhekhe/alpha_system/models/meta_labeler.joblib')
+META_LABELER_PATH = Path(__file__).resolve().parent / 'models/meta_labeler.joblib'
 META_THRESHOLD = 0.50  # from training
 
 # Orderbook cache for microstructure features
@@ -522,8 +531,23 @@ def load_state(stake_pct, leverage):
 
 def save_state(state):
     state['last_update'] = datetime.utcnow().isoformat()
-    with open(STATE_FILE, 'w') as fh:
-        json.dump(state, fh, indent=2, default=str)
+    # Atomic write: write to a temp file in the same directory then os.replace.
+    # Previously this truncated the state file in place, so a crash mid-write
+    # (or the bot/reconciler reading during truncate) saw a truncated/corrupt
+    # JSON and load_state hard-failed, silently resetting the trading DB.
+    fd, tmp = tempfile.mkstemp(dir=str(DATA_DIR), prefix='.alpha3_state.', suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as fh:
+            json.dump(state, fh, indent=2, default=str)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, STATE_FILE)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def log_trade(trade, state):
@@ -674,7 +698,15 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
     for s in ASSETS:
         if s in ohlcv_data:
             ph = state['price_history'].setdefault(s, [])
-            ph.append(ohlcv_data[s])
+            ct = ohlcv_data[s].get('close_time')
+            # Dedup: the API returns the in-progress (not-yet-closed) 1m bar
+            # repeatedly, and the runner may poll more than once within the same
+            # 1m bucket. Never append a bar whose close_time is already present;
+            # replace the last bar in place instead (it is the same bucket).
+            if ph and ph[-1].get('close_time') == ct:
+                ph[-1] = ohlcv_data[s]
+            else:
+                ph.append(ohlcv_data[s])
             if len(ph) > 200:
                 state['price_history'][s] = ph[-200:]
 
@@ -822,6 +854,22 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                             print(f"  [{ts}] META-PASS {s}: prob={prob:.3f} >= {meta_threshold} — ENTER")
                 eff_lev = LEV_OVERRIDE.get(s, state['leverage'])
                 pos_val = state['capital'] * state['stake_pct'] * eff_lev
+                # Live margin guard: keep paper/live synced — don't open paper if live would fail margin
+                # Use actual leverage after fallback (10x for capped symbols needs $4, 20x needs $2)
+                if DEMO_LIVE:
+                    try:
+                        from demo_trader import get_balance as _gb
+                        _bal = _gb('USDT')
+                        # Estimate required margin at actual leverage (capped symbols need double)
+                        _is_capped = s in ('BTRUSDT','TACUSDT','PUMPBTCUSDT','ARIAUSDT')
+                        _eff_for_margin = 10 if _is_capped else eff_lev
+                        _need = (state['capital'] * state['stake_pct'] * eff_lev) / _eff_for_margin
+                        # For capped 10x: pos_val $40 at 10x needs $4; for 20x: $2
+                        if _bal is not None and _bal < _need:
+                            print(f"  [{ts}] MARGIN-SKIP {s}: need ${float(_need):.2f} have ${float(_bal):.2f} — SKIP (keeps paper/live synced)")
+                            continue
+                    except Exception:
+                        pass
                 qty = pos_val / prices[s]
                 try:
                     from demo_trader import round_qty as _rq
@@ -844,7 +892,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {eff_lev:g}x)\n"
-                        f"Exit: TP +3.5% | SL −2% | TIMEOUT bar {H} (real-market)\n"
+                        f"Exit: TP 3.5% | SL 2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
                 try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(pos_val,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
@@ -858,11 +906,16 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         # algo fired between polls while paper stayed open.
                         order, err = place_market_order(s, side, qty)
                         if order:
-                            _notify(f"📡 Demo open {s}: {side} {qty:.6f} @ market")
+                            print(f"  📡 LIVE open {s}: {side} {qty:.6f} @ market -> {order.get('orderId')} {order.get('status')}")
+                            _notify(f"📡 Live open {s}: {side} {qty:.6f} @ market")
                         elif err:
-                            _notify(f"⚠️ Demo open {s} failed: {err}")
+                            print(f"  ⚠️ LIVE open {s} failed: {err}")
+                            _notify(f"⚠️ Live open {s} failed: {err}")
+                        else:
+                            print(f"  ⚠️ LIVE open {s}: no order and no error (unknown)")
                     except Exception as e:
-                        _notify(f"⚠️ Demo open {s} exception: {e}")
+                        print(f"  ⚠️ LIVE open {s} exception: {e}")
+                        _notify(f"⚠️ Live open {s} exception: {e}")
 
     # Update effective equity (capital + unrealized) like Alpha 1
     eff = get_effective_equity(state, prices)
@@ -890,14 +943,14 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
 
 def _signed_get(path, params=''):
     import hmac, hashlib
-    from binance_config import BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
+    from binance_config import ACTIVE_API_KEY, ACTIVE_API_SECRET
     ts = int(time.time() * 1000)
     q = f"timestamp={ts}&recvWindow=10000"
     if params:
         q += "&" + params
-    sig = hmac.new(BINANCE_DEMO_API_SECRET.encode(), q.encode(), hashlib.sha256).hexdigest()
-    r = requests.get(f"{BINANCE_DEMO_FAPI_BASE}{path}", params=f"{q}&signature={sig}",
-                     headers={'X-MBX-APIKEY': BINANCE_DEMO_API_KEY}, timeout=10)
+    sig = hmac.new(ACTIVE_API_SECRET.encode(), q.encode(), hashlib.sha256).hexdigest()
+    r = requests.get(f"{BINANCE_FAPI_BASE}{path}", params=f"{q}&signature={sig}",
+                     headers={'X-MBX-APIKEY': ACTIVE_API_KEY}, timeout=10)
     return (r.json() if r.status_code == 200 else None)
 
 
@@ -934,7 +987,8 @@ def reconcile_on_startup(state):
             # every paper leg against a hedge that still exists.
             print(f"  [{ts}] RECONCILE skipped: positionRisk unavailable")
             return
-        demo = {p['symbol']: p for p in pos if abs(float(p.get('positionAmt', 0))) > 0}
+        demo = {p['symbol']: p for p in pos if abs(float(p.get('positionAmt', 0))) > 0 and p['symbol'] in ASSETS}
+        # Only reconcile our own universe — never touch the other Alpha's wallet (shared account)
         from demo_trader import place_market_order, round_qty as _rq
 
         # 2) paper open but demo flat -> book paper close at market
@@ -1041,16 +1095,17 @@ def main():
 
     state = load_state(args.stake, args.leverage)
     # Source real equity from exchange when live (for correct position sizing)
-    if USE_LIVE:
-        try:
-            from demo_trader import get_balance
-            bal = get_balance()
-            if bal is not None:
-                state['capital'] = bal
-                state['equity'] = bal
-                print(f"  Live equity sourced from exchange: ${bal:,.2f}")
-        except Exception as e:
-            print(f"  WARNING: Could not fetch live balance for sizing: {e}")
+    # DISABLED for paper run with fixed capital; to enable real balance sourcing, uncomment below
+    # if USE_LIVE:
+    #     try:
+    #         from demo_trader import get_balance
+    #         bal = get_balance()
+    #         if bal is not None:
+    #             state['capital'] = bal
+    #             state['equity'] = bal
+    #             print(f"  Live equity sourced from exchange: ${bal:,.2f}")
+    #     except Exception as e:
+    #         print(f"  WARNING: Could not fetch live balance for sizing: {e}")
     if state.get('kill_armed', False):
         print("  ⚠️  KILL SWITCH ARMED — runner is COOL (no new entries). Send /disarm to re-arm.")
     # Load meta-labeler
@@ -1060,11 +1115,17 @@ def main():
     else:
         print(f"  Meta-labeler: NOT LOADED (running without filter)")
     # Set demo leverage (per-symbol overrides applied where the exchange rejects --leverage)
+    print(f"  DEMO_LIVE={DEMO_LIVE} BASE={BINANCE_FAPI_BASE if DEMO_LIVE else 'N/A'} USE_LIVE={USE_LIVE}")
+    if _DEMO_IMPORT_ERR:
+        print(f"  DEMO import failed: {_DEMO_IMPORT_ERR[:800]}")
     if DEMO_LIVE:
         for _sym in ASSETS:
             _lev = LEV_OVERRIDE.get(_sym, args.leverage)
-            set_leverage(_sym, _lev)
-            print(f"  Set demo leverage {_lev:g}x on {_sym}")
+            res, err = set_leverage(_sym, _lev)
+            if err:
+                print(f"  Set leverage {_sym} {_lev:g}x -> FAILED {err}")
+            else:
+                print(f"  Set leverage {_sym} {_lev:g}x -> OK {res}")
     # Paper/demo reconciliation BEFORE trading (cancels stale algos, closes
     # paper legs whose demo hedge vanished, sweeps demo orphans).
     reconcile_on_startup(state)
@@ -1075,7 +1136,7 @@ def main():
     print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} (60s polls, {len(ASSETS)} assets)")
     print(f"  Group:    {ALPHA3_GROUP}")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Exits:    TP +3.5% / SL −2% market | TIMEOUT at bar {H} (market price)")
+    print(f"  Exits:    TP 3.5% / SL 2% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")

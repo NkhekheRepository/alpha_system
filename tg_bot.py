@@ -13,18 +13,18 @@ from dotenv import load_dotenv
 from telegram import Update, BotCommand, MenuButtonDefault
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import (
     format_status_dashboard, generate_equity_chart, generate_trade_chart,
     send_message, notify_daily_summary
 )
 import analytics as vis
 
-DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
+DATA_DIR = Path(__file__).resolve().parent / 'dry_data'
 STATE_FILE = DATA_DIR / 'dry_state.json'
 CMD_FILE = DATA_DIR / 'alpha1_cmd.json'
 
-load_dotenv('/home/nkhekhe/alpha_system/.env')
+load_dotenv(Path(__file__).resolve().parent / '.env')
 
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')

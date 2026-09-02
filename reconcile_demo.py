@@ -5,7 +5,7 @@ import json, time, sys
 from pathlib import Path
 from collections import defaultdict
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import send_message
 from audit import log_event
 
@@ -23,7 +23,7 @@ def get_demo():
     try:
         import hmac, hashlib, requests, os
         from dotenv import load_dotenv
-        load_dotenv('/home/nkhekhe/alpha_system/.env')
+        load_dotenv(Path(__file__).resolve().parent / '.env')
         from binance_config import BINANCE_DEMO_FAPI_BASE, BINANCE_DEMO_API_KEY, BINANCE_DEMO_API_SECRET
         if not BINANCE_DEMO_API_KEY:
             return {}, "no keys"

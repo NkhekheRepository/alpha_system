@@ -9,7 +9,7 @@ import json, csv, sys, os
 from datetime import datetime
 import numpy as np
 
-ROOT = Path('/home/nkhekhe/alpha_system')
+ROOT = Path(str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT))
 
 import analytics as A

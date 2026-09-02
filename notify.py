@@ -8,7 +8,7 @@ import os, json, csv, requests
 from pathlib import Path
 from datetime import datetime
 
-DATA_DIR = Path('/home/nkhekhe/alpha_system/dry_data')
+DATA_DIR = Path(__file__).resolve().parent / 'dry_data'
 STATE_FILE = DATA_DIR / 'dry_state.json'
 
 _token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
@@ -17,7 +17,7 @@ _alpha2_token = os.environ.get('ALPHA2_TELEGRAM_BOT_TOKEN', '')
 _alpha2_chat_id = os.environ.get('ALPHA2_TELEGRAM_CHAT_ID', '')
 
 def _load_env():
-    env_file = Path('/home/nkhekhe/alpha_system/.env')
+    env_file = Path(__file__).resolve().parent / '.env'
     global _token, _chat_id, _alpha2_token, _alpha2_chat_id
     if env_file.exists():
         for line in env_file.read_text().splitlines():

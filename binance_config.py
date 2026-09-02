@@ -18,9 +18,11 @@ Toggle testnet: set BINANCE_USE_TESTNET=true and restart services.
 import os
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent
+
 try:
     from dotenv import load_dotenv
-    load_dotenv('/home/nkhekhe/alpha_system/.env')
+    load_dotenv(Path(__file__).resolve().parent / '.env')
 except Exception:
     pass
 
@@ -48,8 +50,8 @@ BINANCE_DEMO_API_KEY = os.environ.get('BINANCE_DEMO_API_KEY', '')
 BINANCE_DEMO_API_SECRET = os.environ.get('BINANCE_DEMO_API_SECRET', '')
 
 # Alpha 3 tradable universe — single source of truth
-# "pump" group (user-named): 6 futures-only symbols
-ALPHA3_ASSETS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT']
+# "pump" group (user-named): 7 futures-only symbols
+ALPHA3_ASSETS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT', 'BEAMXUSDT']
 ALPHA3_GROUP = 'pump'  # user-named universe group, surfaced in /status + dashboards
 
 # Live USDT-M Futures (real money)

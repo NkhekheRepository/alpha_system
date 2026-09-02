@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from alpha_3 import dual_run, synthetic_walk, summarize_real, summarize_synth
 
 OUT = Path('/home/nkhekhe/alpha_system/dry_data/alpha3_state.json')

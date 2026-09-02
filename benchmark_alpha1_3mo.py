@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import backtest_alpha2 as bt
 
 DATA_DIR = Path('/home/nkhekhe/user_data/data/binance')

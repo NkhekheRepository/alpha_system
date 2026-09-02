@@ -5,7 +5,7 @@ import json, time, sys
 from pathlib import Path
 from datetime import datetime, timezone
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import send_message
 from audit import log_event
 try:

@@ -2,16 +2,23 @@
 
 All parameters match alpha3_dry_runner.py exactly — the meta-labeler
 must label what the runner actually trades.
+
+K note (2026-08-31): the alpha3 runner deliberately moved to momentum K=30 on
+2026-08-30 ('alpha3learn'); K here now reflects the live runner. The canonical
+model artifact (models/meta_labeler.joblib) still stores config.K=10 and alpha4
+still trains/enters at K=10 — a retrain to K=30 is pending. Until that retrain
+happens, the alpha3 meta-labeler filter gates K30 entries with a K10-trained
+model (documented divergence; verified feature set is K-independent).
 """
 
-K = 10            # momentum lookback (bars)
+K = 30            # momentum lookback (bars, alpha3 live runner)
 H = 100            # hold horizon (bars)
 WARMUP = H + 10   # bars before first entry allowed
 TP_PCT = 0.035     # +3.5% take-profit
 SL_PCT = -0.02     # -2% stop-loss (matches runner LOSS_PCT / sl_price = entry*0.98)
 FEE_RATE = 0.0002  # 0.02% taker fee per side
 INTERVAL_SEC = 60  # 1-minute bars
-HOLDINGS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT']  # "pump" group
+HOLDINGS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT', 'BEAMXUSDT']  # "pump" group
 
 # Training parameters
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)

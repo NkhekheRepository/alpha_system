@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, '/home/nkhekhe/alpha_system')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from backtest_alpha2 import run_strategy, ASSETS, DATA_DIR, CAP, FEE
 
 OUT = Path('/home/nkhekhe/alpha_system/kelly_results.json')
