@@ -16,7 +16,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from notify import generate_equity_chart, generate_trade_chart
 import analytics as vis
-from meta_labeler_config import H, TP_PCT, SL_PCT, K, WIN_PCT, LOSS_PCT, LEVERAGE, STAKE_PCT
+from scripts.meta_labeler_config import H, TP_PCT, SL_PCT, K, WIN_PCT, LOSS_PCT, LEVERAGE, STAKE_PCT
 from binance_config import ALPHA3_ASSETS
 
 DATA_DIR = Path(str(Path(__file__).resolve().parent))

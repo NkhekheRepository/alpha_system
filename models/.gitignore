@@ -5,3 +5,7 @@ kline_data/
 # Large intermediate training artifacts (regenerable) — do not commit
 labeled_features.csv
 labeled_signals.csv
+
+# Local artifact snapshots (K10/K30 known-good copies) — do not commit
+backup_k10/
+backup_k30/

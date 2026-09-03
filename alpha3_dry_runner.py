@@ -29,6 +29,11 @@ try:
     from audit import log_event
 except Exception:
     log_event = lambda *a, **k: None  # no-op if audit unavailable
+try:
+    from scripts.meta_features import compute_orderbook_features_at_index
+except Exception:
+    def compute_orderbook_features_at_index(*a, **k):
+        return None
 
 DEMO_LIVE = os.environ.get('BINANCE_DEMO_LIVE', 'true').lower() in ('1','true','yes','on')
 _DEMO_IMPORT_ERR = None
@@ -383,13 +388,38 @@ def get_orderbook(symbol):
 
 
 def load_meta_labeler():
-    """Load frozen meta-labeler model."""
+    """Load frozen meta-labeler model.
+
+    Returns (model, threshold, features) where features is the 36-name
+    training column order stored in the artifact. Inference MUST select
+    exactly these columns: FEATURE_ORDER carries 10 extra live-only
+    orderbook keys that the model was never trained on.
+    """
     try:
         model_data = joblib.load(META_LABELER_PATH)
-        return model_data['model'], model_data.get('threshold', META_THRESHOLD)
+        return (model_data['model'],
+                model_data.get('threshold', META_THRESHOLD),
+                model_data.get('features'))
     except Exception as e:
         print(f"  [meta-labeler] Failed to load: {e}")
-        return None, META_THRESHOLD
+        return None, META_THRESHOLD, None
+
+
+def features_to_model_array(feat_dict, model_order):
+    """Build the inference array using ONLY the model's training columns.
+
+    feat_dict carries 46 keys (36 trained + 10 live-only orderbook); the
+    model was trained on 36. Selecting model_order keeps train/serve aligned
+    and drops the NaN orderbook keys that previously vetoed every vote.
+    Returns None if feat_dict is None or any training column is missing/NaN.
+    """
+    if feat_dict is None or not model_order:
+        return None
+    vals = [feat_dict.get(f, np.nan) for f in model_order]
+    arr = np.array(vals, dtype=np.float32).reshape(1, -1)
+    if np.any(np.isnan(arr)):
+        return None
+    return arr
 
 
 # Feature computation for meta-labeler (must match training exactly)
@@ -744,7 +774,7 @@ def momentum_direction(ph):
     return 'long' if closes[-1] > closes[-1 - K] else 'short'
 
 
-def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
+def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_features=None):
     check_commands(state)
     now = datetime.utcnow()
     ts = now.strftime('%H:%M:%S')
@@ -937,18 +967,25 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
             try:
                 from demo_trader import cancel_algo_orders
                 if DEMO_LIVE:
-                    cancel_algo_orders(s)
+                    try:
+                        cancel_algo_orders(s)
+                    except Exception:
+                        pass
             except Exception:
                 pass
             try:
                 _, d_err, _, t_err = _close_live_position(s)
                 if d_err and t_err:
+                    print(f"  [{ts}] LIVE CLOSE {s} FAILED: demo {d_err} | testnet {t_err}")
                     _notify(f"⚠️ Live close {s} failed: demo {d_err} | testnet {t_err}")
-                elif d_err and TESTNET_LIVE:
-                    pass  # testnet succeeded, suppress spam
                 elif d_err:
-                    _notify(f"⚠️ Demo close {s} failed: {d_err}")
+                    print(f"  [{ts}] LIVE CLOSE {s} PARTIAL: demo FAILED {d_err} | testnet OK")
+                    _notify(f"⚠️ Live close {s} partial: demo failed ({d_err}) | testnet flattened")
+                elif t_err:
+                    print(f"  [{ts}] LIVE CLOSE {s} PARTIAL: demo OK | testnet FAILED {t_err}")
+                    _notify(f"⚠️ Live close {s} partial: demo flattened | testnet failed ({t_err})")
                 else:
+                    print(f"  [{ts}] LIVE CLOSE {s} flattened (demo+testnet)")
                     if DEMO_LIVE and TESTNET_LIVE:
                         _notify(f"📡 Live close {s}: fully flattened (demo+testnet)")
                     elif DEMO_LIVE:
@@ -956,6 +993,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     else:
                         _notify(f"📡 Testnet close {s}: fully flattened")
             except Exception as e:
+                print(f"  [{ts}] LIVE CLOSE {s} EXCEPTION: {e}")
                 _notify(f"⚠️ Live close {s} exception: {e}")
 
     # Cooldown gates NEW ENTRIES only — exits were already evaluated above
@@ -995,8 +1033,13 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                     ob_history = state.get('orderbook_history', {}).get(s, [])
                     feat = compute_meta_features(closes, highs, lows, volumes, idx, ob_history)
                     if feat is not None:
-                        feat_arr = features_to_array(feat)
-                        if feat_arr is not None and not np.any(np.isnan(feat_arr)):
+                        order = meta_features or FEATURE_ORDER[:36]
+                        feat_arr = features_to_model_array(feat, order)
+                        n_exp = getattr(meta_model, 'n_features_in_', len(order))
+                        if feat_arr is not None and feat_arr.shape[1] != n_exp:
+                            print(f"  [{ts}] META-SHAPE {s}: got {feat_arr.shape[1]} cols, model expects {n_exp} — SKIP (fail-open)")
+                            feat_arr = None
+                        if feat_arr is not None:
                             prob = meta_model.predict_proba(feat_arr)[0, 1]
                             if prob < meta_threshold:
                                 print(f"  [{ts}] META-FILTER {s}: prob={prob:.3f} < {meta_threshold} — SKIP")
@@ -1090,8 +1133,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                 sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
-                    'entry_price': prices[s], 'quantity': paper_qty,
-                    'notional': paper_notional, 'age': 0,
+                    'entry_price': prices[s], 'quantity': actual_qty,
+                    'notional': actual_notional, 'age': 0,
                     'tp_price': tp_p, 'sl_price': sl_p,
                     'entry_time': datetime.utcnow().isoformat(),
                 }
@@ -1104,7 +1147,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD):
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {eff_lev:g}x)\n"
                         f"Exit: TP 3.5% | SL 2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
-                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(paper_notional,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
+                try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(actual_notional,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
                 if DEMO_LIVE or TESTNET_LIVE:
                     try:
@@ -1176,7 +1219,7 @@ def reconcile_on_startup(state):
       3. Demo position with NO paper leg -> reduce-only market close (orphan).
     Never raises: a failed reconcile logs and continues (boot must survive).
     """
-    if not DEMO_LIVE:
+    if not (DEMO_LIVE or TESTNET_LIVE):
         return
     ts = datetime.utcnow().strftime('%H:%M:%S')
     try:
@@ -1198,6 +1241,20 @@ def reconcile_on_startup(state):
             print(f"  [{ts}] RECONCILE skipped: positionRisk unavailable")
             return
         demo = {p['symbol']: p for p in pos if abs(float(p.get('positionAmt', 0))) > 0 and p['symbol'] in ASSETS}
+        # Testnet leg: fetch separately (was undefined `testnet` -> NameError killed reconcile)
+        testnet = {}
+        if TESTNET_LIVE:
+            try:
+                from demo_trader import get_testnet_position
+                for s in ASSETS:
+                    try:
+                        amt = float(get_testnet_position(s) or 0.0)
+                    except Exception:
+                        amt = 0.0
+                    if abs(amt) > 0:
+                        testnet[s] = {'positionAmt': str(amt)}
+            except Exception:
+                testnet = {}
         # Only reconcile our own universe — never touch the other Alpha's wallet (shared account)
         from demo_trader import place_market_order, round_qty as _rq
 
@@ -1206,7 +1263,7 @@ def reconcile_on_startup(state):
         for s in list(state.get('open_positions', {}).keys()):
             p = state['open_positions'][s]
             demo_amt = float(demo[s]['positionAmt']) if s in demo else 0.0
-            tn_amt = float(testnet[s]) if s in testnet else 0.0
+            tn_amt = float(testnet[s]['positionAmt']) if s in testnet else 0.0
             paper_dir = p.get('direction', 'long')
             paper_qty = float(p.get('quantity', 0.0))
             has_demo = abs(demo_amt) > 0
@@ -1260,6 +1317,52 @@ def reconcile_on_startup(state):
         save_state(state)
     except Exception as e:
         print(f"  [{ts}] RECONCILE skipped: {e}")
+
+
+def reconcile_orphans_periodic(state):
+    """Lightweight periodic sweep: close any live leg with no paper counterpart.
+
+    Called from the main loop (not only at boot) so a missed exit close can
+    never leave a live position stranded. Only closes orphans — never opens.
+    Telegram is notified mandatorily on every sweep outcome.
+    """
+    if not (DEMO_LIVE or TESTNET_LIVE):
+        return
+    ts = datetime.utcnow().strftime('%H:%M:%S')
+    try:
+        pos = _signed_get('/fapi/v2/positionRisk')
+        if pos is None:
+            return
+        demo = {p['symbol'] for p in pos if abs(float(p.get('positionAmt', 0))) > 0 and p['symbol'] in ASSETS}
+        live = set(demo)
+        if TESTNET_LIVE:
+            try:
+                from demo_trader import get_testnet_position
+                for s in ASSETS:
+                    try:
+                        if abs(float(get_testnet_position(s) or 0.0)) > 0:
+                            live.add(s)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        for s in sorted(live):
+            if s in state.get('open_positions', {}):
+                continue
+            _, d_err, _, t_err = _close_live_position(s)
+            if d_err and t_err:
+                print(f"  [{ts}] PERIODIC SWEEP {s}: FAILED (demo {d_err} | testnet {t_err})")
+                _notify(f"⚠️ <b>SWEEP {s} failed</b>: demo {d_err} | testnet {t_err} — will retry")
+            elif d_err or t_err:
+                print(f"  [{ts}] PERIODIC SWEEP {s}: partial (demo {d_err or 'OK'} | testnet {t_err or 'OK'})")
+                _notify(f"🧹 <b>SWEEP {s}</b>: partial close (demo {d_err or 'OK'} | testnet {t_err or 'OK'})")
+            else:
+                print(f"  [{ts}] PERIODIC SWEEP {s}: orphan live leg closed")
+                _notify(f"🧹 <b>SWEEP {s}</b>: orphan live position closed (no paper leg)")
+                try: log_event("alpha3", "periodic_orphan_sweep", {"symbol": s})
+                except Exception: pass
+    except Exception as e:
+        print(f"  [{ts}] PERIODIC SWEEP skipped: {e}")
 
 
 def main():
@@ -1321,9 +1424,9 @@ def main():
     if state.get('kill_armed', False):
         print("  ⚠️  KILL SWITCH ARMED — runner is COOL (no new entries). Send /disarm to re-arm.")
     # Load meta-labeler
-    meta_model, meta_threshold = load_meta_labeler()
+    meta_model, meta_threshold, meta_features = load_meta_labeler()
     if meta_model:
-        print(f"  Meta-labeler: LOADED (threshold={meta_threshold:.2f})")
+        print(f"  Meta-labeler: LOADED (threshold={meta_threshold:.2f}, features={len(meta_features) if meta_features else '?'})")
     else:
         print(f"  Meta-labeler: NOT LOADED (running without filter)")
     # Set demo leverage (per-symbol overrides applied where the exchange rejects --leverage)
@@ -1376,8 +1479,10 @@ def main():
     while running:
         cycle += 1
         try:
-            state = run_cycle(state, meta_model, meta_threshold)
+            state = run_cycle(state, meta_model, meta_threshold, meta_features)
             save_state(state)
+            if cycle % 60 == 0:
+                reconcile_orphans_periodic(state)
             if args.once:
                 print("  Single cycle done.")
                 break

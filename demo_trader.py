@@ -42,7 +42,7 @@ def get_demo_usdt_balance():
         return _balance_cache['val']
     try:
         from binance_config import sign_query
-        p = sign_query({})
+        p = sign_query({}, secret=_API_SECRET)
         r = requests.get(f"{BASE}/fapi/v2/balance", params=p, headers=_headers(), timeout=5)
         if r.status_code == 200:
             for b in r.json():
@@ -121,7 +121,7 @@ def get_demo_position(symbol):
     """Return signed demo position amt for symbol (0 if flat)."""
     try:
         from binance_config import sign_query
-        p = sign_query({})
+        p = sign_query({}, secret=_API_SECRET)
         r = requests.get(f"{BASE}/fapi/v2/positionRisk", params=p, headers=_headers(), timeout=5)
         if r.status_code == 200:
             for pos in r.json():
@@ -514,7 +514,7 @@ def get_demo_position(symbol):
     """(duplicate alias for runner use; see top-level definition)."""
     try:
         from binance_config import sign_query
-        p = sign_query({})
+        p = sign_query({}, secret=_API_SECRET)
         r = requests.get(f"{BASE}/fapi/v2/positionRisk", params=p, headers=_headers(), timeout=5)
         if r.status_code == 200:
             for pos in r.json():
