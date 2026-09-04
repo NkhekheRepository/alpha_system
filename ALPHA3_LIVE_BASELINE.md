@@ -11,7 +11,8 @@ everything below. Tag: `alpha3-live-baseline-2026-09-03`.
 ## Strategy (alpha3_dry_runner.py)
 - Momentum K=30, H=100, WARMUP=110, 10s polls
 - TP +3.5% / SL -2% / TIMEOUT bar 100 (market exits)
-- 20% stake × 20x leverage (BICOUSDT 10x override), 0.02% fee assumption
+- 20% stake × 20x leverage (BTRUSDT 10x cap), 0.05% taker fee per fill = 0.10% round-trip
+- Universe (6): TRIAUSDT, QUSDT, MAGMAUSDT, TRADOORUSDT, APRUSDT, BTRUSDT
 - Circuit breaker: 3 consecutive losses → 50-bar entry-only cooldown
 - Meta-labeler: K30 artifact, threshold 0.50, **36-feature inference**
   (`features_to_model_array`; the 10 live-only orderbook keys are excluded)

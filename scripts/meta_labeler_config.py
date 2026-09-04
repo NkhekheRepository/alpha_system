@@ -12,13 +12,13 @@ model (documented divergence; verified feature set is K-independent).
 """
 
 K = 30            # momentum lookback (bars, alpha3 live runner)
-H = 100            # hold horizon (bars)
+H = 75             # hold horizon (bars)
 WARMUP = H + 10   # bars before first entry allowed
-TP_PCT = 0.035     # +3.5% take-profit
+TP_PCT = 0.025     # +2.5% take-profit
 SL_PCT = -0.02     # -2% stop-loss (matches runner LOSS_PCT / sl_price = entry*0.98)
 FEE_RATE = 0.0005  # 0.05% taker fee per side (feeTier 0 LIVE USDⓈ-M)
 INTERVAL_SEC = 60  # 1-minute bars
-HOLDINGS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT', 'BEAMXUSDT']  # "pump" group
+HOLDINGS = ['TRIAUSDT', 'QUSDT', 'MAGMAUSDT', 'TRADOORUSDT', 'APRUSDT', 'BTRUSDT']  # "pump" group
 
 # Training parameters
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)
@@ -39,5 +39,5 @@ PROB_THRESHOLD_DEFAULT = 0.50  # meta-label: enter if P(win) > threshold
 # Additional constants for Telegram bot compatibility
 LEVERAGE = 20
 STAKE_PCT = 0.20
-WIN_PCT = 0.035   # +3.5% take-profit
+WIN_PCT = 0.025   # +2.5% take-profit
 LOSS_PCT = -0.02  # -2% stop-loss

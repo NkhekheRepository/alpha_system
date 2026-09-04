@@ -198,8 +198,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
-        "Engine: momentum-K30, H100 hold, CB 3/50\n"
-        "Exits: TP 3.5% / SL 2% market | TIMEOUT bar 100 at market price\n"
+        "Engine: momentum-K30, H75 hold, CB 3/50\n"
+        "Exits: TP 2.5% / SL 2% market | TIMEOUT bar 75 at market price\n"
         "Staking: 20% margin × 20x lev (compounds, $10 base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
@@ -343,11 +343,11 @@ def build_status_text(state, live=False):
             direction = pos.get('direction', 'long')
             age = pos.get('age', 0)
             stake = pos.get('notional', 0)
-            _tp = pos.get('tp_price', entry * (1.035 if pos.get('direction') == 'long' else 0.965))
+            _tp = pos.get('tp_price', entry * (1.025 if pos.get('direction') == 'long' else 0.975))
             _sl = pos.get('sl_price', entry * (0.98 if pos.get('direction') == 'long' else 1.02))
             _tp_pct = abs(_tp - entry) / entry * 100 if entry else 0
             _sl_pct = abs(_sl - entry) / entry * 100 if entry else 0
-            pos_lines += (f"     {base_s}: bar {age}/100 | stake ${stake:,.0f} | resolves → "
+            pos_lines += (f"     {base_s}: bar {age}/75 | stake ${stake:,.0f} | resolves → "
                           f"TP {_tp_pct:.2f}% ({fmt_price(_tp)}) / SL {_sl_pct:.2f}% ({fmt_price(_sl)})\n")
     elif positions:
         for sym, pos in positions.items():
@@ -385,7 +385,7 @@ def build_status_text(state, live=False):
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
         f"{header}\n"
-        f"Exits: TP 3.5% / SL 2% market barriers | TIMEOUT bar 100\n"
+        f"Exits: TP 2.5% / SL 2% market barriers | TIMEOUT bar 75\n"
         f"{testnet_line}\n"
         f"Group: {ALPHA3_GROUP}\n"
         f"Staking: {stake_pct*100:g}% margin × {lev}x lev = ${base*stake_pct*lev:,.2f} notional/trade (compounds)\n\n"
@@ -521,8 +521,8 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Entry: ${entry:,.2f} → Current: ${current:,.2f}\n"
             f"uPnL: {pnl_pct:+.2f}% (${pnl_d:+,.2f})\n"
             f"Notional: ${notional:,.2f} ({qty:.6f} {base}) = {stake_pct*100:g}% margin × {lev}x\n"
-            f"TP ${tp_price:,.2f} / SL ${sl_price:,.2f} (market) | TIMEOUT bar 100\n"
-            f"Hold: bar {age}/100 (~{remaining} min left)\n"
+            f"TP ${tp_price:,.2f} / SL ${sl_price:,.2f} (market) | TIMEOUT bar 75\n"
+            f"Hold: bar {age}/75 (~{remaining} min left)\n"
             f"Opened: {pos.get('entry_time', 'N/A')}\n\n"
         )
     # Show paper TP/SL levels (direction-aware)
@@ -533,7 +533,7 @@ async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sl_price = pos2["sl_price"]
             abs_tp_pct = abs(tp_price - entry_price) / entry_price * 100
             abs_sl_pct = abs(sl_price - entry_price) / entry_price * 100
-            msg += f"     {base_s}: bar {age}/100 | resolves → TP {abs_tp_pct:.2f}% (${pos2["tp_price"]:,.2f}) / SL {abs_sl_pct:.2f}% (${pos2["sl_price"]:,.2f})\n"
+            msg += f"     {base_s}: bar {age}/75 | resolves → TP {abs_tp_pct:.2f}% (${pos2["tp_price"]:,.2f}) / SL {abs_sl_pct:.2f}% (${pos2["sl_price"]:,.2f})\n"
     msg += testnet_section
     await update.message.reply_text(msg, parse_mode='HTML')
 

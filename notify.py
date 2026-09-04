@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 
 DATA_DIR = Path(__file__).resolve().parent / 'dry_data'
+CAP = 10.0  # Alpha 3% starting capital ($, matches alpha3_dry_runner)
 STATE_FILE = DATA_DIR / 'dry_state.json'
 
 _token = os.environ.get('TELEGRAM_BOT_TOKEN', '')
@@ -338,10 +339,7 @@ def generate_trade_chart(state_file=None, chart_path=None):
     ax1.set_facecolor('#16213e')
     ax1.grid(True, alpha=0.2, color='white')
 
-    base_cap = float(state.get('start_capital', state.get('capital', 100000)))
-    # Fallback for legacy states where start_capital missing
-    if base_cap not in (100.0, 100000.0) and base_cap < 1000:
-        base_cap = 100.0 if base_cap < 1000 else 100000.0
+    base_cap = float(state.get('start_capital', state.get('capital', CAP)))
     cumulative = []
     running = base_cap
     for p in pnls:

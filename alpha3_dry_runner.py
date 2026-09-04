@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """ALPHA 3 DRY MODE RUNNER - triple-barrier paper (testnet spot, 5m cadence).
 
-Engine: Alpha 3 / Alpha 1% clone — 7 assets (ALPHA3_ASSETS, 5m polls),
-momentum-K10 direction, H=15 hold (75 min wall-clock), TP 3.5% / SL 2% market
-barriers every poll, TIMEOUT at bar 15. Circuit breaker 3 losses -> 50-bar
+Engine: Alpha 3 / Alpha 1% clone — 6 assets (ALPHA3_ASSETS, 5m polls),
+momentum-K30 direction, H=75 hold, TP 2.5% / SL 2% market
+barriers every poll, TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar
 cooldown. Staking: 3% equity per trade (POS_PCT=0.03, compounding, no leverage)
 on a 100 USDT synthetic base; barriers sourced from TB_CONFIG (alpha_1percent
 parity: 2%/2%, vol flags). Matches alpha_3.py simulation energy & frequency
@@ -338,7 +338,7 @@ API = BINANCE_API_BASE
 INTERVAL = 10  # 10s polls -> 6x more responsive (was 60s); bulk/parallel fetch keeps cycle <5s for <10s Telegram<->Binance sync
 
 K = 30
-H = 100
+H = 75
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
@@ -349,9 +349,9 @@ LEVERAGE = 20.0
 # Per-symbol leverage overrides. Demo futures rejects some symbols at high leverage
 # (e.g. BICOUSDT rejects 20x -> ERROR 400). Those symbols are capped here; all others
 # use --leverage.
-LEV_OVERRIDE = {'BICOUSDT': 10.0}
+LEV_OVERRIDE = {}
 FEE_RATE = 0.0005  # 0.05% taker fee per fill (feeTier 0 LIVE USDⓈ-M) — fee = qty*(entry+exit)*FEE_RATE = 0.10% round-trip
-WIN_PCT = 0.035
+WIN_PCT = 0.025
 LOSS_PCT = -0.02
 
 # Meta-labeler config
@@ -888,7 +888,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
             continue
         # Back-compat: flip-era positions lack tp/sl + fix wrong short TP/SL (was swapped 0.98/0.965, both below)
         if 'tp_price' not in pos:
-            pos['tp_price'] = pos['entry_price'] * (0.965 if pos['direction'] == 'short' else 1.035)
+            pos['tp_price'] = pos['entry_price'] * (0.975 if pos['direction'] == 'short' else 1.025)
             pos['sl_price'] = pos['entry_price'] * (1.02 if pos['direction'] == 'short' else 0.98)
         direction = pos['direction']
         entry = pos['entry_price']
@@ -1054,7 +1054,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         from demo_trader import get_balance as _gb
                         _bal = _gb('USDT')
                         # Estimate required margin at actual leverage (capped symbols need double)
-                        _is_capped = s in ('BTRUSDT','TACUSDT','PUMPBTCUSDT','ARIAUSDT')
+                        _is_capped = s in ('BTRUSDT',)
                         _eff_for_margin = 10 if _is_capped else eff_lev
                         _need = (state['capital'] * state['stake_pct'] * eff_lev) / _eff_for_margin
                         # For capped 10x: pos_val $40 at 10x needs $4; for 20x: $2
@@ -1129,7 +1129,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         actual_qty = demo_qty
                 except Exception:
                     pass
-                tp_p = prices[s] * (0.965 if d == 'short' else 1.035)
+                tp_p = prices[s] * (0.975 if d == 'short' else 1.025)
                 sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
@@ -1145,7 +1145,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {eff_lev:g}x)\n"
-                        f"Exit: TP 3.5% | SL 2% | TIMEOUT bar {H} (real-market)\n"
+                        f"Exit: TP 2.5% | SL 2% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
                 try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(actual_notional,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
@@ -1451,7 +1451,7 @@ def main():
     print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} (60s polls, {len(ASSETS)} assets)")
     print(f"  Group:    {ALPHA3_GROUP}")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Exits:    TP 3.5% / SL 2% market | TIMEOUT at bar {H} (market price)")
+    print(f"  Exits:    TP 2.5% / SL 2% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")
