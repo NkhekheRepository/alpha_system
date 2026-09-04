@@ -16,7 +16,7 @@ H = 100            # hold horizon (bars)
 WARMUP = H + 10   # bars before first entry allowed
 TP_PCT = 0.035     # +3.5% take-profit
 SL_PCT = -0.02     # -2% stop-loss (matches runner LOSS_PCT / sl_price = entry*0.98)
-FEE_RATE = 0.0002  # 0.02% taker fee per side
+FEE_RATE = 0.0005  # 0.05% taker fee per side (feeTier 0 LIVE USDⓈ-M)
 INTERVAL_SEC = 60  # 1-minute bars
 HOLDINGS = ['BTRUSDT', 'TACUSDT', 'BICOUSDT', 'PUMPBTCUSDT', 'ARIAUSDT', 'MAGMAUSDT', 'BEAMXUSDT']  # "pump" group
 

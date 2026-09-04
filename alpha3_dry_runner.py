@@ -350,7 +350,7 @@ LEVERAGE = 20.0
 # (e.g. BICOUSDT rejects 20x -> ERROR 400). Those symbols are capped here; all others
 # use --leverage.
 LEV_OVERRIDE = {'BICOUSDT': 10.0}
-FEE_RATE = 0.0002  # 0.02% taker fee to match demo futures
+FEE_RATE = 0.0005  # 0.05% taker fee per fill (feeTier 0 LIVE USDⓈ-M) — fee = qty*(entry+exit)*FEE_RATE = 0.10% round-trip
 WIN_PCT = 0.035
 LOSS_PCT = -0.02
 
