@@ -43,5 +43,9 @@ def test_asset_universe_match():
 
 
 def test_threshold_default_matches():
-    # The runner hardcodes 0.50 to match training; flag if it drifts.
-    assert R.META_THRESHOLD == 0.50
+    # Manual gate tightening 0.50 -> 0.55 (2026-09-06): trade only high-conviction
+    # meta-labeler calls. Model artifact and runner must agree; flag if they drift.
+    model_data = joblib.load(R.META_LABELER_PATH)
+    assert model_data["threshold"] == 0.55
+    assert R.META_THRESHOLD == 0.55
+    assert MC.PROB_THRESHOLD_DEFAULT == 0.55

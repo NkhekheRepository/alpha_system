@@ -356,7 +356,7 @@ LOSS_PCT = -0.02
 
 # Meta-labeler config
 META_LABELER_PATH = Path(__file__).resolve().parent / 'models/meta_labeler.joblib'
-META_THRESHOLD = 0.50  # from training
+META_THRESHOLD = 0.55  # manual gate tightening from 0.50 (2026-09-06); model artifact also carries 0.55
 
 # Orderbook cache for microstructure features
 _orderbook_cache = {}  # {symbol: {'bookTicker': {...}, 'depth': [...], 'ts': timestamp}}

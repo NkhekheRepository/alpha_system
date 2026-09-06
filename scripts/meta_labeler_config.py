@@ -34,7 +34,7 @@ RF_PARAMS = {
     'random_state': 42,
     'n_jobs': -1,  # perf-only: parallel trees do not change the fitted model
 }
-PROB_THRESHOLD_DEFAULT = 0.50  # meta-label: enter if P(win) > threshold
+PROB_THRESHOLD_DEFAULT = 0.55  # meta-label: enter if P(win) > threshold (tightened from 0.50, 2026-09-06)
 
 # Additional constants for Telegram bot compatibility
 LEVERAGE = 20
