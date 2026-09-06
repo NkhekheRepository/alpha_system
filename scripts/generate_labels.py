@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate triple-barrier labels for meta-labeler training.
 
-For each bar where momentum_direction(K=30) fires on 1m data:
+For each bar where momentum_direction(K=40) fires on 1m data:
   1. Walk forward H=75 bars
   2. Check if TP (+2.5%) or SL (-2%) is hit first
   3. Label: 1 = TP win, 0 = SL loss, NaN = timeout (dropped from training)

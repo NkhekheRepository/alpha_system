@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ALPHA 3 DRY MODE RUNNER - triple-barrier paper (testnet spot, 5m cadence).
 
-Engine: Alpha 3 / Alpha 1% clone — 6 assets (ALPHA3_ASSETS, 5m polls),
-momentum-K30 direction, H=75 hold, TP 2.5% / SL 2% market
+Engine: Alpha 3 / Alpha 1% clone — 9 assets (ALPHA3_ASSETS, 5m polls),
+momentum-K40 direction, H=75 hold, TP 2.5% / SL 2% market
 barriers every poll, TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar
 cooldown. Staking: 3% equity per trade (POS_PCT=0.03, compounding, no leverage)
 on a 100 USDT synthetic base; barriers sourced from TB_CONFIG (alpha_1percent
@@ -337,7 +337,7 @@ ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
 INTERVAL = 10  # 10s polls -> 6x more responsive (was 60s); bulk/parallel fetch keeps cycle <5s for <10s Telegram<->Binance sync
 
-K = 30
+K = 40
 H = 75
 WARMUP = H + 10
 MAX_CONSEC = 3
@@ -356,7 +356,7 @@ LOSS_PCT = -0.02
 
 # Meta-labeler config
 META_LABELER_PATH = Path(__file__).resolve().parent / 'models/meta_labeler.joblib'
-META_THRESHOLD = 0.55  # manual gate tightening from 0.50 (2026-09-06); model artifact also carries 0.55
+META_THRESHOLD = 0.50  # K=40 retrain (2026-09-06); model artifact carries 0.50
 
 # Orderbook cache for microstructure features
 _orderbook_cache = {}  # {symbol: {'bookTicker': {...}, 'depth': [...], 'ts': timestamp}}

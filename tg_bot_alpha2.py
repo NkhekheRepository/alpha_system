@@ -198,7 +198,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🎲 <b>Alpha 3% Dry Mode Runner</b>\n\n"
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
-        "Engine: momentum-K30, H75 hold, CB 3/50\n"
+        "Engine: momentum-K40, H75 hold, CB 3/50\n"
         "Exits: TP 2.5% / SL 2% market | TIMEOUT bar 75 at market price\n"
         "Staking: 20% margin × 20x lev (compounds, $10 base)\n"
         "Commands:\n"

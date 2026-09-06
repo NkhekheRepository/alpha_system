@@ -3,22 +3,21 @@
 All parameters match alpha3_dry_runner.py exactly — the meta-labeler
 must label what the runner actually trades.
 
-K note (2026-08-31): the alpha3 runner deliberately moved to momentum K=30 on
-2026-08-30 ('alpha3learn'); K here now reflects the live runner. The canonical
-model artifact (models/meta_labeler.joblib) still stores config.K=10 and alpha4
-still trains/enters at K=10 — a retrain to K=30 is pending. Until that retrain
-happens, the alpha3 meta-labeler filter gates K30 entries with a K10-trained
-model (documented divergence; verified feature set is K-independent).
+K note (2026-09-06): the alpha3 runner moved to momentum K=40 on 2026-09-06
+ ('alpha3learn'); K here now reflects the live runner. The canonical model
+ artifact (models/meta_labeler.joblib) stores config.K=40, the same retrain date.
+ Verified feature set is K-independent; the retrain is required because the
+ label/signal set (momentum direction) changes with K.
 """
 
-K = 30            # momentum lookback (bars, alpha3 live runner)
+K = 40            # momentum lookback (bars, alpha3 live runner)
 H = 75             # hold horizon (bars)
 WARMUP = H + 10   # bars before first entry allowed
 TP_PCT = 0.025     # +2.5% take-profit
 SL_PCT = -0.02     # -2% stop-loss (matches runner LOSS_PCT / sl_price = entry*0.98)
 FEE_RATE = 0.0005  # 0.05% taker fee per side (feeTier 0 LIVE USDⓈ-M)
 INTERVAL_SEC = 60  # 1-minute bars
-HOLDINGS = ['TRIAUSDT', 'QUSDT', 'MAGMAUSDT', 'TRADOORUSDT', 'APRUSDT', 'BTRUSDT']  # "pump" group
+HOLDINGS = ['TRIAUSDT', 'QUSDT', 'MAGMAUSDT', 'TRADOORUSDT', 'APRUSDT', 'UAIUSDT', 'DOODUSDT', 'BULLAUSDT', 'JCTUSDT']  # "pump" group (BTR removed, 4 new: UAI/DOOD/BULLA/JCT, 2026-09-06)
 
 # Training parameters
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)
@@ -34,7 +33,7 @@ RF_PARAMS = {
     'random_state': 42,
     'n_jobs': -1,  # perf-only: parallel trees do not change the fitted model
 }
-PROB_THRESHOLD_DEFAULT = 0.55  # meta-label: enter if P(win) > threshold (tightened from 0.50, 2026-09-06)
+PROB_THRESHOLD_DEFAULT = 0.50  # meta-label: enter if P(win) > threshold (restored to 0.50 for K=40 retrain, 2026-09-06)
 
 # Additional constants for Telegram bot compatibility
 LEVERAGE = 20

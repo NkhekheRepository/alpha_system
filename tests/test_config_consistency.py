@@ -4,8 +4,9 @@ This guards the Wave 6 lesson: 'registration config field names are part of the
 contract' — a silent mismatch between the live runner and the trained model's
 feature/labels would make the meta-labeler meaningless.
 
-K=30 retrain landed (2026-09-04). Runner and model artifact now both use
-K=30, H=75, TP=2.5%, SL=2%, FEE=0.05%, new 6-symbol universe.
+K=40 retrain landed (2026-09-06). Runner and model artifact now both use
+K=40, H=75, TP=2.5%, SL=2%, FEE=0.05%, 9-symbol universe (BTR removed,
+UAI/DOOD/BULLA/JCT added).
 """
 import joblib
 
@@ -16,17 +17,17 @@ from binance_config import ALPHA3_ASSETS
 
 def test_k_horizon_match():
     # K reflects the alpha3 LIVE runner contract.
-    assert R.K == MC.K == 30
+    assert R.K == MC.K == 40
     assert R.H == MC.H == 75
     assert R.INTERVAL == 10  # 10s polls (runner) vs MC.INTERVAL_SEC=60 (meta-labeler 60s bars) — intentionally different
     assert MC.INTERVAL_SEC == 60
 
 
-def test_model_artifact_k_is_10_pending_retrain():
-    # K30 retrain landed (2026-09-04). The canonical model now matches
-    # the live runner K=30. This test confirms the artifact is fresh.
+def test_model_artifact_k_is_40():
+    # K40 retrain landed (2026-09-06). The canonical model now matches
+    # the live runner K=40. This test confirms the artifact is fresh.
     model_data = joblib.load(R.META_LABELER_PATH)
-    assert model_data["config"]["K"] == 30
+    assert model_data["config"]["K"] == 40
     assert model_data["config"]["H"] == MC.H
     assert model_data["threshold"] == R.META_THRESHOLD
     assert model_data["config"]["TP_PCT"] == 0.025
@@ -43,9 +44,9 @@ def test_asset_universe_match():
 
 
 def test_threshold_default_matches():
-    # Manual gate tightening 0.50 -> 0.55 (2026-09-06): trade only high-conviction
-    # meta-labeler calls. Model artifact and runner must agree; flag if they drift.
+    # K=40 retrain (2026-09-06): threshold 0.50 (F1-optimal for K=40 model).
+    # Model artifact, runner, and config must agree; flag if they drift.
     model_data = joblib.load(R.META_LABELER_PATH)
-    assert model_data["threshold"] == 0.55
-    assert R.META_THRESHOLD == 0.55
-    assert MC.PROB_THRESHOLD_DEFAULT == 0.55
+    assert model_data["threshold"] == 0.50
+    assert R.META_THRESHOLD == 0.50
+    assert MC.PROB_THRESHOLD_DEFAULT == 0.50
