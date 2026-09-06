@@ -1,0 +1,392 @@
+{
+  "config": {
+    "K": 40,
+    "H": 75,
+    "TP_PCT": 0.025,
+    "SL_PCT": -0.02,
+    "FEE_RATE": 0.0005,
+    "n_assets": 9
+  },
+  "signal_stats": {
+    "total_signals": 2342008,
+    "labeled_tp_sl": 838318,
+    "timeouts": 1503690,
+    "timeout_rate_population": 0.6421,
+    "base_wr": 0.4177
+  },
+  "per_symbol": {
+    "TRIAUSDT": {
+      "n": 115883,
+      "wr": 0.41483220144456046,
+      "mean_prob": 0.5004242145169917
+    },
+    "QUSDT": {
+      "n": 71469,
+      "wr": 0.41062558591837023,
+      "mean_prob": 0.4927805836256462
+    },
+    "MAGMAUSDT": {
+      "n": 117898,
+      "wr": 0.42798011840743694,
+      "mean_prob": 0.5026198818635296
+    },
+    "TRADOORUSDT": {
+      "n": 77621,
+      "wr": 0.41622756728204996,
+      "mean_prob": 0.4990298259706453
+    },
+    "APRUSDT": {
+      "n": 85580,
+      "wr": 0.40702266884786165,
+      "mean_prob": 0.497932038481895
+    },
+    "UAIUSDT": {
+      "n": 116945,
+      "wr": 0.4248578391551584,
+      "mean_prob": 0.501824811519049
+    },
+    "DOODUSDT": {
+      "n": 18996,
+      "wr": 0.40829648347020425,
+      "mean_prob": 0.4846923050472222
+    }
+  },
+  "best_threshold": {
+    "threshold": 0.73,
+    "precision": 0.9259,
+    "recall": 0.0001,
+    "selection_rate": 0.0,
+    "n_selected": 27,
+    "pnl_per_trade_pct": 2.1167,
+    "timeout_rate_est": 0.4205,
+    "exp_return_per_trade_pct": 1.2258,
+    "trades_per_day_est": 409.9,
+    "daily_expected_pct": 502.3931
+  },
+  "sweep": [
+    {
+      "threshold": 0.5,
+      "precision": 0.4541,
+      "recall": 0.6309,
+      "selection_rate": 0.5803,
+      "n_selected": 350721,
+      "pnl_per_trade_pct": -0.0063,
+      "timeout_rate_est": 0.6421,
+      "exp_return_per_trade_pct": -0.0034,
+      "trades_per_day_est": 598.4,
+      "daily_expected_pct": -2.0517
+    },
+    {
+      "threshold": 0.51,
+      "precision": 0.4618,
+      "recall": 0.5296,
+      "selection_rate": 0.479,
+      "n_selected": 289512,
+      "pnl_per_trade_pct": 0.0281,
+      "timeout_rate_est": 0.6324,
+      "exp_return_per_trade_pct": 0.0092,
+      "trades_per_day_est": 586.7,
+      "daily_expected_pct": 5.3964
+    },
+    {
+      "threshold": 0.52,
+      "precision": 0.4707,
+      "recall": 0.401,
+      "selection_rate": 0.3558,
+      "n_selected": 215066,
+      "pnl_per_trade_pct": 0.0681,
+      "timeout_rate_est": 0.6228,
+      "exp_return_per_trade_pct": 0.0246,
+      "trades_per_day_est": 575.4,
+      "daily_expected_pct": 14.1437
+    },
+    {
+      "threshold": 0.53,
+      "precision": 0.4903,
+      "recall": 0.2797,
+      "selection_rate": 0.2383,
+      "n_selected": 144002,
+      "pnl_per_trade_pct": 0.1564,
+      "timeout_rate_est": 0.6132,
+      "exp_return_per_trade_pct": 0.0594,
+      "trades_per_day_est": 564.5,
+      "daily_expected_pct": 33.5266
+    },
+    {
+      "threshold": 0.54,
+      "precision": 0.5264,
+      "recall": 0.1232,
+      "selection_rate": 0.0978,
+      "n_selected": 59090,
+      "pnl_per_trade_pct": 0.3188,
+      "timeout_rate_est": 0.6035,
+      "exp_return_per_trade_pct": 0.1253,
+      "trades_per_day_est": 554.1,
+      "daily_expected_pct": 69.4307
+    },
+    {
+      "threshold": 0.55,
+      "precision": 0.5837,
+      "recall": 0.0461,
+      "selection_rate": 0.033,
+      "n_selected": 19951,
+      "pnl_per_trade_pct": 0.5768,
+      "timeout_rate_est": 0.5939,
+      "exp_return_per_trade_pct": 0.2332,
+      "trades_per_day_est": 544.0,
+      "daily_expected_pct": 126.8417
+    },
+    {
+      "threshold": 0.56,
+      "precision": 0.6676,
+      "recall": 0.0127,
+      "selection_rate": 0.0079,
+      "n_selected": 4784,
+      "pnl_per_trade_pct": 0.9544,
+      "timeout_rate_est": 0.5843,
+      "exp_return_per_trade_pct": 0.3957,
+      "trades_per_day_est": 534.3,
+      "daily_expected_pct": 211.4273
+    },
+    {
+      "threshold": 0.57,
+      "precision": 0.7388,
+      "recall": 0.0025,
+      "selection_rate": 0.0014,
+      "n_selected": 846,
+      "pnl_per_trade_pct": 1.2745,
+      "timeout_rate_est": 0.5746,
+      "exp_return_per_trade_pct": 0.5411,
+      "trades_per_day_est": 524.9,
+      "daily_expected_pct": 284.0186
+    },
+    {
+      "threshold": 0.58,
+      "precision": 0.7313,
+      "recall": 0.0012,
+      "selection_rate": 0.0007,
+      "n_selected": 428,
+      "pnl_per_trade_pct": 1.2409,
+      "timeout_rate_est": 0.565,
+      "exp_return_per_trade_pct": 0.5388,
+      "trades_per_day_est": 515.9,
+      "daily_expected_pct": 277.9271
+    },
+    {
+      "threshold": 0.59,
+      "precision": 0.7075,
+      "recall": 0.0009,
+      "selection_rate": 0.0006,
+      "n_selected": 335,
+      "pnl_per_trade_pct": 1.1336,
+      "timeout_rate_est": 0.5554,
+      "exp_return_per_trade_pct": 0.503,
+      "trades_per_day_est": 507.1,
+      "daily_expected_pct": 255.0907
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.7077,
+      "recall": 0.0008,
+      "selection_rate": 0.0005,
+      "n_selected": 284,
+      "pnl_per_trade_pct": 1.1349,
+      "timeout_rate_est": 0.5457,
+      "exp_return_per_trade_pct": 0.5145,
+      "trades_per_day_est": 498.7,
+      "daily_expected_pct": 256.5812
+    },
+    {
+      "threshold": 0.61,
+      "precision": 0.7004,
+      "recall": 0.0007,
+      "selection_rate": 0.0004,
+      "n_selected": 237,
+      "pnl_per_trade_pct": 1.1019,
+      "timeout_rate_est": 0.5361,
+      "exp_return_per_trade_pct": 0.5102,
+      "trades_per_day_est": 490.5,
+      "daily_expected_pct": 250.2447
+    },
+    {
+      "threshold": 0.62,
+      "precision": 0.7056,
+      "recall": 0.0006,
+      "selection_rate": 0.0003,
+      "n_selected": 197,
+      "pnl_per_trade_pct": 1.1251,
+      "timeout_rate_est": 0.5265,
+      "exp_return_per_trade_pct": 0.5318,
+      "trades_per_day_est": 482.6,
+      "daily_expected_pct": 256.6459
+    },
+    {
+      "threshold": 0.63,
+      "precision": 0.7317,
+      "recall": 0.0005,
+      "selection_rate": 0.0003,
+      "n_selected": 164,
+      "pnl_per_trade_pct": 1.2427,
+      "timeout_rate_est": 0.5169,
+      "exp_return_per_trade_pct": 0.5995,
+      "trades_per_day_est": 474.9,
+      "daily_expected_pct": 284.7007
+    },
+    {
+      "threshold": 0.64,
+      "precision": 0.7466,
+      "recall": 0.0004,
+      "selection_rate": 0.0002,
+      "n_selected": 146,
+      "pnl_per_trade_pct": 1.3096,
+      "timeout_rate_est": 0.5072,
+      "exp_return_per_trade_pct": 0.6444,
+      "trades_per_day_est": 467.5,
+      "daily_expected_pct": 301.2688
+    },
+    {
+      "threshold": 0.65,
+      "precision": 0.75,
+      "recall": 0.0004,
+      "selection_rate": 0.0002,
+      "n_selected": 128,
+      "pnl_per_trade_pct": 1.325,
+      "timeout_rate_est": 0.4976,
+      "exp_return_per_trade_pct": 0.6648,
+      "trades_per_day_est": 460.3,
+      "daily_expected_pct": 306.0114
+    },
+    {
+      "threshold": 0.66,
+      "precision": 0.7778,
+      "recall": 0.0004,
+      "selection_rate": 0.0002,
+      "n_selected": 117,
+      "pnl_per_trade_pct": 1.45,
+      "timeout_rate_est": 0.488,
+      "exp_return_per_trade_pct": 0.7416,
+      "trades_per_day_est": 453.3,
+      "daily_expected_pct": 336.1833
+    },
+    {
+      "threshold": 0.67,
+      "precision": 0.7981,
+      "recall": 0.0003,
+      "selection_rate": 0.0002,
+      "n_selected": 104,
+      "pnl_per_trade_pct": 1.5413,
+      "timeout_rate_est": 0.4783,
+      "exp_return_per_trade_pct": 0.8032,
+      "trades_per_day_est": 446.6,
+      "daily_expected_pct": 358.6896
+    },
+    {
+      "threshold": 0.68,
+      "precision": 0.8046,
+      "recall": 0.0003,
+      "selection_rate": 0.0001,
+      "n_selected": 87,
+      "pnl_per_trade_pct": 1.5707,
+      "timeout_rate_est": 0.4687,
+      "exp_return_per_trade_pct": 0.8337,
+      "trades_per_day_est": 440.0,
+      "daily_expected_pct": 366.8137
+    },
+    {
+      "threshold": 0.69,
+      "precision": 0.8267,
+      "recall": 0.0002,
+      "selection_rate": 0.0001,
+      "n_selected": 75,
+      "pnl_per_trade_pct": 1.67,
+      "timeout_rate_est": 0.4591,
+      "exp_return_per_trade_pct": 0.9025,
+      "trades_per_day_est": 433.6,
+      "daily_expected_pct": 391.3588
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.8548,
+      "recall": 0.0002,
+      "selection_rate": 0.0001,
+      "n_selected": 62,
+      "pnl_per_trade_pct": 1.7968,
+      "timeout_rate_est": 0.4494,
+      "exp_return_per_trade_pct": 0.9884,
+      "trades_per_day_est": 427.4,
+      "daily_expected_pct": 422.4832
+    },
+    {
+      "threshold": 0.71,
+      "precision": 0.8936,
+      "recall": 0.0002,
+      "selection_rate": 0.0001,
+      "n_selected": 47,
+      "pnl_per_trade_pct": 1.9713,
+      "timeout_rate_est": 0.4398,
+      "exp_return_per_trade_pct": 1.1035,
+      "trades_per_day_est": 421.4,
+      "daily_expected_pct": 465.0272
+    },
+    {
+      "threshold": 0.72,
+      "precision": 0.8889,
+      "recall": 0.0001,
+      "selection_rate": 0.0001,
+      "n_selected": 36,
+      "pnl_per_trade_pct": 1.95,
+      "timeout_rate_est": 0.4302,
+      "exp_return_per_trade_pct": 1.1104,
+      "trades_per_day_est": 415.6,
+      "daily_expected_pct": 461.4268
+    },
+    {
+      "threshold": 0.73,
+      "precision": 0.9259,
+      "recall": 0.0001,
+      "selection_rate": 0.0,
+      "n_selected": 27,
+      "pnl_per_trade_pct": 2.1167,
+      "timeout_rate_est": 0.4205,
+      "exp_return_per_trade_pct": 1.2258,
+      "trades_per_day_est": 409.9,
+      "daily_expected_pct": 502.3931
+    },
+    {
+      "threshold": 0.74,
+      "precision": 0.9167,
+      "recall": 0.0001,
+      "selection_rate": 0.0,
+      "n_selected": 24,
+      "pnl_per_trade_pct": 2.075,
+      "timeout_rate_est": 0.4109,
+      "exp_return_per_trade_pct": 1.2216,
+      "trades_per_day_est": 404.3,
+      "daily_expected_pct": 493.929
+    },
+    {
+      "threshold": 0.75,
+      "precision": 0.8947,
+      "recall": 0.0001,
+      "selection_rate": 0.0,
+      "n_selected": 19,
+      "pnl_per_trade_pct": 1.9763,
+      "timeout_rate_est": 0.4013,
+      "exp_return_per_trade_pct": 1.1825,
+      "trades_per_day_est": 398.9,
+      "daily_expected_pct": 471.7518
+    },
+    {
+      "threshold": 0.76,
+      "precision": 0.8462,
+      "recall": 0.0,
+      "selection_rate": 0.0,
+      "n_selected": 13,
+      "pnl_per_trade_pct": 1.7577,
+      "timeout_rate_est": 0.3917,
+      "exp_return_per_trade_pct": 1.0686,
+      "trades_per_day_est": 393.7,
+      "daily_expected_pct": 420.6849
+    }
+  ]
+}
