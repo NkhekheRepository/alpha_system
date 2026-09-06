@@ -44,9 +44,9 @@ def test_asset_universe_match():
 
 
 def test_threshold_default_matches():
-    # K=40 retrain (2026-09-06): threshold 0.50 (F1-optimal for K=40 model).
+    # Tightened to 0.55 (2026-09-06) to cut trade frequency on no-edge model.
     # Model artifact, runner, and config must agree; flag if they drift.
     model_data = joblib.load(R.META_LABELER_PATH)
-    assert model_data["threshold"] == 0.50
-    assert R.META_THRESHOLD == 0.50
-    assert MC.PROB_THRESHOLD_DEFAULT == 0.50
+    assert model_data["threshold"] == 0.55
+    assert R.META_THRESHOLD == 0.55
+    assert MC.PROB_THRESHOLD_DEFAULT == 0.55
