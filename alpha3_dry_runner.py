@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """ALPHA 3 DRY MODE RUNNER - triple-barrier paper (testnet spot, 5m cadence).
 
-Engine: Alpha 3 / Alpha 1% clone — 9 assets (ALPHA3_ASSETS, 5m polls),
-momentum-K40 direction, H=75 hold, TP 2.5% / SL 2% market
-barriers every poll, TIMEOUT at bar 75. Circuit breaker 3 losses -> 50-bar
+Engine: Alpha 3 / Alpha 1% clone — 10 assets (ALPHA3_ASSETS + ZEC, 5m polls),
+momentum-K60 direction, H=100 hold, TP 3% / SL 1.5% market
+barriers every poll, TIMEOUT at bar 100. Circuit breaker 3 losses -> 50-bar
 cooldown. Staking: 3% equity per trade (POS_PCT=0.03, compounding, no leverage)
 on a 100 USDT synthetic base; barriers sourced from TB_CONFIG (alpha_1percent
 parity: 2%/2%, vol flags). Matches alpha_3.py simulation energy & frequency
@@ -337,8 +337,8 @@ ASSETS = ALPHA3_ASSETS
 API = BINANCE_API_BASE
 INTERVAL = 10  # 10s polls -> 6x more responsive (was 60s); bulk/parallel fetch keeps cycle <5s for <10s Telegram<->Binance sync
 
-K = 40
-H = 75
+K = 60
+H = 100
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
@@ -351,12 +351,12 @@ LEVERAGE = 20.0
 # use --leverage.
 LEV_OVERRIDE = {}
 FEE_RATE = 0.0005  # 0.05% taker fee per fill (feeTier 0 LIVE USDⓈ-M) — fee = qty*(entry+exit)*FEE_RATE = 0.10% round-trip
-WIN_PCT = 0.025
-LOSS_PCT = -0.02
+WIN_PCT = 0.03
+LOSS_PCT = -0.015
 
 # Meta-labeler config
 META_LABELER_PATH = Path(__file__).resolve().parent / 'models/meta_labeler.joblib'
-META_THRESHOLD = 0.56  # Monte Carlo optimized (2026-09-06); 66.8% precision, phase-transition (100% MC profitable)
+META_THRESHOLD = 0.60  # breakeven 34.4% @TP3/SL1.5 (2026-09-07); in-sample prec 0.46, OOF ~0.42, sel 1.6%
 
 # Orderbook cache for microstructure features
 _orderbook_cache = {}  # {symbol: {'bookTicker': {...}, 'depth': [...], 'ts': timestamp}}
@@ -888,8 +888,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
             continue
         # Back-compat: flip-era positions lack tp/sl + fix wrong short TP/SL (was swapped 0.98/0.965, both below)
         if 'tp_price' not in pos:
-            pos['tp_price'] = pos['entry_price'] * (0.975 if pos['direction'] == 'short' else 1.025)
-            pos['sl_price'] = pos['entry_price'] * (1.02 if pos['direction'] == 'short' else 0.98)
+            pos['tp_price'] = pos['entry_price'] * (0.97 if pos['direction'] == 'short' else 1.03)
+            pos['sl_price'] = pos['entry_price'] * (1.015 if pos['direction'] == 'short' else 0.985)
         direction = pos['direction']
         entry = pos['entry_price']
         tp = pos['tp_price']
@@ -1129,8 +1129,8 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         actual_qty = demo_qty
                 except Exception:
                     pass
-                tp_p = prices[s] * (0.975 if d == 'short' else 1.025)
-                sl_p = prices[s] * (1.02 if d == 'short' else 0.98)
+                tp_p = prices[s] * (0.97 if d == 'short' else 1.03)
+                sl_p = prices[s] * (1.015 if d == 'short' else 0.985)
                 state['open_positions'][s] = {
                     'symbol': s, 'direction': d,
                     'entry_price': prices[s], 'quantity': actual_qty,
@@ -1145,7 +1145,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         f"Entry: ${prices[s]:,.2f}\n"
                         f"TP: ${tp_p:,.2f} | SL: ${sl_p:,.2f} (market) | TIMEOUT bar {H}\n"
                         f"Notional: ${pos_val:,.2f} (margin ${state['capital']*state['stake_pct']:,.2f} × {eff_lev:g}x)\n"
-                        f"Exit: TP 2.5% | SL 2% | TIMEOUT bar {H} (real-market)\n"
+                        f"Exit: TP 3% | SL 1.5% | TIMEOUT bar {H} (real-market)\n"
                         f"Equity: ${state['equity']:,.2f}")
                 try: log_event("alpha3", "trade_open", {"symbol": s, "direction": d, "entry": round(prices[s],2), "notional": round(actual_notional,2), "tp": round(tp_p,2), "sl": round(sl_p,2)})
                 except Exception: pass
@@ -1451,7 +1451,7 @@ def main():
     print(f"  Assets:   {' + '.join([s.replace('USDT','') for s in ASSETS])} (60s polls, {len(ASSETS)} assets)")
     print(f"  Group:    {ALPHA3_GROUP}")
     print(f"  Engine:   momentum-K{K} direction, H={H} hold, CB {MAX_CONSEC}/{COOLDOWN}")
-    print(f"  Exits:    TP 2.5% / SL 2% market | TIMEOUT at bar {H} (market price)")
+    print(f"  Exits:    TP 3% / SL 1.5% market | TIMEOUT at bar {H} (market price)")
     print(f"  Capital:  ${CAP:,.0f} USDT (synthetic)")
     print(f"  Staking:  {args.stake*100:g}% margin (${state['capital']*args.stake:,.2f}) x {args.leverage:g}x = ${stake:,.2f}/trade (compounding)")
     print(f"  Interval: {args.interval}s")
