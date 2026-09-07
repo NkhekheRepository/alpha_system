@@ -44,9 +44,9 @@ def test_asset_universe_match():
 
 
 def test_threshold_default_matches():
-    # Tightened to 0.55 (2026-09-06) to cut trade frequency on no-edge model.
+    # Tightened to 0.56 (2026-09-06) to restore trade frequency on no-edge model.
     # Model artifact, runner, and config must agree; flag if they drift.
     model_data = joblib.load(R.META_LABELER_PATH)
-    assert model_data["threshold"] == 0.57
-    assert R.META_THRESHOLD == 0.57
-    assert MC.PROB_THRESHOLD_DEFAULT == 0.57
+    assert model_data["threshold"] == 0.56
+    assert R.META_THRESHOLD == 0.56
+    assert MC.PROB_THRESHOLD_DEFAULT == 0.56

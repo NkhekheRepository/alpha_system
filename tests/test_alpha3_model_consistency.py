@@ -152,10 +152,10 @@ class TestTrainingVsLiveRSI:
 # ---------------------------------------------------------------------------
 class TestThreshold:
     def test_runner_threshold_matches_metrics_and_artifact(self):
-        # Tightened to 0.55 (2026-09-06) to cut trade frequency on no-edge model.
+        # Tightened to 0.56 (2026-09-06) to restore trade frequency on no-edge model.
         # The deployed gate is the artifact's embedded threshold and must agree
         # with the runner constant.
-        assert R.META_THRESHOLD == MODEL["threshold"] == 0.57
+        assert R.META_THRESHOLD == MODEL["threshold"] == 0.56
         # meta_labeler_metrics.json records the TRAINING F1-optimum (0.50); the
         # live gate deliberately sits above it — assert the deviation is explicit.
         assert METRICS.get("best_threshold") == 0.50
