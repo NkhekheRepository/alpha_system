@@ -44,9 +44,9 @@ def test_asset_universe_match():
 
 
 def test_threshold_default_matches():
-    # Set to 0.60 (2026-09-07): breakeven 34.4% @TP3/SL1.5, in-sample prec 0.46.
+    # Set to 0.57 (user override 2026-09-07): in-sample prec 0.362 sel 10.6%.
     # Model artifact, runner, and config must agree; flag if they drift.
     model_data = joblib.load(R.META_LABELER_PATH)
-    assert model_data["threshold"] == 0.60
-    assert R.META_THRESHOLD == 0.60
-    assert MC.PROB_THRESHOLD_DEFAULT == 0.60
+    assert model_data["threshold"] == 0.57
+    assert R.META_THRESHOLD == 0.57
+    assert MC.PROB_THRESHOLD_DEFAULT == 0.57

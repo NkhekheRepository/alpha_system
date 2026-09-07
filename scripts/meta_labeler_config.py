@@ -34,7 +34,7 @@ RF_PARAMS = {
     'random_state': 42,
     'n_jobs': 2,  # 3GB box swaps to death at -1/4 (2026-09-07); same fitted model, fewer workers
 }
-PROB_THRESHOLD_DEFAULT = 0.60  # meta-label: enter if P(win) > threshold (breakeven 34.4% @TP3/SL1.5; in-sample prec 0.46, OOF ~0.42, 2026-09-07)
+PROB_THRESHOLD_DEFAULT = 0.57  # meta-label: enter if P(win) > threshold (in-sample prec 0.362 sel 10.6%; user override 2026-09-07)
 
 # Additional constants for Telegram bot compatibility
 LEVERAGE = 20

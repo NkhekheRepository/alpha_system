@@ -152,10 +152,10 @@ class TestTrainingVsLiveRSI:
 # ---------------------------------------------------------------------------
 class TestThreshold:
     def test_runner_threshold_matches_metrics_and_artifact(self):
-        # Set to 0.60 (2026-09-07): breakeven 34.4% @TP3/SL1.5 K60 H100.
+        # Set to 0.57 (user override 2026-09-07).
         # The deployed gate is the artifact's embedded threshold and must agree
         # with the runner constant.
-        assert R.META_THRESHOLD == MODEL["threshold"] == 0.60
+        assert R.META_THRESHOLD == MODEL["threshold"] == 0.57
         # meta_labeler_metrics.json records the TRAINING F1-optimum (0.50); the
         # live gate deliberately sits above it — assert the deviation is explicit.
         assert METRICS.get("best_threshold") == 0.50

@@ -356,7 +356,7 @@ LOSS_PCT = -0.015
 
 # Meta-labeler config
 META_LABELER_PATH = Path(__file__).resolve().parent / 'models/meta_labeler.joblib'
-META_THRESHOLD = 0.60  # breakeven 34.4% @TP3/SL1.5 (2026-09-07); in-sample prec 0.46, OOF ~0.42, sel 1.6%
+META_THRESHOLD = 0.57  # user override 2026-09-07; in-sample prec 0.362 sel 10.6% @TP3/SL1.5 K60H100 (breakeven 34.4%)
 
 # Orderbook cache for microstructure features
 _orderbook_cache = {}  # {symbol: {'bookTicker': {...}, 'depth': [...], 'ts': timestamp}}
