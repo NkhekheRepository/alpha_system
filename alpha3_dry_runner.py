@@ -1013,7 +1013,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         avail = max(avail, get_demo_usdt_balance())
                     if TESTNET_LIVE:
                         avail = max(avail, get_testnet_usdt_balance())
-                    if avail < 5:  # minNotional is 5 USDT; need at least that plus buffer
+                    if avail is not None and avail != 0 and avail < 5:  # synthetic SIM: 0 = no live balance -> allow paper entries
                         print(f"  [{ts}] SKIP {s}: available ${avail:.2f} < $5 — insufficient margin for new position")
                         continue
                 except Exception:
@@ -1058,7 +1058,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                         _eff_for_margin = 10 if _is_capped else eff_lev
                         _need = (state['capital'] * state['stake_pct'] * eff_lev) / _eff_for_margin
                         # For capped 10x: pos_val $40 at 10x needs $4; for 20x: $2
-                        if _bal is not None and _bal < _need:
+                        if _bal is not None and _bal != 0 and _bal < _need:
                             print(f"  [{ts}] MARGIN-SKIP {s}: need ${float(_need):.2f} have ${float(_bal):.2f} — SKIP (keeps paper/live synced)")
                             continue
                     except Exception:
