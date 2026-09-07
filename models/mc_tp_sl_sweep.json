@@ -1,0 +1,1344 @@
+{
+  "config": {
+    "threshold": 0.57,
+    "K": 40,
+    "H": 75,
+    "FEE_RATE": 0.0005,
+    "n_assets": 9,
+    "staking": 0.2,
+    "leverage": 20,
+    "n_paths": 3000,
+    "n_trades": 100,
+    "starting_capital": 10.0
+  },
+  "tp_grid": [
+    0.015,
+    0.02,
+    0.025,
+    0.03,
+    0.035,
+    0.04,
+    0.05
+  ],
+  "sl_grid": [
+    0.01,
+    0.015,
+    0.02,
+    0.025,
+    0.03
+  ],
+  "best_combo": {
+    "key": "TP5.0%_SL2.0%",
+    "tp_pct": 0.05,
+    "sl_pct": 0.02,
+    "median_return": 4180.45,
+    "p5_return": 495.28,
+    "p95_return": 34143.79,
+    "median_dd": 0.41,
+    "ruin": 0.0,
+    "pct_profitable": 0.9997,
+    "median_equity": 428.04,
+    "sharpe": 2.05,
+    "tp_rate": 0.3735224586288416,
+    "score": 4180.24
+  },
+  "full_sweep": {
+    "TP1.5%_SL1.0%": {
+      "tp_pct": 0.015,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 412,
+        "sl": 434,
+        "timeout": 0
+      },
+      "tp_rate": 0.487,
+      "mc": {
+        "median_return_pct": 77.6,
+        "mean_return_pct": 91.58,
+        "p5_return_pct": -27.33,
+        "p95_return_pct": 293.01,
+        "median_max_dd_pct": 0.31,
+        "p95_max_dd_pct": 0.51,
+        "median_final_equity": 17.76,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.8463,
+        "sharpe_est": 3.62
+      }
+    },
+    "TP1.5%_SL1.5%": {
+      "tp_pct": 0.015,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 487,
+        "sl": 359,
+        "timeout": 0
+      },
+      "tp_rate": 0.5757,
+      "mc": {
+        "median_return_pct": 78.93,
+        "mean_return_pct": 105.02,
+        "p5_return_pct": -31.7,
+        "p95_return_pct": 368.76,
+        "median_max_dd_pct": 0.38,
+        "p95_max_dd_pct": 0.6,
+        "median_final_equity": 17.89,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.7957,
+        "sharpe_est": 2.97
+      }
+    },
+    "TP1.5%_SL2.0%": {
+      "tp_pct": 0.015,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 559,
+        "sl": 287,
+        "timeout": 0
+      },
+      "tp_rate": 0.6608,
+      "mc": {
+        "median_return_pct": 125.27,
+        "mean_return_pct": 181.44,
+        "p5_return_pct": -27.63,
+        "p95_return_pct": 601.21,
+        "median_max_dd_pct": 0.39,
+        "p95_max_dd_pct": 0.63,
+        "median_final_equity": 22.53,
+        "ruin_rate": 0.0003,
+        "pct_profitable_paths": 0.8833,
+        "sharpe_est": 3.44
+      }
+    },
+    "TP1.5%_SL2.5%": {
+      "tp_pct": 0.015,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 591,
+        "sl": 239,
+        "timeout": 16
+      },
+      "tp_rate": 0.6986,
+      "mc": {
+        "median_return_pct": 118.73,
+        "mean_return_pct": 177.34,
+        "p5_return_pct": -37.43,
+        "p95_return_pct": 602.77,
+        "median_max_dd_pct": 0.44,
+        "p95_max_dd_pct": 0.69,
+        "median_final_equity": 21.87,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.8337,
+        "sharpe_est": 3.15
+      }
+    },
+    "TP1.5%_SL3.0%": {
+      "tp_pct": 0.015,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 619,
+        "sl": 205,
+        "timeout": 22
+      },
+      "tp_rate": 0.7317,
+      "mc": {
+        "median_return_pct": 119.6,
+        "mean_return_pct": 206.19,
+        "p5_return_pct": -41.67,
+        "p95_return_pct": 759.05,
+        "median_max_dd_pct": 0.48,
+        "p95_max_dd_pct": 0.72,
+        "median_final_equity": 21.96,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.8443,
+        "sharpe_est": 2.78
+      }
+    },
+    "TP2.0%_SL1.0%": {
+      "tp_pct": 0.02,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 398,
+        "sl": 448,
+        "timeout": 0
+      },
+      "tp_rate": 0.4704,
+      "mc": {
+        "median_return_pct": 251.12,
+        "mean_return_pct": 320.1,
+        "p5_return_pct": 36.59,
+        "p95_return_pct": 802.57,
+        "median_max_dd_pct": 0.28,
+        "p95_max_dd_pct": 0.45,
+        "median_final_equity": 35.11,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.982,
+        "sharpe_est": 4.55
+      }
+    },
+    "TP2.0%_SL1.5%": {
+      "tp_pct": 0.02,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 475,
+        "sl": 371,
+        "timeout": 0
+      },
+      "tp_rate": 0.5615,
+      "mc": {
+        "median_return_pct": 301.4,
+        "mean_return_pct": 418.03,
+        "p5_return_pct": 31.9,
+        "p95_return_pct": 1121.53,
+        "median_max_dd_pct": 0.33,
+        "p95_max_dd_pct": 0.53,
+        "median_final_equity": 40.14,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.974,
+        "sharpe_est": 3.82
+      }
+    },
+    "TP2.0%_SL2.0%": {
+      "tp_pct": 0.02,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 544,
+        "sl": 302,
+        "timeout": 0
+      },
+      "tp_rate": 0.643,
+      "mc": {
+        "median_return_pct": 462.26,
+        "mean_return_pct": 694.94,
+        "p5_return_pct": 55.5,
+        "p95_return_pct": 1933.04,
+        "median_max_dd_pct": 0.35,
+        "p95_max_dd_pct": 0.57,
+        "median_final_equity": 56.23,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9847,
+        "sharpe_est": 3.71
+      }
+    },
+    "TP2.0%_SL2.5%": {
+      "tp_pct": 0.02,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 579,
+        "sl": 251,
+        "timeout": 16
+      },
+      "tp_rate": 0.6844,
+      "mc": {
+        "median_return_pct": 534.25,
+        "mean_return_pct": 777.83,
+        "p5_return_pct": 50.54,
+        "p95_return_pct": 2331.26,
+        "median_max_dd_pct": 0.39,
+        "p95_max_dd_pct": 0.61,
+        "median_final_equity": 63.43,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9853,
+        "sharpe_est": 3.45
+      }
+    },
+    "TP2.0%_SL3.0%": {
+      "tp_pct": 0.02,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 602,
+        "sl": 222,
+        "timeout": 22
+      },
+      "tp_rate": 0.7116,
+      "mc": {
+        "median_return_pct": 483.98,
+        "mean_return_pct": 747.65,
+        "p5_return_pct": 22.31,
+        "p95_return_pct": 2356.22,
+        "median_max_dd_pct": 0.44,
+        "p95_max_dd_pct": 0.67,
+        "median_final_equity": 58.4,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.967,
+        "sharpe_est": 3.14
+      }
+    },
+    "TP2.5%_SL1.0%": {
+      "tp_pct": 0.025,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 388,
+        "sl": 458,
+        "timeout": 0
+      },
+      "tp_rate": 0.4586,
+      "mc": {
+        "median_return_pct": 626.85,
+        "mean_return_pct": 828.79,
+        "p5_return_pct": 144.09,
+        "p95_return_pct": 2380.71,
+        "median_max_dd_pct": 0.26,
+        "p95_max_dd_pct": 0.42,
+        "median_final_equity": 72.69,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9987,
+        "sharpe_est": 4.19
+      }
+    },
+    "TP2.5%_SL1.5%": {
+      "tp_pct": 0.025,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 462,
+        "sl": 384,
+        "timeout": 0
+      },
+      "tp_rate": 0.5461,
+      "mc": {
+        "median_return_pct": 859.97,
+        "mean_return_pct": 1121.72,
+        "p5_return_pct": 132.63,
+        "p95_return_pct": 3284.17,
+        "median_max_dd_pct": 0.32,
+        "p95_max_dd_pct": 0.5,
+        "median_final_equity": 96.0,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.999,
+        "sharpe_est": 3.83
+      }
+    },
+    "TP2.5%_SL2.0%": {
+      "tp_pct": 0.025,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 526,
+        "sl": 320,
+        "timeout": 0
+      },
+      "tp_rate": 0.6217,
+      "mc": {
+        "median_return_pct": 1174.58,
+        "mean_return_pct": 1824.15,
+        "p5_return_pct": 204.29,
+        "p95_return_pct": 5238.81,
+        "median_max_dd_pct": 0.35,
+        "p95_max_dd_pct": 0.53,
+        "median_final_equity": 127.46,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.999,
+        "sharpe_est": 3.57
+      }
+    },
+    "TP2.5%_SL2.5%": {
+      "tp_pct": 0.025,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 554,
+        "sl": 275,
+        "timeout": 17
+      },
+      "tp_rate": 0.6548,
+      "mc": {
+        "median_return_pct": 1154.19,
+        "mean_return_pct": 1812.66,
+        "p5_return_pct": 166.25,
+        "p95_return_pct": 5381.81,
+        "median_max_dd_pct": 0.4,
+        "p95_max_dd_pct": 0.61,
+        "median_final_equity": 125.42,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9953,
+        "sharpe_est": 3.15
+      }
+    },
+    "TP2.5%_SL3.0%": {
+      "tp_pct": 0.025,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 579,
+        "sl": 244,
+        "timeout": 23
+      },
+      "tp_rate": 0.6844,
+      "mc": {
+        "median_return_pct": 1082.76,
+        "mean_return_pct": 1820.49,
+        "p5_return_pct": 108.92,
+        "p95_return_pct": 5898.46,
+        "median_max_dd_pct": 0.45,
+        "p95_max_dd_pct": 0.66,
+        "median_final_equity": 118.28,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9923,
+        "sharpe_est": 3.02
+      }
+    },
+    "TP3.0%_SL1.0%": {
+      "tp_pct": 0.03,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 335,
+        "sl": 475,
+        "timeout": 36
+      },
+      "tp_rate": 0.396,
+      "mc": {
+        "median_return_pct": 859.3,
+        "mean_return_pct": 1158.18,
+        "p5_return_pct": 176.27,
+        "p95_return_pct": 3119.76,
+        "median_max_dd_pct": 0.28,
+        "p95_max_dd_pct": 0.44,
+        "median_final_equity": 95.93,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9987,
+        "sharpe_est": 4.16
+      }
+    },
+    "TP3.0%_SL1.5%": {
+      "tp_pct": 0.03,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 401,
+        "sl": 407,
+        "timeout": 38
+      },
+      "tp_rate": 0.474,
+      "mc": {
+        "median_return_pct": 1092.12,
+        "mean_return_pct": 1642.86,
+        "p5_return_pct": 180.05,
+        "p95_return_pct": 4920.25,
+        "median_max_dd_pct": 0.33,
+        "p95_max_dd_pct": 0.52,
+        "median_final_equity": 119.21,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9973,
+        "sharpe_est": 3.62
+      }
+    },
+    "TP3.0%_SL2.0%": {
+      "tp_pct": 0.03,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 464,
+        "sl": 341,
+        "timeout": 41
+      },
+      "tp_rate": 0.5485,
+      "mc": {
+        "median_return_pct": 1667.68,
+        "mean_return_pct": 2678.92,
+        "p5_return_pct": 266.27,
+        "p95_return_pct": 8621.05,
+        "median_max_dd_pct": 0.36,
+        "p95_max_dd_pct": 0.56,
+        "median_final_equity": 176.77,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9993,
+        "sharpe_est": 2.97
+      }
+    },
+    "TP3.0%_SL2.5%": {
+      "tp_pct": 0.03,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 494,
+        "sl": 293,
+        "timeout": 59
+      },
+      "tp_rate": 0.5839,
+      "mc": {
+        "median_return_pct": 1760.02,
+        "mean_return_pct": 2951.76,
+        "p5_return_pct": 237.4,
+        "p95_return_pct": 9547.91,
+        "median_max_dd_pct": 0.41,
+        "p95_max_dd_pct": 0.62,
+        "median_final_equity": 186.0,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9973,
+        "sharpe_est": 2.9
+      }
+    },
+    "TP3.0%_SL3.0%": {
+      "tp_pct": 0.03,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 521,
+        "sl": 260,
+        "timeout": 65
+      },
+      "tp_rate": 0.6158,
+      "mc": {
+        "median_return_pct": 1873.37,
+        "mean_return_pct": 3502.25,
+        "p5_return_pct": 206.78,
+        "p95_return_pct": 11846.65,
+        "median_max_dd_pct": 0.44,
+        "p95_max_dd_pct": 0.66,
+        "median_final_equity": 197.34,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9957,
+        "sharpe_est": 2.58
+      }
+    },
+    "TP3.5%_SL1.0%": {
+      "tp_pct": 0.035,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 281,
+        "sl": 493,
+        "timeout": 72
+      },
+      "tp_rate": 0.3322,
+      "mc": {
+        "median_return_pct": 919.45,
+        "mean_return_pct": 1320.47,
+        "p5_return_pct": 170.3,
+        "p95_return_pct": 3805.94,
+        "median_max_dd_pct": 0.29,
+        "p95_max_dd_pct": 0.45,
+        "median_final_equity": 101.94,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.999,
+        "sharpe_est": 3.88
+      }
+    },
+    "TP3.5%_SL1.5%": {
+      "tp_pct": 0.035,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 340,
+        "sl": 432,
+        "timeout": 74
+      },
+      "tp_rate": 0.4019,
+      "mc": {
+        "median_return_pct": 1112.55,
+        "mean_return_pct": 1736.94,
+        "p5_return_pct": 171.53,
+        "p95_return_pct": 5393.19,
+        "median_max_dd_pct": 0.36,
+        "p95_max_dd_pct": 0.56,
+        "median_final_equity": 121.26,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.998,
+        "sharpe_est": 3.19
+      }
+    },
+    "TP3.5%_SL2.0%": {
+      "tp_pct": 0.035,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 404,
+        "sl": 363,
+        "timeout": 79
+      },
+      "tp_rate": 0.4775,
+      "mc": {
+        "median_return_pct": 2104.71,
+        "mean_return_pct": 3559.58,
+        "p5_return_pct": 284.23,
+        "p95_return_pct": 11429.69,
+        "median_max_dd_pct": 0.38,
+        "p95_max_dd_pct": 0.58,
+        "median_final_equity": 220.47,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.999,
+        "sharpe_est": 2.92
+      }
+    },
+    "TP3.5%_SL2.5%": {
+      "tp_pct": 0.035,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 433,
+        "sl": 314,
+        "timeout": 99
+      },
+      "tp_rate": 0.5118,
+      "mc": {
+        "median_return_pct": 2030.49,
+        "mean_return_pct": 3771.52,
+        "p5_return_pct": 242.54,
+        "p95_return_pct": 12267.38,
+        "median_max_dd_pct": 0.43,
+        "p95_max_dd_pct": 0.65,
+        "median_final_equity": 213.05,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9977,
+        "sharpe_est": 2.36
+      }
+    },
+    "TP3.5%_SL3.0%": {
+      "tp_pct": 0.035,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 453,
+        "sl": 284,
+        "timeout": 109
+      },
+      "tp_rate": 0.5355,
+      "mc": {
+        "median_return_pct": 1802.63,
+        "mean_return_pct": 3696.45,
+        "p5_return_pct": 157.69,
+        "p95_return_pct": 13403.41,
+        "median_max_dd_pct": 0.48,
+        "p95_max_dd_pct": 0.7,
+        "median_final_equity": 190.26,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9933,
+        "sharpe_est": 2.34
+      }
+    },
+    "TP4.0%_SL1.0%": {
+      "tp_pct": 0.04,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 244,
+        "sl": 506,
+        "timeout": 96
+      },
+      "tp_rate": 0.2884,
+      "mc": {
+        "median_return_pct": 952.44,
+        "mean_return_pct": 1438.81,
+        "p5_return_pct": 156.66,
+        "p95_return_pct": 4234.97,
+        "median_max_dd_pct": 0.31,
+        "p95_max_dd_pct": 0.47,
+        "median_final_equity": 105.24,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9987,
+        "sharpe_est": 3.43
+      }
+    },
+    "TP4.0%_SL1.5%": {
+      "tp_pct": 0.04,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 300,
+        "sl": 445,
+        "timeout": 101
+      },
+      "tp_rate": 0.3546,
+      "mc": {
+        "median_return_pct": 1209.85,
+        "mean_return_pct": 2025.87,
+        "p5_return_pct": 171.86,
+        "p95_return_pct": 6583.6,
+        "median_max_dd_pct": 0.38,
+        "p95_max_dd_pct": 0.58,
+        "median_final_equity": 130.98,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.996,
+        "sharpe_est": 2.91
+      }
+    },
+    "TP4.0%_SL2.0%": {
+      "tp_pct": 0.04,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 356,
+        "sl": 382,
+        "timeout": 108
+      },
+      "tp_rate": 0.4208,
+      "mc": {
+        "median_return_pct": 2099.32,
+        "mean_return_pct": 3830.92,
+        "p5_return_pct": 270.9,
+        "p95_return_pct": 13242.11,
+        "median_max_dd_pct": 0.41,
+        "p95_max_dd_pct": 0.62,
+        "median_final_equity": 219.93,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9967,
+        "sharpe_est": 2.57
+      }
+    },
+    "TP4.0%_SL2.5%": {
+      "tp_pct": 0.04,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 386,
+        "sl": 332,
+        "timeout": 128
+      },
+      "tp_rate": 0.4563,
+      "mc": {
+        "median_return_pct": 2220.62,
+        "mean_return_pct": 4575.66,
+        "p5_return_pct": 213.54,
+        "p95_return_pct": 16671.69,
+        "median_max_dd_pct": 0.45,
+        "p95_max_dd_pct": 0.67,
+        "median_final_equity": 232.06,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.995,
+        "sharpe_est": 2.24
+      }
+    },
+    "TP4.0%_SL3.0%": {
+      "tp_pct": 0.04,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 404,
+        "sl": 302,
+        "timeout": 140
+      },
+      "tp_rate": 0.4775,
+      "mc": {
+        "median_return_pct": 1808.47,
+        "mean_return_pct": 4120.26,
+        "p5_return_pct": 140.3,
+        "p95_return_pct": 15952.27,
+        "median_max_dd_pct": 0.5,
+        "p95_max_dd_pct": 0.73,
+        "median_final_equity": 190.85,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.989,
+        "sharpe_est": 2.0
+      }
+    },
+    "TP5.0%_SL1.0%": {
+      "tp_pct": 0.05,
+      "sl_pct": 0.01,
+      "exit_mix": {
+        "tp": 204,
+        "sl": 522,
+        "timeout": 120
+      },
+      "tp_rate": 0.2411,
+      "mc": {
+        "median_return_pct": 1332.0,
+        "mean_return_pct": 2180.53,
+        "p5_return_pct": 201.66,
+        "p95_return_pct": 6903.64,
+        "median_max_dd_pct": 0.32,
+        "p95_max_dd_pct": 0.5,
+        "median_final_equity": 143.2,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.999,
+        "sharpe_est": 2.97
+      }
+    },
+    "TP5.0%_SL1.5%": {
+      "tp_pct": 0.05,
+      "sl_pct": 0.015,
+      "exit_mix": {
+        "tp": 263,
+        "sl": 456,
+        "timeout": 127
+      },
+      "tp_rate": 0.3109,
+      "mc": {
+        "median_return_pct": 2207.34,
+        "mean_return_pct": 4218.2,
+        "p5_return_pct": 266.11,
+        "p95_return_pct": 14560.64,
+        "median_max_dd_pct": 0.38,
+        "p95_max_dd_pct": 0.57,
+        "median_final_equity": 230.73,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.998,
+        "sharpe_est": 2.3
+      }
+    },
+    "TP5.0%_SL2.0%": {
+      "tp_pct": 0.05,
+      "sl_pct": 0.02,
+      "exit_mix": {
+        "tp": 316,
+        "sl": 395,
+        "timeout": 135
+      },
+      "tp_rate": 0.3735,
+      "mc": {
+        "median_return_pct": 4180.45,
+        "mean_return_pct": 9340.91,
+        "p5_return_pct": 495.28,
+        "p95_return_pct": 34143.79,
+        "median_max_dd_pct": 0.41,
+        "p95_max_dd_pct": 0.62,
+        "median_final_equity": 428.04,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.9997,
+        "sharpe_est": 2.05
+      }
+    },
+    "TP5.0%_SL2.5%": {
+      "tp_pct": 0.05,
+      "sl_pct": 0.025,
+      "exit_mix": {
+        "tp": 341,
+        "sl": 349,
+        "timeout": 156
+      },
+      "tp_rate": 0.4031,
+      "mc": {
+        "median_return_pct": 4028.96,
+        "mean_return_pct": 9966.58,
+        "p5_return_pct": 364.6,
+        "p95_return_pct": 36484.93,
+        "median_max_dd_pct": 0.47,
+        "p95_max_dd_pct": 0.69,
+        "median_final_equity": 412.9,
+        "ruin_rate": 0.0,
+        "pct_profitable_paths": 0.996,
+        "sharpe_est": 1.85
+      }
+    },
+    "TP5.0%_SL3.0%": {
+      "tp_pct": 0.05,
+      "sl_pct": 0.03,
+      "exit_mix": {
+        "tp": 353,
+        "sl": 322,
+        "timeout": 171
+      },
+      "tp_rate": 0.4173,
+      "mc": {
+        "median_return_pct": 2897.09,
+        "mean_return_pct": 7423.93,
+        "p5_return_pct": 209.36,
+        "p95_return_pct": 28477.96,
+        "median_max_dd_pct": 0.53,
+        "p95_max_dd_pct": 0.75,
+        "median_final_equity": 299.71,
+        "ruin_rate": 0.0003,
+        "pct_profitable_paths": 0.992,
+        "sharpe_est": 1.99
+      }
+    }
+  },
+  "sweep_grid": [
+    {
+      "key": "TP1.5%_SL1.0%",
+      "tp_pct": 0.015,
+      "sl_pct": 0.01,
+      "median_return": 77.6,
+      "p5_return": -27.33,
+      "p95_return": 293.01,
+      "median_dd": 0.31,
+      "ruin": 0.0,
+      "pct_profitable": 0.8463,
+      "median_equity": 17.76,
+      "sharpe": 3.62,
+      "tp_rate": 0.48699763593380613,
+      "score": 77.44
+    },
+    {
+      "key": "TP1.5%_SL1.5%",
+      "tp_pct": 0.015,
+      "sl_pct": 0.015,
+      "median_return": 78.93,
+      "p5_return": -31.7,
+      "p95_return": 368.76,
+      "median_dd": 0.38,
+      "ruin": 0.0,
+      "pct_profitable": 0.7957,
+      "median_equity": 17.89,
+      "sharpe": 2.97,
+      "tp_rate": 0.5756501182033097,
+      "score": 78.74
+    },
+    {
+      "key": "TP1.5%_SL2.0%",
+      "tp_pct": 0.015,
+      "sl_pct": 0.02,
+      "median_return": 125.27,
+      "p5_return": -27.63,
+      "p95_return": 601.21,
+      "median_dd": 0.39,
+      "ruin": 0.0003,
+      "pct_profitable": 0.8833,
+      "median_equity": 22.53,
+      "sharpe": 3.44,
+      "tp_rate": 0.6607565011820331,
+      "score": 125.04
+    },
+    {
+      "key": "TP1.5%_SL2.5%",
+      "tp_pct": 0.015,
+      "sl_pct": 0.025,
+      "median_return": 118.73,
+      "p5_return": -37.43,
+      "p95_return": 602.77,
+      "median_dd": 0.44,
+      "ruin": 0.0,
+      "pct_profitable": 0.8337,
+      "median_equity": 21.87,
+      "sharpe": 3.15,
+      "tp_rate": 0.6985815602836879,
+      "score": 118.51
+    },
+    {
+      "key": "TP1.5%_SL3.0%",
+      "tp_pct": 0.015,
+      "sl_pct": 0.03,
+      "median_return": 119.6,
+      "p5_return": -41.67,
+      "p95_return": 759.05,
+      "median_dd": 0.48,
+      "ruin": 0.0,
+      "pct_profitable": 0.8443,
+      "median_equity": 21.96,
+      "sharpe": 2.78,
+      "tp_rate": 0.7316784869976359,
+      "score": 119.36
+    },
+    {
+      "key": "TP2.0%_SL1.0%",
+      "tp_pct": 0.02,
+      "sl_pct": 0.01,
+      "median_return": 251.12,
+      "p5_return": 36.59,
+      "p95_return": 802.57,
+      "median_dd": 0.28,
+      "ruin": 0.0,
+      "pct_profitable": 0.982,
+      "median_equity": 35.11,
+      "sharpe": 4.55,
+      "tp_rate": 0.47044917257683216,
+      "score": 250.98
+    },
+    {
+      "key": "TP2.0%_SL1.5%",
+      "tp_pct": 0.02,
+      "sl_pct": 0.015,
+      "median_return": 301.4,
+      "p5_return": 31.9,
+      "p95_return": 1121.53,
+      "median_dd": 0.33,
+      "ruin": 0.0,
+      "pct_profitable": 0.974,
+      "median_equity": 40.14,
+      "sharpe": 3.82,
+      "tp_rate": 0.5614657210401891,
+      "score": 301.23
+    },
+    {
+      "key": "TP2.0%_SL2.0%",
+      "tp_pct": 0.02,
+      "sl_pct": 0.02,
+      "median_return": 462.26,
+      "p5_return": 55.5,
+      "p95_return": 1933.04,
+      "median_dd": 0.35,
+      "ruin": 0.0,
+      "pct_profitable": 0.9847,
+      "median_equity": 56.23,
+      "sharpe": 3.71,
+      "tp_rate": 0.6430260047281324,
+      "score": 462.08
+    },
+    {
+      "key": "TP2.0%_SL2.5%",
+      "tp_pct": 0.02,
+      "sl_pct": 0.025,
+      "median_return": 534.25,
+      "p5_return": 50.54,
+      "p95_return": 2331.26,
+      "median_dd": 0.39,
+      "ruin": 0.0,
+      "pct_profitable": 0.9853,
+      "median_equity": 63.43,
+      "sharpe": 3.45,
+      "tp_rate": 0.6843971631205674,
+      "score": 534.05
+    },
+    {
+      "key": "TP2.0%_SL3.0%",
+      "tp_pct": 0.02,
+      "sl_pct": 0.03,
+      "median_return": 483.98,
+      "p5_return": 22.31,
+      "p95_return": 2356.22,
+      "median_dd": 0.44,
+      "ruin": 0.0,
+      "pct_profitable": 0.967,
+      "median_equity": 58.4,
+      "sharpe": 3.14,
+      "tp_rate": 0.7115839243498818,
+      "score": 483.76
+    },
+    {
+      "key": "TP2.5%_SL1.0%",
+      "tp_pct": 0.025,
+      "sl_pct": 0.01,
+      "median_return": 626.85,
+      "p5_return": 144.09,
+      "p95_return": 2380.71,
+      "median_dd": 0.26,
+      "ruin": 0.0,
+      "pct_profitable": 0.9987,
+      "median_equity": 72.69,
+      "sharpe": 4.19,
+      "tp_rate": 0.458628841607565,
+      "score": 626.72
+    },
+    {
+      "key": "TP2.5%_SL1.5%",
+      "tp_pct": 0.025,
+      "sl_pct": 0.015,
+      "median_return": 859.97,
+      "p5_return": 132.63,
+      "p95_return": 3284.17,
+      "median_dd": 0.32,
+      "ruin": 0.0,
+      "pct_profitable": 0.999,
+      "median_equity": 96.0,
+      "sharpe": 3.83,
+      "tp_rate": 0.5460992907801419,
+      "score": 859.81
+    },
+    {
+      "key": "TP2.5%_SL2.0%",
+      "tp_pct": 0.025,
+      "sl_pct": 0.02,
+      "median_return": 1174.58,
+      "p5_return": 204.29,
+      "p95_return": 5238.81,
+      "median_dd": 0.35,
+      "ruin": 0.0,
+      "pct_profitable": 0.999,
+      "median_equity": 127.46,
+      "sharpe": 3.57,
+      "tp_rate": 0.6217494089834515,
+      "score": 1174.4
+    },
+    {
+      "key": "TP2.5%_SL2.5%",
+      "tp_pct": 0.025,
+      "sl_pct": 0.025,
+      "median_return": 1154.19,
+      "p5_return": 166.25,
+      "p95_return": 5381.81,
+      "median_dd": 0.4,
+      "ruin": 0.0,
+      "pct_profitable": 0.9953,
+      "median_equity": 125.42,
+      "sharpe": 3.15,
+      "tp_rate": 0.6548463356973995,
+      "score": 1153.99
+    },
+    {
+      "key": "TP2.5%_SL3.0%",
+      "tp_pct": 0.025,
+      "sl_pct": 0.03,
+      "median_return": 1082.76,
+      "p5_return": 108.92,
+      "p95_return": 5898.46,
+      "median_dd": 0.45,
+      "ruin": 0.0,
+      "pct_profitable": 0.9923,
+      "median_equity": 118.28,
+      "sharpe": 3.02,
+      "tp_rate": 0.6843971631205674,
+      "score": 1082.54
+    },
+    {
+      "key": "TP3.0%_SL1.0%",
+      "tp_pct": 0.03,
+      "sl_pct": 0.01,
+      "median_return": 859.3,
+      "p5_return": 176.27,
+      "p95_return": 3119.76,
+      "median_dd": 0.28,
+      "ruin": 0.0,
+      "pct_profitable": 0.9987,
+      "median_equity": 95.93,
+      "sharpe": 4.16,
+      "tp_rate": 0.3959810874704492,
+      "score": 859.16
+    },
+    {
+      "key": "TP3.0%_SL1.5%",
+      "tp_pct": 0.03,
+      "sl_pct": 0.015,
+      "median_return": 1092.12,
+      "p5_return": 180.05,
+      "p95_return": 4920.25,
+      "median_dd": 0.33,
+      "ruin": 0.0,
+      "pct_profitable": 0.9973,
+      "median_equity": 119.21,
+      "sharpe": 3.62,
+      "tp_rate": 0.4739952718676123,
+      "score": 1091.95
+    },
+    {
+      "key": "TP3.0%_SL2.0%",
+      "tp_pct": 0.03,
+      "sl_pct": 0.02,
+      "median_return": 1667.68,
+      "p5_return": 266.27,
+      "p95_return": 8621.05,
+      "median_dd": 0.36,
+      "ruin": 0.0,
+      "pct_profitable": 0.9993,
+      "median_equity": 176.77,
+      "sharpe": 2.97,
+      "tp_rate": 0.5484633569739953,
+      "score": 1667.5
+    },
+    {
+      "key": "TP3.0%_SL2.5%",
+      "tp_pct": 0.03,
+      "sl_pct": 0.025,
+      "median_return": 1760.02,
+      "p5_return": 237.4,
+      "p95_return": 9547.91,
+      "median_dd": 0.41,
+      "ruin": 0.0,
+      "pct_profitable": 0.9973,
+      "median_equity": 186.0,
+      "sharpe": 2.9,
+      "tp_rate": 0.5839243498817966,
+      "score": 1759.82
+    },
+    {
+      "key": "TP3.0%_SL3.0%",
+      "tp_pct": 0.03,
+      "sl_pct": 0.03,
+      "median_return": 1873.37,
+      "p5_return": 206.78,
+      "p95_return": 11846.65,
+      "median_dd": 0.44,
+      "ruin": 0.0,
+      "pct_profitable": 0.9957,
+      "median_equity": 197.34,
+      "sharpe": 2.58,
+      "tp_rate": 0.6158392434988179,
+      "score": 1873.15
+    },
+    {
+      "key": "TP3.5%_SL1.0%",
+      "tp_pct": 0.035,
+      "sl_pct": 0.01,
+      "median_return": 919.45,
+      "p5_return": 170.3,
+      "p95_return": 3805.94,
+      "median_dd": 0.29,
+      "ruin": 0.0,
+      "pct_profitable": 0.999,
+      "median_equity": 101.94,
+      "sharpe": 3.88,
+      "tp_rate": 0.3321513002364066,
+      "score": 919.31
+    },
+    {
+      "key": "TP3.5%_SL1.5%",
+      "tp_pct": 0.035,
+      "sl_pct": 0.015,
+      "median_return": 1112.55,
+      "p5_return": 171.53,
+      "p95_return": 5393.19,
+      "median_dd": 0.36,
+      "ruin": 0.0,
+      "pct_profitable": 0.998,
+      "median_equity": 121.26,
+      "sharpe": 3.19,
+      "tp_rate": 0.40189125295508277,
+      "score": 1112.37
+    },
+    {
+      "key": "TP3.5%_SL2.0%",
+      "tp_pct": 0.035,
+      "sl_pct": 0.02,
+      "median_return": 2104.71,
+      "p5_return": 284.23,
+      "p95_return": 11429.69,
+      "median_dd": 0.38,
+      "ruin": 0.0,
+      "pct_profitable": 0.999,
+      "median_equity": 220.47,
+      "sharpe": 2.92,
+      "tp_rate": 0.47754137115839246,
+      "score": 2104.52
+    },
+    {
+      "key": "TP3.5%_SL2.5%",
+      "tp_pct": 0.035,
+      "sl_pct": 0.025,
+      "median_return": 2030.49,
+      "p5_return": 242.54,
+      "p95_return": 12267.38,
+      "median_dd": 0.43,
+      "ruin": 0.0,
+      "pct_profitable": 0.9977,
+      "median_equity": 213.05,
+      "sharpe": 2.36,
+      "tp_rate": 0.5118203309692672,
+      "score": 2030.28
+    },
+    {
+      "key": "TP3.5%_SL3.0%",
+      "tp_pct": 0.035,
+      "sl_pct": 0.03,
+      "median_return": 1802.63,
+      "p5_return": 157.69,
+      "p95_return": 13403.41,
+      "median_dd": 0.48,
+      "ruin": 0.0,
+      "pct_profitable": 0.9933,
+      "median_equity": 190.26,
+      "sharpe": 2.34,
+      "tp_rate": 0.5354609929078015,
+      "score": 1802.39
+    },
+    {
+      "key": "TP4.0%_SL1.0%",
+      "tp_pct": 0.04,
+      "sl_pct": 0.01,
+      "median_return": 952.44,
+      "p5_return": 156.66,
+      "p95_return": 4234.97,
+      "median_dd": 0.31,
+      "ruin": 0.0,
+      "pct_profitable": 0.9987,
+      "median_equity": 105.24,
+      "sharpe": 3.43,
+      "tp_rate": 0.28841607565011823,
+      "score": 952.29
+    },
+    {
+      "key": "TP4.0%_SL1.5%",
+      "tp_pct": 0.04,
+      "sl_pct": 0.015,
+      "median_return": 1209.85,
+      "p5_return": 171.86,
+      "p95_return": 6583.6,
+      "median_dd": 0.38,
+      "ruin": 0.0,
+      "pct_profitable": 0.996,
+      "median_equity": 130.98,
+      "sharpe": 2.91,
+      "tp_rate": 0.3546099290780142,
+      "score": 1209.66
+    },
+    {
+      "key": "TP4.0%_SL2.0%",
+      "tp_pct": 0.04,
+      "sl_pct": 0.02,
+      "median_return": 2099.32,
+      "p5_return": 270.9,
+      "p95_return": 13242.11,
+      "median_dd": 0.41,
+      "ruin": 0.0,
+      "pct_profitable": 0.9967,
+      "median_equity": 219.93,
+      "sharpe": 2.57,
+      "tp_rate": 0.42080378250591016,
+      "score": 2099.12
+    },
+    {
+      "key": "TP4.0%_SL2.5%",
+      "tp_pct": 0.04,
+      "sl_pct": 0.025,
+      "median_return": 2220.62,
+      "p5_return": 213.54,
+      "p95_return": 16671.69,
+      "median_dd": 0.45,
+      "ruin": 0.0,
+      "pct_profitable": 0.995,
+      "median_equity": 232.06,
+      "sharpe": 2.24,
+      "tp_rate": 0.4562647754137116,
+      "score": 2220.39
+    },
+    {
+      "key": "TP4.0%_SL3.0%",
+      "tp_pct": 0.04,
+      "sl_pct": 0.03,
+      "median_return": 1808.47,
+      "p5_return": 140.3,
+      "p95_return": 15952.27,
+      "median_dd": 0.5,
+      "ruin": 0.0,
+      "pct_profitable": 0.989,
+      "median_equity": 190.85,
+      "sharpe": 2.0,
+      "tp_rate": 0.47754137115839246,
+      "score": 1808.22
+    },
+    {
+      "key": "TP5.0%_SL1.0%",
+      "tp_pct": 0.05,
+      "sl_pct": 0.01,
+      "median_return": 1332.0,
+      "p5_return": 201.66,
+      "p95_return": 6903.64,
+      "median_dd": 0.32,
+      "ruin": 0.0,
+      "pct_profitable": 0.999,
+      "median_equity": 143.2,
+      "sharpe": 2.97,
+      "tp_rate": 0.24113475177304963,
+      "score": 1331.84
+    },
+    {
+      "key": "TP5.0%_SL1.5%",
+      "tp_pct": 0.05,
+      "sl_pct": 0.015,
+      "median_return": 2207.34,
+      "p5_return": 266.11,
+      "p95_return": 14560.64,
+      "median_dd": 0.38,
+      "ruin": 0.0,
+      "pct_profitable": 0.998,
+      "median_equity": 230.73,
+      "sharpe": 2.3,
+      "tp_rate": 0.3108747044917258,
+      "score": 2207.15
+    },
+    {
+      "key": "TP5.0%_SL2.0%",
+      "tp_pct": 0.05,
+      "sl_pct": 0.02,
+      "median_return": 4180.45,
+      "p5_return": 495.28,
+      "p95_return": 34143.79,
+      "median_dd": 0.41,
+      "ruin": 0.0,
+      "pct_profitable": 0.9997,
+      "median_equity": 428.04,
+      "sharpe": 2.05,
+      "tp_rate": 0.3735224586288416,
+      "score": 4180.24
+    },
+    {
+      "key": "TP5.0%_SL2.5%",
+      "tp_pct": 0.05,
+      "sl_pct": 0.025,
+      "median_return": 4028.96,
+      "p5_return": 364.6,
+      "p95_return": 36484.93,
+      "median_dd": 0.47,
+      "ruin": 0.0,
+      "pct_profitable": 0.996,
+      "median_equity": 412.9,
+      "sharpe": 1.85,
+      "tp_rate": 0.4030732860520095,
+      "score": 4028.72
+    },
+    {
+      "key": "TP5.0%_SL3.0%",
+      "tp_pct": 0.05,
+      "sl_pct": 0.03,
+      "median_return": 2897.09,
+      "p5_return": 209.36,
+      "p95_return": 28477.96,
+      "median_dd": 0.53,
+      "ruin": 0.0003,
+      "pct_profitable": 0.992,
+      "median_equity": 299.71,
+      "sharpe": 1.99,
+      "tp_rate": 0.41725768321513,
+      "score": 2895.96
+    }
+  ]
+}

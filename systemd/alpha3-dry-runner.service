@@ -1,5 +1,5 @@
 [Unit]
-Description=Alpha 3% Dry Mode Runner (synthetic resolution, SIM ONLY - no capital)
+Description=Alpha 3% Runner (LIVE fapi, real capital - enabled 2026-09-07)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,6 +8,9 @@ Type=simple
 WorkingDirectory=/home/nkhekhe/alpha_system
 Environment=PYTHONUNBUFFERED=1
 Environment=BINANCE_DEMO_LIVE=true
+Environment=TRADING_MODE=live
+Environment=BINANCE_USE_LIVE=true
+Environment=BINANCE_USE_TESTNET=false
 ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha3_dry_runner.py --stake 0.20 --leverage 20
 Restart=always
 RestartSec=30

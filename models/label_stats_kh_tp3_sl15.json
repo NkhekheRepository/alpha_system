@@ -1,0 +1,931 @@
+{
+  "config": {
+    "K_GRID": [
+      20,
+      30,
+      40,
+      60
+    ],
+    "H_GRID": [
+      50,
+      75,
+      100
+    ],
+    "TP_PCT": 0.03,
+    "SL_PCT": -0.015
+  },
+  "results": [
+    {
+      "K": 20,
+      "H": 50,
+      "n_total": 2342188,
+      "n_labeled": 741675,
+      "n_tp": 179940,
+      "n_sl": 561735,
+      "n_timeout": 1600513,
+      "wr": 24.26,
+      "timeout_pct": 68.33,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259180,
+          "tp": 23268,
+          "sl": 78634,
+          "timeout": 157278
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259180,
+          "tp": 14707,
+          "sl": 48519,
+          "timeout": 195954
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268748,
+          "tp": 26920,
+          "sl": 77933,
+          "timeout": 163895
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259180,
+          "tp": 16859,
+          "sl": 54501,
+          "timeout": 187820
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259180,
+          "tp": 17825,
+          "sl": 59361,
+          "timeout": 181994
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259180,
+          "tp": 25722,
+          "sl": 78760,
+          "timeout": 154698
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259180,
+          "tp": 4459,
+          "sl": 19262,
+          "timeout": 235459
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259180,
+          "tp": 22774,
+          "sl": 62245,
+          "timeout": 174161
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259180,
+          "tp": 27406,
+          "sl": 82520,
+          "timeout": 149254
+        }
+      ]
+    },
+    {
+      "K": 20,
+      "H": 75,
+      "n_total": 2342188,
+      "n_labeled": 960947,
+      "n_tp": 243481,
+      "n_sl": 717466,
+      "n_timeout": 1381241,
+      "wr": 25.34,
+      "timeout_pct": 58.97,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259180,
+          "tp": 32833,
+          "sl": 98376,
+          "timeout": 127971
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259180,
+          "tp": 20210,
+          "sl": 64988,
+          "timeout": 173982
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268748,
+          "tp": 35349,
+          "sl": 96664,
+          "timeout": 136735
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259180,
+          "tp": 22422,
+          "sl": 70691,
+          "timeout": 166067
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259180,
+          "tp": 23884,
+          "sl": 76889,
+          "timeout": 158407
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259180,
+          "tp": 34528,
+          "sl": 98978,
+          "timeout": 125674
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259180,
+          "tp": 7267,
+          "sl": 30458,
+          "timeout": 221455
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259180,
+          "tp": 29277,
+          "sl": 77987,
+          "timeout": 151916
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259180,
+          "tp": 37711,
+          "sl": 102435,
+          "timeout": 119034
+        }
+      ]
+    },
+    {
+      "K": 20,
+      "H": 100,
+      "n_total": 2342188,
+      "n_labeled": 1133096,
+      "n_tp": 297904,
+      "n_sl": 835192,
+      "n_timeout": 1209092,
+      "wr": 26.29,
+      "timeout_pct": 51.62,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259180,
+          "tp": 40423,
+          "sl": 112040,
+          "timeout": 106717
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259180,
+          "tp": 25050,
+          "sl": 78501,
+          "timeout": 155629
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268748,
+          "tp": 42561,
+          "sl": 110282,
+          "timeout": 115905
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259180,
+          "tp": 27315,
+          "sl": 83838,
+          "timeout": 148027
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259180,
+          "tp": 29928,
+          "sl": 90585,
+          "timeout": 138667
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259180,
+          "tp": 41765,
+          "sl": 113155,
+          "timeout": 104260
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259180,
+          "tp": 10261,
+          "sl": 40326,
+          "timeout": 208593
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259180,
+          "tp": 35080,
+          "sl": 89854,
+          "timeout": 134246
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259180,
+          "tp": 45521,
+          "sl": 116611,
+          "timeout": 97048
+        }
+      ]
+    },
+    {
+      "K": 30,
+      "H": 50,
+      "n_total": 2342098,
+      "n_labeled": 740712,
+      "n_tp": 180928,
+      "n_sl": 559784,
+      "n_timeout": 1601386,
+      "wr": 24.43,
+      "timeout_pct": 68.37,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259170,
+          "tp": 23427,
+          "sl": 78380,
+          "timeout": 157363
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259170,
+          "tp": 14810,
+          "sl": 48168,
+          "timeout": 196192
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268738,
+          "tp": 27001,
+          "sl": 77888,
+          "timeout": 163849
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259170,
+          "tp": 16833,
+          "sl": 54191,
+          "timeout": 188146
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259170,
+          "tp": 17654,
+          "sl": 59431,
+          "timeout": 182085
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259170,
+          "tp": 26000,
+          "sl": 78892,
+          "timeout": 154278
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259170,
+          "tp": 4494,
+          "sl": 18941,
+          "timeout": 235735
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259170,
+          "tp": 22789,
+          "sl": 61941,
+          "timeout": 174440
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259170,
+          "tp": 27920,
+          "sl": 81952,
+          "timeout": 149298
+        }
+      ]
+    },
+    {
+      "K": 30,
+      "H": 75,
+      "n_total": 2342098,
+      "n_labeled": 960354,
+      "n_tp": 245433,
+      "n_sl": 714921,
+      "n_timeout": 1381744,
+      "wr": 25.56,
+      "timeout_pct": 59.0,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259170,
+          "tp": 33165,
+          "sl": 98188,
+          "timeout": 127817
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259170,
+          "tp": 20261,
+          "sl": 64589,
+          "timeout": 174320
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268738,
+          "tp": 35537,
+          "sl": 96459,
+          "timeout": 136742
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259170,
+          "tp": 22532,
+          "sl": 70281,
+          "timeout": 166357
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259170,
+          "tp": 23760,
+          "sl": 76896,
+          "timeout": 158514
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259170,
+          "tp": 34957,
+          "sl": 98831,
+          "timeout": 125382
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259170,
+          "tp": 7443,
+          "sl": 29984,
+          "timeout": 221743
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259170,
+          "tp": 29466,
+          "sl": 77655,
+          "timeout": 152049
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259170,
+          "tp": 38312,
+          "sl": 102038,
+          "timeout": 118820
+        }
+      ]
+    },
+    {
+      "K": 30,
+      "H": 100,
+      "n_total": 2342098,
+      "n_labeled": 1132812,
+      "n_tp": 300153,
+      "n_sl": 832659,
+      "n_timeout": 1209286,
+      "wr": 26.5,
+      "timeout_pct": 51.63,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259170,
+          "tp": 40806,
+          "sl": 111928,
+          "timeout": 106436
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259170,
+          "tp": 25172,
+          "sl": 78008,
+          "timeout": 155990
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268738,
+          "tp": 42807,
+          "sl": 109884,
+          "timeout": 116047
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259170,
+          "tp": 27518,
+          "sl": 83422,
+          "timeout": 148230
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259170,
+          "tp": 29813,
+          "sl": 90690,
+          "timeout": 138667
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259170,
+          "tp": 42191,
+          "sl": 113143,
+          "timeout": 103836
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259170,
+          "tp": 10562,
+          "sl": 39860,
+          "timeout": 208748
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259170,
+          "tp": 35172,
+          "sl": 89595,
+          "timeout": 134403
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259170,
+          "tp": 46112,
+          "sl": 116129,
+          "timeout": 96929
+        }
+      ]
+    },
+    {
+      "K": 40,
+      "H": 50,
+      "n_total": 2342008,
+      "n_labeled": 740386,
+      "n_tp": 181316,
+      "n_sl": 559070,
+      "n_timeout": 1601622,
+      "wr": 24.49,
+      "timeout_pct": 68.39,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259160,
+          "tp": 23467,
+          "sl": 78054,
+          "timeout": 157639
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259160,
+          "tp": 14779,
+          "sl": 48250,
+          "timeout": 196131
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268728,
+          "tp": 26902,
+          "sl": 77949,
+          "timeout": 163877
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259160,
+          "tp": 16970,
+          "sl": 54012,
+          "timeout": 188178
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259160,
+          "tp": 17617,
+          "sl": 59331,
+          "timeout": 182212
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259160,
+          "tp": 26246,
+          "sl": 78779,
+          "timeout": 154135
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259160,
+          "tp": 4473,
+          "sl": 18925,
+          "timeout": 235762
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259160,
+          "tp": 22762,
+          "sl": 62118,
+          "timeout": 174280
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259160,
+          "tp": 28100,
+          "sl": 81652,
+          "timeout": 149408
+        }
+      ]
+    },
+    {
+      "K": 40,
+      "H": 75,
+      "n_total": 2342008,
+      "n_labeled": 960229,
+      "n_tp": 246244,
+      "n_sl": 713985,
+      "n_timeout": 1381779,
+      "wr": 25.64,
+      "timeout_pct": 59.0,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259160,
+          "tp": 33213,
+          "sl": 98031,
+          "timeout": 127916
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259160,
+          "tp": 20225,
+          "sl": 64699,
+          "timeout": 174236
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268728,
+          "tp": 35528,
+          "sl": 96383,
+          "timeout": 136817
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259160,
+          "tp": 22714,
+          "sl": 69953,
+          "timeout": 166493
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259160,
+          "tp": 23820,
+          "sl": 76783,
+          "timeout": 158557
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259160,
+          "tp": 35297,
+          "sl": 98998,
+          "timeout": 124865
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259160,
+          "tp": 7480,
+          "sl": 29685,
+          "timeout": 221995
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259160,
+          "tp": 29473,
+          "sl": 77803,
+          "timeout": 151884
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259160,
+          "tp": 38494,
+          "sl": 101650,
+          "timeout": 119016
+        }
+      ]
+    },
+    {
+      "K": 40,
+      "H": 100,
+      "n_total": 2342008,
+      "n_labeled": 1132665,
+      "n_tp": 300670,
+      "n_sl": 831995,
+      "n_timeout": 1209343,
+      "wr": 26.55,
+      "timeout_pct": 51.64,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259160,
+          "tp": 40921,
+          "sl": 111817,
+          "timeout": 106422
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259160,
+          "tp": 25142,
+          "sl": 77962,
+          "timeout": 156056
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268728,
+          "tp": 42784,
+          "sl": 109840,
+          "timeout": 116104
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259160,
+          "tp": 27664,
+          "sl": 82981,
+          "timeout": 148515
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259160,
+          "tp": 29795,
+          "sl": 90763,
+          "timeout": 138602
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259160,
+          "tp": 42434,
+          "sl": 113353,
+          "timeout": 103373
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259160,
+          "tp": 10656,
+          "sl": 39557,
+          "timeout": 208947
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259160,
+          "tp": 35056,
+          "sl": 89895,
+          "timeout": 134209
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259160,
+          "tp": 46218,
+          "sl": 115827,
+          "timeout": 97115
+        }
+      ]
+    },
+    {
+      "K": 60,
+      "H": 50,
+      "n_total": 2341828,
+      "n_labeled": 738624,
+      "n_tp": 181502,
+      "n_sl": 557122,
+      "n_timeout": 1603204,
+      "wr": 24.57,
+      "timeout_pct": 68.46,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259140,
+          "tp": 23488,
+          "sl": 77963,
+          "timeout": 157689
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259140,
+          "tp": 14563,
+          "sl": 48435,
+          "timeout": 196142
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268708,
+          "tp": 27134,
+          "sl": 77214,
+          "timeout": 164360
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259140,
+          "tp": 17035,
+          "sl": 53375,
+          "timeout": 188730
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259140,
+          "tp": 17386,
+          "sl": 59139,
+          "timeout": 182615
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259140,
+          "tp": 26457,
+          "sl": 78502,
+          "timeout": 154181
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259140,
+          "tp": 4488,
+          "sl": 18624,
+          "timeout": 236028
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259140,
+          "tp": 22834,
+          "sl": 61935,
+          "timeout": 174371
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259140,
+          "tp": 28117,
+          "sl": 81935,
+          "timeout": 149088
+        }
+      ]
+    },
+    {
+      "K": 60,
+      "H": 75,
+      "n_total": 2341828,
+      "n_labeled": 958765,
+      "n_tp": 247196,
+      "n_sl": 711569,
+      "n_timeout": 1383063,
+      "wr": 25.78,
+      "timeout_pct": 59.06,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259140,
+          "tp": 33175,
+          "sl": 97991,
+          "timeout": 127974
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259140,
+          "tp": 20017,
+          "sl": 64895,
+          "timeout": 174228
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268708,
+          "tp": 36238,
+          "sl": 95523,
+          "timeout": 136947
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259140,
+          "tp": 22850,
+          "sl": 69143,
+          "timeout": 167147
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259140,
+          "tp": 23839,
+          "sl": 76517,
+          "timeout": 158784
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259140,
+          "tp": 35598,
+          "sl": 98916,
+          "timeout": 124626
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259140,
+          "tp": 7594,
+          "sl": 29368,
+          "timeout": 222178
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259140,
+          "tp": 29575,
+          "sl": 77554,
+          "timeout": 152011
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259140,
+          "tp": 38310,
+          "sl": 101662,
+          "timeout": 119168
+        }
+      ]
+    },
+    {
+      "K": 60,
+      "H": 100,
+      "n_total": 2341828,
+      "n_labeled": 1132362,
+      "n_tp": 302221,
+      "n_sl": 830141,
+      "n_timeout": 1209466,
+      "wr": 26.69,
+      "timeout_pct": 51.65,
+      "per_symbol": [
+        {
+          "symbol": "TRIAUSDT",
+          "n": 259140,
+          "tp": 40889,
+          "sl": 111831,
+          "timeout": 106420
+        },
+        {
+          "symbol": "QUSDT",
+          "n": 259140,
+          "tp": 25089,
+          "sl": 77850,
+          "timeout": 156201
+        },
+        {
+          "symbol": "MAGMAUSDT",
+          "n": 268708,
+          "tp": 43562,
+          "sl": 108865,
+          "timeout": 116281
+        },
+        {
+          "symbol": "TRADOORUSDT",
+          "n": 259140,
+          "tp": 27851,
+          "sl": 82509,
+          "timeout": 148780
+        },
+        {
+          "symbol": "APRUSDT",
+          "n": 259140,
+          "tp": 29921,
+          "sl": 90814,
+          "timeout": 138405
+        },
+        {
+          "symbol": "UAIUSDT",
+          "n": 259140,
+          "tp": 42724,
+          "sl": 113626,
+          "timeout": 102790
+        },
+        {
+          "symbol": "DOODUSDT",
+          "n": 259140,
+          "tp": 10796,
+          "sl": 39288,
+          "timeout": 209056
+        },
+        {
+          "symbol": "BULLAUSDT",
+          "n": 259140,
+          "tp": 35120,
+          "sl": 89619,
+          "timeout": 134401
+        },
+        {
+          "symbol": "JCTUSDT",
+          "n": 259140,
+          "tp": 46269,
+          "sl": 115739,
+          "timeout": 97132
+        }
+      ]
+    }
+  ]
+}

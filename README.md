@@ -6,9 +6,9 @@ A governed, AFML-conformant quantitative trading codebase. Three strategies:
 |----------|--------|--------|--------|
 | **Alpha 1%** (`dry_runner.py`) | Unconditional long churn | Mainnet **paper** | Running |
 | **Alpha 2%** (`bidir_runner.py`) | Momentum K=10 bidirectional | Mainnet **paper** | Running |
-| **Alpha 3%** (`alpha3_dry_runner.py`) | Momentum K=10 + **meta-labeler** filter | Demo-fapi **live hedge** (synthetic-resolution SIM) | Running |
+| **Alpha 3%** (`alpha3_dry_runner.py`) | Momentum K=60 + **meta-labeler** filter | **Live USDT-M futures** (`fapi.binance.com`) on real capital | Running (LIVE) |
 
-> **GOVERNANCE VERDICT:** Every real-market backtest is **NO-GO** (0/108 walk-forward, Kelly f*=0, 1m 0/18). The meta-labeler is validated **only on Alpha 3's synthetic-resolution distribution (iid p=0.85)** — it demonstrates the *machinery*, not live edge. Alpha 3 is **SIMULATION ONLY — never deploy to real capital.**
+> **GOVERNANCE VERDICT:** Every real-market backtest is **NO-GO** (0/108 walk-forward, Kelly f*=0, 1m 0/18), and the meta-labeler is validated **only on Alpha 3's synthetic-resolution distribution (iid p=0.85)** — it demonstrates the *machinery*, not live edge. **Alpha 3 was nonetheless deployed to real capital on 2026-09-07 by explicit user directive** ($10, K60 H100 TP3%/SL1.5%, threshold 0.57) — see [`docs/adr/0004-live-K60H100-T0.57-10usd.md`](docs/adr/0004-live-K60H100-T0.57-10usd.md). Deployment proceeded with full knowledge of the NO-GO research verdict and is a live observation, not a validated strategy. Rollback (kill switch / testnet revert) documented in that ADR.
 
 ---
 
@@ -62,25 +62,25 @@ Full detail in **[DEPLOY.md](DEPLOY.md)**.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ LAYER 1: DATA                                                          │
-│  Binance ticker/price (60s polls) + 1m klines                        │
-│  Demo-fapi (https://demo.binance.com) for live hedge orders          │
+│  Binance ticker/price (10s polls) + 1m klines                        │
+│  Live fapi (https://fapi.binance.com) for real orders (since ADR-0004)│
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 2: PRIMARY SIGNAL                                               │
-│  momentum_direction(K=10): sign of 10-bar return                     │
+│  momentum_direction(K=60): sign of 60-bar return                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 3: META-LABELER (Alpha 3 secondary filter)                      │
-│  RF classifier → P(win). Enter only if P ≥ 0.50.                      │
+│  RF classifier → P(win). Enter only if P ≥ 0.57.                      │
 │  Features: 36 at signal bar (momentum, vol, RSI, rollback, etc.)     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 4: TRIPLE-BARRIER EXIT                                          │
-│  TP/SL ±2% of entry | Vertical timeout at H=75                       │
-│  Demo entry = MARKET order (mirrors paper fill)                      │
-│  Demo exit  = MARKET order (TP/SL via bracket algo orders)           │
+│  TP/SL 3%/1.5% of entry | Vertical timeout at H=100                   │
+│  Live entry = MARKET order (real capital, 20% margin × 20x)          │
+│  Live exit  = MARKET (TP/SL/TIMEOUT via runner-side barrier eval)     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 5: RISK                                                         │
-│  Stake 7.5% margin × 50x = $375/trade (compounding on $100)         │
+│  Stake 20% margin × 20x = $40/trade (compounding on $10)             │
 │  Circuit breaker: 3 consecutive losses → 50-bar cooldown            │
-│  Per-cycle meta-filter (not just entry): re-evaluates open logic     │
+│  Per-cycle meta-filter re-evaluates entry                             │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 6: OBSERVABILITY                                                │
 │  equity + effective_equity (capital + unrealized) log               │
@@ -94,30 +94,32 @@ Full detail in **[DEPLOY.md](DEPLOY.md)**.
 
 López de Prado AFML secondary classifier. Primary signal = momentum direction;
 meta-labeler predicts whether that signal will be a winner, and we only trade
-when P(win) ≥ threshold (default 0.50).
+when P(win) ≥ threshold (0.57 since 2026-09-07; 0.60 frequency-starved).
 
 **Pipeline** (`scripts/`):
 
 | Step | Script | Output |
 |------|--------|--------|
-| 1. Fetch history | `fetch_historical_klines.py` | `models/kline_data/*.csv` (1.56M bars, 6 assets × 259k 1m) |
-| 2. Label | `generate_labels.py` | `models/labeled_signals.csv` (97,411 signals, 53.3% raw WR) |
+| 1. Fetch history | `fetch_historical_klines.py` | `models/kline_data/*.csv` (1.56M bars, 10 assets × 259k 1m) |
+| 2. Label | `generate_labels.py` | `models/labeled_signals.csv` (1,210,300 signals, 26.4% TP rate) |
 | 3. Features | `engineer_features.py` | `models/labeled_features.csv` (36 features/signal) |
 | 4. Train | `train_meta_labeler.py` | `models/meta_labeler.joblib` (purged K-fold CV) |
 | 5. Validate | `validate_oos.py` | `models/oos_validation_results.json` (walk-forward) |
 | 6. Runtime feats | `meta_features.py` | shared feature computation used by runner |
 
 **Config** (`scripts/meta_labeler_config.py`) — matches runner exactly:
-`K=10, H=75, TP_PCT=0.02, SL_PCT=-0.02, FEE_RATE=0.0002, PURGE=75, EMBARGO=75, RF 50 trees/max_depth 6`.
+`K=60, H=100, TP_PCT=0.03, SL_PCT=-0.015, FEE_RATE=0.0005, PURGE=100, EMBARGO=100, RF 50 trees/max_depth 6`, universe 10 assets (+ZECUSDT), live threshold `0.57`.
 
-**Results:**
-- Out-of-fold AUC **0.625**, Precision **63.3%** (vs 53.3% base rate)
-- Walk-forward OOS: **Filtered WR 61.8% vs Raw 52.9% = +8.9pp**
-- Selects ~44% of primary signals (filters out low-P ones)
+**Results (2026-09-07 retrain, 1,195,647 rows):**
+- Out-of-fold AUC **0.575** (up from 0.541)
+- In-sample precision at live threshold `0.57`: **0.362** (sel 10.6%); breakeven at 2:1 RR + 0.05% fee = **34.4%**
+- OOF precision ~0.32 (≈4pp below in-sample) — **below breakeven**; live frequency-starved at higher thresholds (0/9189 preds ≥ 0.60), hence threshold set to 0.57 for fills
 
-> ⚠️ **Scope caveat:** these numbers are measured on Alpha 3's *synthetic-resolution*
-> distribution (iid p=0.85 wins), not real markets. The meta-labeler is a correct,
-> working instrument; its *edge* on live data is **unproven** (n=12 live trades, all TIMEOUT).
+> ⚠️ **Scope caveat:** the 0.575 AUC / 0.362 precision are in-sample retrain metrics on
+> the synthetic-resolution bar/signal distribution (iid p=0.85 wins), not real markets.
+> OOF precision is ~0.32 (below the 34.4% breakeven), and the K/H OOF grid
+> (`scripts/search_kh_tp3_sl15.py`) was incomplete at deployment. Live is a
+> **user-directed exception**, not a validated edge.
 
 ---
 
@@ -130,7 +132,9 @@ when P(win) ≥ threshold (default 0.50).
 | Kelly (real) | **f* = 0** (bet nothing) | `kelly_test.py` |
 | 1m live-granularity validation | **0/18 → NO-GO** | `backtest_live_1m.py` |
 | Meta-labeler OOS (synthetic) | Filtered 61.8% vs Raw 52.9% (+8.9pp) | `validate_oos.py` |
+| Stress: clean sweep | 208 backtests, 16k+ grid rows — winners were selection artifacts | `scan/` |
 | Live Alpha 3 (demo hedge) | 12 trades, 83.3% WR (machinery PASS, edge UNKNOWN) | `alpha3_dry_runner.py` |
+| **Live Alpha 3 (real capital)** | **Deployed 2026-09-07 per ADR-0004** — $10, K60 H100 TP3/SL1.5%, T0.57, live fapi | `docs/adr/0004-live-K60H100-T0.57-10usd.md` |
 
 ---
 
@@ -141,7 +145,7 @@ alpha_system/
 ├── alpha3_dry_runner.py      # Alpha 3 live runner (meta-labeler integrated)
 ├── dry_runner.py             # Alpha 1% mainnet paper
 ├── bidir_runner.py           # Alpha 2% mainnet paper
-├── demo_trader.py            # Demo-fapi hedge order client (market + bracket)
+├── demo_trader.py            # Live fapi order client (market + reduce-only close)
 ├── notify.py                 # Telegram alerts + equity chart
 ├── analytics.py              # Risk/sharpe/drawdown dashboard
 ├── binance_config.py         # API config + ALPHA3_ASSETS single source of truth
@@ -200,6 +204,7 @@ python3 scripts/validate_oos.py
 
 ## License & Disclaimer
 
-Internal research. **All alpha strategies are NO-GO on real data. Alpha 3 is
-simulation-only — never deploy to real capital.** Paper/live-hedge runners cost
-$0 of real money by design.
+Internal research. **All alpha strategies are NO-GO on real backtest data.** Alpha 3
+was nevertheless deployed to real capital on 2026-09-07 ($10, live fapi) by explicit
+user directive under ADR-0004 — this is a live observation with OOF precision below
+breakeven, not a validated edge. Paper/live-hedge runners cost $0 of real money by design.
