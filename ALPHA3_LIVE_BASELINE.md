@@ -49,6 +49,12 @@ everything below. Tag: `alpha3-live-baseline-2026-09-12`.
 8. tg-bot `state_prices()` fast path (last close from in-state price_history,
    avoids ~1.3s testnet round-trip on /status critical path)
 9. `conftest.py` TESTNET_LIVE=False global mock (tests never touch exchange)
+10. Testnet recvWindow timestamp fix (ff79f50): testnet `place_market_order`
+    used raw `time.time()` (local clock) instead of server-synced timestamp;
+    `sync_binance_time()` only synced against `demo-fapi.binance.com` (different
+    server/clock from `testnet.binancefuture.com`); `_signed_get` in runner used
+    raw `time.time()` + `recvWindow=10000`. Fix: separate `server_timestamp_testnet()`
+    with its own offset, periodic re-sync every 30 min, `recvWindow` 10s → 50s.
 
 ## Restore path (fresh machine)
 1. Clone repo, checkout tag `alpha3-live-baseline-2026-09-12`

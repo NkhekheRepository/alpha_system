@@ -65,3 +65,27 @@ operational set.
     `n_jobs=1`, stop runner before training (3GB RSS at peak). The 854k-sample
     48-asset dataset takes ~40min for 5-fold purged CV + final fit. First
     OOM-kill was from running features + runner simultaneously.
+
+## Testnet recvWindow Timestamp Fix (2026-09-13)
+
+19. **Testnet and demo-fapi are different servers with different clocks.**
+    `sync_binance_time()` synced against `demo-fapi.binance.com`, but testnet
+    orders go to `testnet.binancefuture.com`. The cached offset from one server
+    does NOT apply to the other — causing intermittent `recvWindow` timestamp
+    errors on testnet leverage set and live close. Fix: separate
+    `sync_testnet_time()` + `server_timestamp_testnet()` with its own offset.
+20. **Server time sync must be periodic, not one-shot.** The original
+    `sync_binance_time()` synced once at startup and cached forever. Over hours
+    of runtime, even small clock drift accumulates past the recvWindow. Fix:
+    re-sync every 30 minutes inside `server_timestamp()`.
+21. **`_signed_get` in the runner was a hidden timestamp bug.** The reconcile
+    and orphan sweep use `_signed_get('/fapi/v2/positionRisk')` which had its
+    own raw `time.time()` + `recvWindow=10000` — completely independent of the
+    centralized `sign_query` path. If this fails, the sweep can't even detect
+    orphans. Fix: `_signed_get` now uses `server_timestamp_testnet()` + 50s
+    recvWindow, same as the order path.
+22. **Orphan positions survive a failed close.** Paper position was closed
+    locally (SL booked), but both demo and testnet exchange legs were stranded.
+    The periodic orphan sweep (`cycle % 60`) retries every ~10 minutes — but
+    only if `_signed_get` works. The VTHOUSDT orphan (SHORT 67689) was closed
+    on the next restart after the timestamp fix was deployed.

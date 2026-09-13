@@ -107,3 +107,17 @@ cause → fix. Assumes the deployment in `DEPLOY.md` is in place.
 - **Fix:** non-blocking — runner skips the symbol and continues with the rest
   of the 48-asset universe. Symbol will eventually populate when testnet data
   improves. No action required.
+
+## 13. Testnet recvWindow timestamp error (live close/leverage fail)
+- **Symptom:** `400: Timestamp for this request is outside of the recvWindow`
+  on testnet leverage set or live close; both demo and testnet legs fail on
+  position exit; orphan positions stranded on exchange.
+- **Cause (fixed ff79f50):** testnet `place_market_order` used raw `time.time()`
+  (local clock) instead of server-synced timestamp; `sync_binance_time()` only
+  synced against `demo-fapi.binance.com` (different server/clock from
+  `testnet.binancefuture.com`); `_signed_get` used raw `time.time()` + tight
+  `recvWindow=10000`.
+- **Fix:** `server_timestamp_testnet()` with separate offset for testnet server,
+  re-syncs every 30 min; `recvWindow` increased to 50s; all testnet paths
+  (`place_market_order`, `set_testnet_leverage_all`, `_signed_get`) use
+  testnet-synced timestamp. Restart runner to apply.
