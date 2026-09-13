@@ -5,7 +5,7 @@ Dedicated bot: @LetapataBot (Nkhekhe Alpha Quant).
 Reads alpha_3 simulation state. Commands: /status /pnl /live /stop /help
 """
 
-import os, sys, json, logging, csv, requests
+import os, sys, json, logging, csv, requests, asyncio
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
@@ -83,10 +83,23 @@ except Exception:
     ALPHA3_ASSETS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
     ALPHA3_GROUP = 'unknown'
 
+def state_prices(state):
+    # Fast path (2026-09-12, latency): last close per symbol from the
+    # in-state price_history (<=1 runner cycle stale, display-only).
+    # Avoids a ~1.3s testnet round-trip on the /status critical path.
+    out = {}
+    for sym, bars in (state.get('price_history') or {}).items():
+        try:
+            if bars:
+                out[sym] = float(bars[-1]['close'])
+        except Exception:
+            pass
+    return out
+
 def get_prices():
     # bulk fetch -> 1 request vs 7 sequential (2s vs 14s) for <10s sync
     try:
-        r = requests.get(f"{API}/ticker/price", timeout=5)
+        r = requests.get(f"{API}/ticker/price", timeout=3)
         data = r.json()
         # data is list of {symbol, price} when no symbol param
         if isinstance(data, list):
@@ -98,7 +111,7 @@ def get_prices():
     prices = {}
     for sym in ALPHA3_ASSETS:
         try:
-            r = requests.get(f"{API}/ticker/price", params={'symbol': sym}, timeout=5)
+            r = requests.get(f"{API}/ticker/price", params={'symbol': sym}, timeout=3)
             prices[sym] = float(r.json()['price'])
         except Exception:
             pass
@@ -164,7 +177,7 @@ def fetch_testnet_orders():
                 return None, "Testnet keys not configured"
         signed = sign_query({'timestamp': 0}, secret=sec)
         h = {'X-MBX-APIKEY': key}
-        r = requests.get(f'{base}{path}', params=signed, headers=h, timeout=10)
+        r = requests.get(f'{base}{path}', params=signed, headers=h, timeout=5)
         if r.status_code == 200:
             data = r.json()
             if is_futures:
@@ -268,7 +281,9 @@ def build_status_text(state, live=False):
     wins = state['total_wins']
     losses = state['total_losses']
     wr = wins / total * 100 if total > 0 else 0
-    prices = get_prices()
+    prices = state_prices(state)
+    if not prices:
+        prices = get_prices()  # fallback: no history yet (fresh boot)
     unrealized_total, unrealized_details = calc_unrealized(state, prices)
     effective = equity + unrealized_total
     dd = (state['peak_equity'] - effective) / state['peak_equity'] * 100 if state['peak_equity'] > 0 else 0
@@ -280,36 +295,11 @@ def build_status_text(state, live=False):
     total_pnl_pct = total_pnl / base * 100
 
     positions = state.get('open_positions', {})
-    # fetch live testnet/demo positions for identical display
-    live_orders, live_err = None, None
-    live_by_sym = {}
-    try:
-        from binance_config import BINANCE_API_BASE, USE_TESTNET
-        live_orders, live_err = fetch_testnet_orders()
-        if live_orders is not None:
-            for o in live_orders:
-                if 'positionAmt' in o:
-                    amt = float(o.get('positionAmt', 0))
-                    if abs(amt) > 0:
-                        live_by_sym[o['symbol']] = o
-    except Exception:
-        pass
+    # NOTE (2026-09-12, latency): /status no longer calls testnet here
+    # (was +1-3s sequential signed request). Exchange sync lives in /positions.
+    live_orders, live_err, live_by_sym = None, None, {}
     # check if paper and live are identical (same symbols + directions)
-    identical = False
-    if live_orders is not None and live_by_sym is not None:
-        paper_syms = set(positions.keys())
-        live_syms = set(live_by_sym.keys())
-        if paper_syms == live_syms and len(paper_syms) == len(live_syms):
-            # also check directions match
-            match = True
-            for sym in paper_syms:
-                p_dir = positions[sym].get('direction', 'long')
-                l_amt = float(live_by_sym[sym].get('positionAmt', 0))
-                l_dir = 'long' if l_amt > 0 else 'short'
-                if p_dir != l_dir:
-                    match = False
-                    break
-            identical = match
+    identical = False  # testnet check moved to /positions (latency)
     pos_lines = ""
     if identical:
         pos_lines = "  ✅ Telegram and Testnet identical — paper is source, live follows paper\n"
@@ -361,25 +351,14 @@ def build_status_text(state, live=False):
             for sym, live in live_by_sym.items():
                 pos_lines += f"    {sym} {live.get('positionAmt')} @ {live.get('entryPrice')}\n"
 
-    # Testnet sync status
+    # Testnet sync status (static pointer; live exchange check lives in /positions
+    # since 2026-09-12 latency pass — was +1-3s sequential on the /status path)
     try:
         from binance_config import BINANCE_API_BASE, USE_TESTNET
         net_label = f"TESTNET ({BINANCE_API_BASE})" if USE_TESTNET else f"MAINNET ({BINANCE_API_BASE})"
-        if live_orders is not None:
-            is_pos = any('positionAmt' in o for o in live_orders) if live_orders else False
-            label = "positions" if is_pos else "orders"
-            if identical:
-                testnet_line = f"✅ Synced to {net_label} | Testnet {label}: {len(live_orders)} open — Telegram is source, testnet follows"
-            else:
-                testnet_line = f"⚠️ Sync check: Paper {len(positions)} vs Testnet {len(live_by_sym)} — next cycle will make testnet follow paper"
-                if live_err:
-                    testnet_line += f" | {live_err}"
-        elif live_err is not None and "not configured" in live_err:
-            testnet_line = f"🔗 Price feed: {net_label} (paper positions above)"
-        else:
-            testnet_line = f"🔗 {net_label} | Testnet auth: {live_err} — paper positions above"
     except Exception:
-        testnet_line = "🔗 Paper trading (dry mode)"
+        net_label = "paper trading (dry mode)"
+    testnet_line = f"🔗 {net_label} | exchange sync: /positions"
     header = "🟢 LIVE — auto-updating every 10s" if live else "DRY MODE"
     return (
         f"🎲 <b>ALPHA 3% — DRY MODE (TRIPLE-BARRIER)</b>\n"
@@ -412,17 +391,20 @@ def build_status_text(state, live=False):
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
-    state = load_state()
-    await update.message.reply_text(build_status_text(state), parse_mode='HTML')
+    # to_thread (2026-09-12, latency): sync file+CPU work must not block the
+    # bot event loop while another command does slow network I/O.
+    state = await asyncio.to_thread(load_state)
+    text = await asyncio.to_thread(build_status_text, state)
+    await update.message.reply_text(text, parse_mode='HTML')
 
 async def cmd_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not check_chat(update):
         return
-    state = load_state()
-    prices = get_prices()
+    state = await asyncio.to_thread(load_state)
+    prices = await asyncio.to_thread(get_prices)
     positions = state.get('open_positions', {})
     # Fetch real testnet orders for sync display
-    t_orders, t_err = fetch_testnet_orders()
+    t_orders, t_err = await asyncio.to_thread(fetch_testnet_orders)
     from binance_config import BINANCE_API_BASE, USE_TESTNET
     net_tag = f"TESTNET ({BINANCE_API_BASE})" if USE_TESTNET else f"MAINNET ({BINANCE_API_BASE})"
     testnet_section = ""
@@ -798,7 +780,7 @@ def main():
 
     app.run_polling(
         drop_pending_updates=True,
-        poll_interval=2.0,
+        poll_interval=0.5,  # was 2.0 (2026-09-12, latency): tap-to-seen delay
         timeout=10,
         bootstrap_retries=3,
     )

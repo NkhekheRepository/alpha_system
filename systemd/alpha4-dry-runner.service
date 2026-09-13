@@ -1,0 +1,16 @@
+[Unit]
+Description=Alpha 4% Dry Mode Runner (08-26 clone, synthetic/demo resolution, SIM ONLY - no capital)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nkhekhe/alpha_system
+Environment=PYTHONUNBUFFERED=1
+Environment=BINANCE_DEMO_LIVE=true
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha4_dry_runner.py --stake 0.20 --leverage 20
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

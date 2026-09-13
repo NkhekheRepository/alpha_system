@@ -44,6 +44,15 @@ policy).
 13. **Cost-sensitive meta-labeler** optimizing for risk-adjusted return, not raw
     WR. *Confidence: Medium.*
 
+## Current State (2026-09-12)
+
+- **Universe:** 48 assets (expanded from 10)
+- **Model:** sha `1091b967`, OOF AUC 0.572, 854k samples (48 assets)
+- **Threshold:** 0.61 (user decision; precision over frequency)
+- **Tests:** 200/200 passing
+- **Live:** $10 testnet paper, K60 H100 TP3%/SL1.5%, MAX_OPEN=3, ob cap 25
+- **Grid:** 0/12 NO-GO on 33 assets (momentum family closed with time-windowed evidence)
+
 ---
 
 *See `GOVERNANCE.md` for the deployment-block rules and `PHD_HYPOTHESIS.md` for the

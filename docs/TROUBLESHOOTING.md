@@ -98,3 +98,12 @@ cause → fix. Assumes the deployment in `DEPLOY.md` is in place.
   not match its own shell), let `Restart=always` respawn the new build.
 - **Tooling note:** `pkill -f "alpha3_dry_runner.py"` kills the shell running the
   command (self-match). Always use `pkill -f "[a]lpha3_dry_runner.py"`.
+
+## 12. Bootstrap parse error on new testnet symbols
+- **Symptom:** `BOOTSTRAP FAIL UAIUSDT: could not convert string to float: 'o'`
+  (or ANTHROPICUSDT, ZESTUSDT, PONSUSDT, MARSCOINUSDT).
+- **Cause:** Binance testnet API returns malformed kline data for newer/sparse
+  symbols. The `'o'` (open) field is a string literal, not a numeric value.
+- **Fix:** non-blocking — runner skips the symbol and continues with the rest
+  of the 48-asset universe. Symbol will eventually populate when testnet data
+  improves. No action required.

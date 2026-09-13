@@ -41,3 +41,27 @@ operational set.
     baselines inflate the bar and produce absurd Sharpe.
 13. **Self-certification is not evidence.** Deployment gates on execution evidence
     and OOS data, never in-repo "CERTIFIED" docs. Block on confirmed P0.
+
+## 48-Asset Expansion Lessons (2026-09-12)
+
+14. **Latency optimization is state-level, not code-level.** The 5s `/status`
+    latency was caused by 200 full depth snapshots per symbol (multi-MB state
+    bloat) × Telegram JSON serialization. Capping `ob_history` at 25 (model
+    uses only 36 OHLCV features at `FEATURE_ORDER[:36]`) cut state size 8× and
+    `/status` to <0.4s. Always profile state reads, not just compute.
+15. **State-derived prices beat API calls for display.** `state_prices(state)`
+    reads the last close from in-state `price_history` (≤1 runner cycle stale,
+    display-only) — avoids a ~1.3s testnet round-trip on the `/status` critical
+    path. Fallback to `get_prices()` only when history is empty (fresh boot).
+16. **conftest TESTNET_LIVE=False is load-bearing.** Tests mock `DEMO_LIVE=False`
+    but `TESTNET_LIVE=True` (from `.env` dev keys) still fires real testnet
+    orders for fake symbols. Global mock in `conftest.py` prevents all exchange
+    calls in test — no test may ever touch any exchange.
+17. **Threshold 0.61 is precision over frequency.** 33-asset sweep showed
+    +0.156%/trade in-sample at 0.61; live flow is ~p99.9+ (trade every few
+    hours). 0.57 was breakeven; 0.61 trades less often but with tighter
+    precision. User chose precision; this is a conscious tradeoff, not a bug.
+18. **48-asset retrain on 3GB box needs memory discipline.** `MALLOC_ARENA_MAX=2`,
+    `n_jobs=1`, stop runner before training (3GB RSS at peak). The 854k-sample
+    48-asset dataset takes ~40min for 5-fold purged CV + final fit. First
+    OOM-kill was from running features + runner simultaneously.

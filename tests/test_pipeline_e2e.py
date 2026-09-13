@@ -305,9 +305,10 @@ class TestEntryLogic:
         return R.run_cycle(state, meta_model=meta_model, meta_threshold=meta_threshold)
 
     def test_momentum_direction(self):
-        ph = [{"close": float(i)} for i in range(50)]
+        # momentum_direction needs len(ph) >= K+1 (K=60 -> >=61 bars).
+        ph = [{"close": float(i)} for i in range(70)]
         assert R.momentum_direction(ph) == "long"
-        ph2 = [{"close": float(100 - i)} for i in range(50)]
+        ph2 = [{"close": float(100 - i)} for i in range(70)]
         assert R.momentum_direction(ph2) == "short"
         assert R.momentum_direction([{"close": 1.0}]) is None
 
@@ -316,8 +317,9 @@ class TestEntryLogic:
         assert len(state["open_positions"]) == 1
         sym, pos = next(iter(state["open_positions"].items()))
         assert pos["direction"] == "long"
-        assert pos["tp_price"] == pytest.approx(pos["entry_price"] * 1.025)
-        assert pos["sl_price"] == pytest.approx(pos["entry_price"] * 0.98)
+        # Barriers follow the live contract TP 3% / SL 1.5% (was 2.5%/2%).
+        assert pos["tp_price"] == pytest.approx(pos["entry_price"] * (1 + R.WIN_PCT))
+        assert pos["sl_price"] == pytest.approx(pos["entry_price"] * (1 + R.LOSS_PCT))
 
     def test_trading_disabled_blocks_entry(self, monkeypatch):
         # Build state with increasing history but trading disabled -> no entry.
@@ -390,7 +392,11 @@ class TestLedgerAndPersistence:
 # Stage 9: reconcile paper-close on demo-flat (paper = source of truth)
 # ---------------------------------------------------------------------------
 class TestReconcile:
-    def test_reconcile_closes_paper_when_demo_flat(self, monkeypatch, tmp_path):
+    def test_reconcile_live_follows_paper_when_demo_flat(self, monkeypatch, tmp_path):
+        """Paper is source of truth (user directive 2026-09): a paper leg with
+        no live position makes LIVE follow paper (mirror order is placed);
+        the paper leg is NOT closed and no paper trade is booked."""
+        import demo_trader
         state = _make_state(capital=100.0)
         state["open_positions"][SINGLE] = {
             "symbol": SINGLE, "direction": "long", "entry_price": 100.0,
@@ -405,12 +411,20 @@ class TestReconcile:
         monkeypatch.setattr(R, "_signed_get", lambda *a, **k: [])
         monkeypatch.setattr(R, "STATE_FILE", tmp_path / "state.json")
         monkeypatch.setattr(R, "DATA_DIR", tmp_path)
+        monkeypatch.setattr(demo_trader, "cancel_algo_orders", lambda s: None)
+        record = {}
+        # NOTE: patch R.place_market_order (module-global binding used by
+        # _place_live_market), NOT demo_trader.place_market_order (rebinding
+        # the source module does not affect R's imported reference).
+        monkeypatch.setattr(R, "place_market_order",
+            lambda s, side, qty, reduce_only=False: (
+                record.update(side=side, qty=qty, reduce_only=reduce_only),
+                ({"filled": True}, None))[1])
 
         R.reconcile_on_startup(state)
-        assert SINGLE not in state["open_positions"]
-        assert len(state["trades"]) == 1
-        assert state["trades"][0]["reason"] == "RECONCILE"
-        assert state["capital"] > 100.0
+        assert SINGLE in state["open_positions"]  # paper kept: source of truth
+        assert record == {"side": "BUY", "qty": 1.0, "reduce_only": False}
+        assert state["trades"] == []  # mirror is not a paper close
 
     def test_reconcile_never_fails_on_api_error(self, monkeypatch, tmp_path):
         state = _make_state(capital=100.0)
@@ -443,22 +457,39 @@ class TestReconcile:
         assert state["trades"] == []
 
     def test_reconcile_sweeps_orphan_demo_leg(self, monkeypatch, tmp_path):
-        """A demo position with no paper leg -> reduce-only market close (orphan)."""
+        """A demo position with no paper leg -> reduce-only market close (orphan).
+
+        Mocks at R module level: _close_live_position reads live state via
+        demo_trader getters (function-local imports, so demo_trader attrs are
+        effective) but places via R.place_market_order (module-global binding
+        from `from demo_trader import ...`, so patching the source module is
+        not sufficient).
+        """
         import demo_trader
-        record = {}
         monkeypatch.setattr(R, "DEMO_LIVE", True)
         monkeypatch.setattr(R, "ASSETS", [SINGLE])
         monkeypatch.setattr(R, "STATE_FILE", tmp_path / "state.json")
+        monkeypatch.setattr(R, "DATA_DIR", tmp_path)
         monkeypatch.setattr(R, "TRADE_LOG", tmp_path / "trades.csv")
         monkeypatch.setattr(R, "_signed_get", lambda *a, **k: [
             {"symbol": SINGLE, "positionAmt": "0.25"},
         ])
         monkeypatch.setattr(demo_trader, "cancel_algo_orders", lambda s: None)
         monkeypatch.setattr(demo_trader, "round_qty", lambda s, q: q)
-        monkeypatch.setattr(
-            demo_trader, "place_market_order",
+        calls = {"n": 0}
+
+        def fake_demo_pos(symbol):
+            calls["n"] += 1
+            return 0.25 if calls["n"] == 1 else 0.0  # flat after first close
+
+        monkeypatch.setattr(demo_trader, "get_demo_position", fake_demo_pos)
+        monkeypatch.setattr(demo_trader, "get_symbol_filters",
+                            lambda s: {"marketMaxQty": "1000000"})
+        record = {}
+        monkeypatch.setattr(R, "place_market_order",
             lambda s, side, qty, reduce_only=False: (
-                record.update(side=side, qty=qty, reduce_only=reduce_only), {"filled": True}, None)[1])
+                record.update(side=side, qty=qty, reduce_only=reduce_only),
+                ({"filled": True}, None))[1])
         state = _make_state(capital=100.0)  # no paper positions
         R.reconcile_on_startup(state)
         assert record == {"side": "SELL", "qty": 0.25, "reduce_only": True}
@@ -546,14 +577,12 @@ class TestSizingLeverage:
         assert pos["notional"] == pytest.approx(
             pos["quantity"] * pos["entry_price"], rel=1e-9)
 
-    def test_lev_override_caps_effective_leverage(self, monkeypatch):
-        # BICOUSDT is capped to 10x by LEV_OVERRIDE (state lev 20 -> 10).
-        bico = "BICOUSDT"
-        eff = R.LEV_OVERRIDE.get(bico)
-        assert eff is not None
-        assert eff < 20.0
-        pos = self._enter(monkeypatch, bico)
-        assert pos["notional"] == pytest.approx(100.0 * 0.03 * eff)
+    def test_empty_override_map_uses_state_leverage(self, monkeypatch):
+        # LEV_OVERRIDE is empty (per-symbol caps removed): every symbol sizes
+        # at full state leverage. Pins the uniform-sizing contract.
+        assert R.LEV_OVERRIDE == {}
+        pos = self._enter(monkeypatch, SINGLE)
+        assert pos["notional"] == pytest.approx(100.0 * 0.03 * 20.0)
         assert pos["quantity"] == pytest.approx(pos["notional"] / 100.0)
 
 

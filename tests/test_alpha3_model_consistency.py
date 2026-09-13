@@ -77,22 +77,26 @@ class TestArtifactCompleteness:
 # Feature schema identity — runner vs training vs artifact (G2)
 # ---------------------------------------------------------------------------
 class TestFeatureOrder:
+    # FEATURE_ORDER is 46 wide (36 trained + 10 live-only orderbook keys);
+    # the model contract is the FIRST 36 (artifact 'features'; inference
+    # selects exactly these). Pin the 36-equality, not the width.
     def test_runner_equals_meta_features(self):
         assert R.FEATURE_ORDER == MF.FEATURE_ORDER
-        assert len(R.FEATURE_ORDER) == 36
+        assert len(MODEL["features"]) == 36
 
     def test_runner_equals_training_feature_names(self):
         # The artifact feature list IS the training-time contract, and the
-        # live order must equal it (the training CSV columns equal FEATURE_ORDER).
-        assert R.FEATURE_ORDER == MODEL["features"]
-        assert MF.FEATURE_ORDER == MODEL["features"]
+        # live order's first 36 must equal it.
+        assert list(R.FEATURE_ORDER[:36]) == list(MODEL["features"])
+        assert list(MF.FEATURE_ORDER[:36]) == list(MODEL["features"])
 
     def test_artifact_features_match_order(self):
-        assert MODEL["features"] == R.FEATURE_ORDER
+        assert list(MODEL["features"]) == list(R.FEATURE_ORDER[:36])
 
     def test_cross_runner_feature_order_identical(self):
-        # Alpha 3 and Alpha 4 must feed the SAME 36 features in the same order.
-        assert R.FEATURE_ORDER == R4.FEATURE_ORDER
+        # Alpha 3 and Alpha 4 must feed the SAME 36 model features in the
+        # same order (Alpha 3 carries 10 extra ob keys Alpha 4 lacks).
+        assert list(R.FEATURE_ORDER[:36]) == list(R4.FEATURE_ORDER[:36])
 
 
 # ---------------------------------------------------------------------------
@@ -152,10 +156,10 @@ class TestTrainingVsLiveRSI:
 # ---------------------------------------------------------------------------
 class TestThreshold:
     def test_runner_threshold_matches_metrics_and_artifact(self):
-        # Set to 0.57 (user override 2026-09-07).
+        # Set to 0.61 (user decision 2026-09-12; was 0.58, 0.57 override 2026-09-07).
         # The deployed gate is the artifact's embedded threshold and must agree
         # with the runner constant.
-        assert R.META_THRESHOLD == MODEL["threshold"] == 0.57
+        assert R.META_THRESHOLD == MODEL["threshold"] == 0.61
         # meta_labeler_metrics.json records the TRAINING F1-optimum (0.50); the
         # live gate deliberately sits above it — assert the deviation is explicit.
         assert METRICS.get("best_threshold") == 0.50
@@ -179,7 +183,8 @@ class TestPrediction:
         d = {f: 0.0 for f in R.FEATURE_ORDER}
         d["rsi_7"] = np.nan
         arr = R.features_to_array(d)
-        assert arr.shape == (1, 36)
+        # Width tracks FEATURE_ORDER (46: 36 model + 10 live-only ob keys).
+        assert arr.shape == (1, len(R.FEATURE_ORDER))
         assert arr.dtype == np.float32
         assert np.isnan(arr[0, R.FEATURE_ORDER.index("rsi_7")])
 

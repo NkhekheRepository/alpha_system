@@ -8,7 +8,7 @@ A governed, AFML-conformant quantitative trading codebase. Three strategies:
 | **Alpha 2%** (`bidir_runner.py`) | Momentum K=10 bidirectional | Mainnet **paper** | Running |
 | **Alpha 3%** (`alpha3_dry_runner.py`) | Momentum K=60 + **meta-labeler** filter | **Live USDT-M futures** (`fapi.binance.com`) on real capital | Running (LIVE) |
 
-> **GOVERNANCE VERDICT:** Every real-market backtest is **NO-GO** (0/108 walk-forward, Kelly f*=0, 1m 0/18), and the meta-labeler is validated **only on Alpha 3's synthetic-resolution distribution (iid p=0.85)** — it demonstrates the *machinery*, not live edge. **Alpha 3 was nonetheless deployed to real capital on 2026-09-07 by explicit user directive** ($10, K60 H100 TP3%/SL1.5%, threshold 0.57) — see [`docs/adr/0004-live-K60H100-T0.57-10usd.md`](docs/adr/0004-live-K60H100-T0.57-10usd.md). Deployment proceeded with full knowledge of the NO-GO research verdict and is a live observation, not a validated strategy. Rollback (kill switch / testnet revert) documented in that ADR.
+> **GOVERNANCE VERDICT:** Every real-market backtest is **NO-GO** (0/108 walk-forward, Kelly f*=0, 1m 0/18), and the meta-labeler is validated **only on Alpha 3's synthetic-resolution distribution (iid p=0.85)** — it demonstrates the *machinery*, not live edge. **Alpha 3 was nonetheless deployed to real capital on 2026-09-07 by explicit user directive** ($10, K60 H100 TP3%/SL1.5%, threshold 0.57) — see [`docs/adr/0004-live-K60H100-T0.57-10usd.md`](docs/adr/0004-live-K60H100-T0.57-10usd.md). **2026-09-12: universe expanded 10→48 assets, model retrained (sha 1091b967, OOF AUC 0.572), threshold raised to 0.61 for tighter precision.** Deployment proceeded with full knowledge of the NO-GO research verdict and is a live observation, not a validated strategy. Rollback (kill switch / testnet revert) documented in that ADR.
 
 ---
 
@@ -69,7 +69,7 @@ Full detail in **[DEPLOY.md](DEPLOY.md)**.
 │  momentum_direction(K=60): sign of 60-bar return                      │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 3: META-LABELER (Alpha 3 secondary filter)                      │
-│  RF classifier → P(win). Enter only if P ≥ 0.57.                      │
+│  RF classifier → P(win). Enter only if P ≥ 0.61.                      │
 │  Features: 36 at signal bar (momentum, vol, RSI, rollback, etc.)     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 4: TRIPLE-BARRIER EXIT                                          │
@@ -94,31 +94,30 @@ Full detail in **[DEPLOY.md](DEPLOY.md)**.
 
 López de Prado AFML secondary classifier. Primary signal = momentum direction;
 meta-labeler predicts whether that signal will be a winner, and we only trade
-when P(win) ≥ threshold (0.57 since 2026-09-07; 0.60 frequency-starved).
+when P(win) ≥ threshold (0.61 since 2026-09-12; 0.57 frequency-starved at higher thresholds).
 
 **Pipeline** (`scripts/`):
 
 | Step | Script | Output |
 |------|--------|--------|
-| 1. Fetch history | `fetch_historical_klines.py` | `models/kline_data/*.csv` (1.56M bars, 10 assets × 259k 1m) |
-| 2. Label | `generate_labels.py` | `models/labeled_signals.csv` (1,210,300 signals, 26.4% TP rate) |
-| 3. Features | `engineer_features.py` | `models/labeled_features.csv` (36 features/signal) |
-| 4. Train | `train_meta_labeler.py` | `models/meta_labeler.joblib` (purged K-fold CV) |
+| 1. Fetch history | `fetch_historical_klines.py` | `models/kline_data/*.csv` (48 assets) |
+| 2. Label | `generate_labels.py` | `models/labeled_signals.csv` (11.6M signals, 3.05M labeled) |
+| 3. Features | `engineer_features.py` | `models/labeled_features.csv` (3,002,986 rows, 36 features) |
+| 4. Train | `train_meta_labeler.py` | `models/meta_labeler.joblib` (purged K-fold CV, 854k samples) |
 | 5. Validate | `validate_oos.py` | `models/oos_validation_results.json` (walk-forward) |
 | 6. Runtime feats | `meta_features.py` | shared feature computation used by runner |
 
 **Config** (`scripts/meta_labeler_config.py`) — matches runner exactly:
-`K=60, H=100, TP_PCT=0.03, SL_PCT=-0.015, FEE_RATE=0.0005, PURGE=100, EMBARGO=100, RF 50 trees/max_depth 6`, universe 10 assets (+ZECUSDT), live threshold `0.57`.
+`K=60, H=100, TP_PCT=0.03, SL_PCT=-0.015, FEE_RATE=0.0005, PURGE=100, EMBARGO=100, RF 50 trees/max_depth 6`, universe 48 assets, live threshold `0.61`.
 
-**Results (2026-09-07 retrain, 1,195,647 rows):**
-- Out-of-fold AUC **0.575** (up from 0.541)
-- In-sample precision at live threshold `0.57`: **0.362** (sel 10.6%); breakeven at 2:1 RR + 0.05% fee = **34.4%**
-- OOF precision ~0.32 (≈4pp below in-sample) — **below breakeven**; live frequency-starved at higher thresholds (0/9189 preds ≥ 0.60), hence threshold set to 0.57 for fills
+**Results (2026-09-12 retrain, 854,324 rows, 48 assets):**
+- Out-of-fold AUC **0.572**
+- In-sample precision at live threshold `0.61`: tighter precision; breakeven at 2:1 RR + 0.05% fee = **34.4%**
+- OOF precision ~0.30 (below breakeven); live frequency-thin at 0.61 (~p99.9+), threshold set for precision over frequency
 
-> ⚠️ **Scope caveat:** the 0.575 AUC / 0.362 precision are in-sample retrain metrics on
-> the synthetic-resolution bar/signal distribution (iid p=0.85 wins), not real markets.
-> OOF precision is ~0.32 (below the 34.4% breakeven), and the K/H OOF grid
-> (`scripts/search_kh_tp3_sl15.py`) was incomplete at deployment. Live is a
+> ⚠️ **Scope caveat:** the 0.572 AUC is OOF on 48-asset real-market data (not synthetic).
+> OOF precision is ~0.30 (below the 34.4% breakeven), and the K/H OOF grid
+> (`scripts/search_kh_tp3_sl15.py`) was NO-GO on 33 assets (0/12 passed). Live is a
 > **user-directed exception**, not a validated edge.
 
 ---
@@ -134,7 +133,7 @@ when P(win) ≥ threshold (0.57 since 2026-09-07; 0.60 frequency-starved).
 | Meta-labeler OOS (synthetic) | Filtered 61.8% vs Raw 52.9% (+8.9pp) | `validate_oos.py` |
 | Stress: clean sweep | 208 backtests, 16k+ grid rows — winners were selection artifacts | `scan/` |
 | Live Alpha 3 (demo hedge) | 12 trades, 83.3% WR (machinery PASS, edge UNKNOWN) | `alpha3_dry_runner.py` |
-| **Live Alpha 3 (real capital)** | **Deployed 2026-09-07 per ADR-0004** — $10, K60 H100 TP3/SL1.5%, T0.57, live fapi | `docs/adr/0004-live-K60H100-T0.57-10usd.md` |
+| **Live Alpha 3 (real capital)** | **Deployed 2026-09-07 per ADR-0004** — $10, K60 H100 TP3/SL1.5%, T0.61 (was T0.57), 48-asset universe, live fapi | `ALPHA3_LIVE_BASELINE.md` |
 
 ---
 
@@ -158,7 +157,7 @@ alpha_system/
 ├── systemd/                  # User service units (alpha3-*.service)
 ├── docs/                      # Full documentation (see Documentation index)
 │   └── images/                # Rendered architecture images (pipeline.png, topology.png)
-├── tests/                     # 27-test automated suite (pytest)
+├── tests/                     # 200-test automated suite (pytest)
 ├── pytest.ini                 # Test config (pythonpath=., testpaths=tests)
 ├── Makefile                   # make test / deploy / status
 ├── dry_data/                 # Runtime state (gitignored; regenerated on deploy)

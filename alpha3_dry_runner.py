@@ -342,6 +342,7 @@ H = 100
 WARMUP = H + 10
 MAX_CONSEC = 3
 COOLDOWN = 50
+MAX_OPEN_POSITIONS = 3  # cap concurrent positions (21-asset universe 2026-09-11; 20% x 20x each)
 CAP = 10.0
 STAKE_PCT = 0.20
 STAKE_PCT_TESTNET = 0.20  # testnet uses 20% staking as requested (identical to Telegram/demo)
@@ -356,7 +357,7 @@ LOSS_PCT = -0.015
 
 # Meta-labeler config
 META_LABELER_PATH = Path(__file__).resolve().parent / 'models/meta_labeler.joblib'
-META_THRESHOLD = 0.57  # user override 2026-09-07; in-sample prec 0.362 sel 10.6% @TP3/SL1.5 K60H100 (breakeven 34.4%)
+META_THRESHOLD = 0.61  # user decision 2026-09-12; 33-asset sweep: +0.156%/trade in-sample (N=83k); thin live flow (~p99.9+)
 
 # Orderbook cache for microstructure features
 _orderbook_cache = {}  # {symbol: {'bookTicker': {...}, 'depth': [...], 'ts': timestamp}}
@@ -867,13 +868,18 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
             if len(ph) > 200:
                 state['price_history'][s] = ph[-200:]
 
-    # Continuous orderbook history — for microstructure features
+    # Continuous orderbook history — for microstructure features.
+    # Capped at 25 snapshots/symbol (was 200; 2026-09-12 latency pass):
+    # full depth snapshots are the multi-MB state bloat that slows every
+    # Telegram read. Live inference uses only the 36 OHLCV features
+    # (artifact 'features'; ob keys dropped at FEATURE_ORDER[:36]), so the
+    # cap changes no model input. Existing entries trim on next append.
     for s in ASSETS:
         if s in orderbook_data:
             ob_hist = state.setdefault('orderbook_history', {}).setdefault(s, [])
             ob_hist.append(orderbook_data[s])
-            if len(ob_hist) > 200:
-                ob_hist[:] = ob_hist[-200:]
+            if len(ob_hist) > 25:
+                ob_hist[:] = ob_hist[-25:]
 
     # Exit evaluation ALWAYS runs, even during cooldown (cooldown gates entries only)
     for s in list(state['open_positions'].keys()):
@@ -1045,6 +1051,9 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                                 print(f"  [{ts}] META-FILTER {s}: prob={prob:.3f} < {meta_threshold} — SKIP")
                                 continue
                             print(f"  [{ts}] META-PASS {s}: prob={prob:.3f} >= {meta_threshold} — ENTER")
+                            if len(state['open_positions']) >= MAX_OPEN_POSITIONS:
+                                print(f"  [{ts}] MAXPOS-SKIP {s}: {len(state['open_positions'])}/{MAX_OPEN_POSITIONS} open — SKIP")
+                                continue
                 eff_lev = LEV_OVERRIDE.get(s, state['leverage'])
                 pos_val = state['capital'] * state['stake_pct'] * eff_lev
                 # Live margin guard: keep paper/live synced — don't open paper if live would fail margin

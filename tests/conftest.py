@@ -56,6 +56,12 @@ def isolate_production_side_effects(tmp_path, monkeypatch):
     monkeypatch.setattr(R, 'KILL_FILE', tmp_path / 'kill.flag')
     monkeypatch.setattr(R, '_notify', lambda *a, **k: None)
     monkeypatch.setattr(R, 'log_event', lambda *a, **k: None)
+    # 2026-09-12: TESTNET_LIVE is True in dev (testnet keys in .env) and the
+    # entry/reconcile paths gate on `DEMO_LIVE or TESTNET_LIVE`. Tests mock
+    # DEMO_LIVE=False but that alone still fires REAL testnet orders for fake
+    # symbols (broke 3 e2e tests + placed a live zero-qty order). Pin it off:
+    # no test may ever touch any exchange.
+    monkeypatch.setattr(R, 'TESTNET_LIVE', False)
     yield
 
 

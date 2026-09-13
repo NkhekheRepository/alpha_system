@@ -39,7 +39,7 @@ def get_klines(sym):
         }
     return _KLINE_CACHE[sym]
 
-HOLDINGS = ['TRIAUSDT','QUSDT','MAGMAUSDT','TRADOORUSDT','APRUSDT','UAIUSDT','DOODUSDT','BULLAUSDT','JCTUSDT','ZECUSDT']
+from meta_labeler_config import HOLDINGS  # single source of truth (21 assets since 2026-09-11)
 TP_PCT, SL_PCT, FEE_RATE = 0.03, -0.015, 0.0005
 K_GRID, H_GRID = [20,30,40,60], [50,75,100]
 N_SPLITS, MIN_TRADES, RF_PARAMS = 5, 20, dict(n_estimators=50,max_depth=6,min_samples_leaf=50,max_features='sqrt',class_weight='balanced_subsample',random_state=42,n_jobs=2)  # n_jobs=2 (not 4): 3GB box swaps to death at 4 (2026-09-07); same trees/depth, only fewer parallel workers

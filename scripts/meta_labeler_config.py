@@ -18,7 +18,7 @@ TP_PCT = 0.03      # +3% take-profit
 SL_PCT = -0.015    # -1.5% stop-loss (matches runner LOSS_PCT / sl_price = entry*0.985)
 FEE_RATE = 0.0005  # 0.05% taker fee per side (feeTier 0 LIVE USDⓈ-M)
 INTERVAL_SEC = 60  # 1-minute bars
-HOLDINGS = ['TRIAUSDT', 'QUSDT', 'MAGMAUSDT', 'TRADOORUSDT', 'APRUSDT', 'UAIUSDT', 'DOODUSDT', 'BULLAUSDT', 'JCTUSDT', 'ZECUSDT']  # "pump" group + ZEC (2026-09-07)
+HOLDINGS = ['TRIAUSDT', 'QUSDT', 'MAGMAUSDT', 'TRADOORUSDT', 'APRUSDT', 'UAIUSDT', 'DOODUSDT', 'BULLAUSDT', 'JCTUSDT', 'ZECUSDT', 'RAYSOLUSDT', 'XRPUSDT', 'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'KOMAUSDT', 'VTHOUSDT', 'IOSTUSDT', 'BEATUSDT', 'OPENAIUSDT', 'SNXUSDT', 'SUIUSDT', 'XLMUSDT', 'PUMPUSDT', '1000PEPEUSDT', 'BMTUSDT', 'EIGENUSDT', 'HEIUSDT', 'LINKUSDT', 'RENDERUSDT', 'ROSEUSDT', 'XVGUSDT', 'ANTHROPICUSDT', 'HYPEUSDT', 'CRVUSDT', 'DASHUSDT', 'ARBUSDT', 'INJUSDT', 'DOGEUSDT', 'UNIUSDT', 'JUPUSDT', 'XMRUSDT', 'TAOUSDT', 'REZUSDT', 'FLOCKUSDT', 'ZESTUSDT', 'PONSUSDT', 'MARSCOINUSDT']  # "pump" group + ZEC (2026-09-07) + majors/mids expansion (2026-09-11) + HYPE/CRV/DASH/ARB/INJ/DOGE + UNI/JUP/XMR/TAO + REZ/FLOCK/ZEST/PONS/MARSCOIN (2026-09-12)
 
 # Training parameters
 PURGE_BARS = H        # purge gap between train/test (≥ label horizon)
@@ -32,9 +32,9 @@ RF_PARAMS = {
     'max_features': 'sqrt',
     'class_weight': 'balanced_subsample',
     'random_state': 42,
-    'n_jobs': 2,  # 3GB box swaps to death at -1/4 (2026-09-07); same fitted model, fewer workers
+    'n_jobs': 1,  # 3GB box OOM-kills at n_jobs=2 on 2.3M-row 33-asset surface (2026-09-11); fitted model bit-identical given random_state=42 (parallelism only)
 }
-PROB_THRESHOLD_DEFAULT = 0.57  # meta-label: enter if P(win) > threshold (in-sample prec 0.362 sel 10.6%; user override 2026-09-07)
+PROB_THRESHOLD_DEFAULT = 0.61  # meta-label: enter if P(win) > threshold (33-asset sweep 2026-09-12: +0.156%/trade @0.61; user decision)
 
 # Additional constants for Telegram bot compatibility
 LEVERAGE = 20

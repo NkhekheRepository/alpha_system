@@ -5,7 +5,37 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
-## v4.0 — `a3-v4.0-metalabeler` (current)
+## v5.0 — `a3-v5.0-48asset` (current)
+
+**Identity**: 48-asset universe expansion + latency optimization + model retrained on 48 assets.
+
+| Parameter | Value |
+|-----------|-------|
+| Base capital | $10 USDT (synthetic) |
+| Margin/trade | **20%** of equity, compounding |
+| Leverage | 20x |
+| Notional/trade | ~$40/trade (20% × 20x × $10, compounding) |
+| Universe | **48 assets** (TRIAUSDT, QUSDT, MAGMAUSDT, TRADOORUSDT, APRUSDT, UAIUSDT, DOODUSDT, BULLAUSDT, JCTUSDT, ZECUSDT, RAYSOLUSDT, XRPUSDT, BTCUSDT, ETHUSDT, SOLUSDT, KOMAUSDT, VTHOUSDT, IOSTUSDT, BEATUSDT, OPENAIUSDT, SNXUSDT, SUIUSDT, XLMUSDT, PUMPUSDT, 1000PEPEUSDT, BMTUSDT, EIGENUSDT, HEIUSDT, LINKUSDT, RENDERUSDT, ROSEUSDT, XVGUSDT, ANTHROPICUSDT, HYPEUSDT, CRVUSDT, DASHUSDT, ARBUSDT, INJUSDT, DOGEUSDT, UNIUSDT, JUPUSDT, XMRUSDT, TAOUSDT, REZUSDT, FLOCKUSDT, ZESTUSDT, PONSUSDT, MARSCOINUSDT) |
+| Primary signal | momentum-K60 (`ph[-1] > ph[-61]` → long) per asset |
+| **Meta-labeler** | RF secondary classifier → P(win); enter only if P ≥ **0.61** |
+| Meta features | 36 at signal bar (momentum/vol/RSI/rollback/etc.) via `meta_features.py` |
+| Warmup | 110 polls (H+10) per symbol |
+| Hold horizon | H = 100 bars (100 min @ 10s polls) |
+| Exit — upper | TP +3%, market barrier, every poll |
+| Exit — lower | SL −1.5%, market barrier, every poll |
+| Exit — vertical | TIMEOUT at bar 100, last MARKET price |
+| Max open positions | **3** (cap concurrent positions; 20% × 20x each) |
+| Circuit breaker | 3 consecutive losses → 50-bar cooldown |
+| Orderbook cap | **25** snapshots/symbol (latency optimization; was 200) |
+| Model | `models/meta_labeler.joblib` sha `1091b967`, OOF AUC 0.572, 854k samples (48 assets) |
+| Threshold | **0.61** (user decision 2026-09-12; 33-asset sweep +0.156%/trade in-sample) |
+
+Ledger: **continued** from v4.0 — existing equity preserved across restarts. No reset.
+Bootstrap failures on testnet: UAIUSDT, ANTHROPICUSDT, ZESTUSDT, PONSUSDT (parse error `'o'` — non-blocking, symbol skipped).
+
+---
+
+## v4.0 — `a3-v4.0-metalabeler` (previous)
 
 **Identity**: v3.1 engine + **meta-labeler secondary filter** + 7.5% margin + demo-fapi live hedge + effective-equity tracking.
 

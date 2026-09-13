@@ -16,7 +16,7 @@ from generate_labels import compute_labels_vectorized
 KLINE_DIR = Path(__file__).resolve().parent.parent / 'models' / 'kline_data'
 OUT_FILE = Path(__file__).resolve().parent.parent / 'models' / 'label_stats_kh_tp3_sl15.json'
 
-HOLDINGS = ['TRIAUSDT','QUSDT','MAGMAUSDT','TRADOORUSDT','APRUSDT','UAIUSDT','DOODUSDT','BULLAUSDT','JCTUSDT','ZECUSDT']
+from meta_labeler_config import HOLDINGS  # single source of truth (21 assets since 2026-09-11)
 TP_PCT, SL_PCT = 0.03, -0.015
 K_GRID, H_GRID = [20,30,40,60], [50,75,100]
 

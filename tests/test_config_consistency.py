@@ -5,8 +5,9 @@ contract' — a silent mismatch between the live runner and the trained model's
 feature/labels would make the meta-labeler meaningless.
 
 K=60 H=100 TP3%/SL1.5% retrain landed (2026-09-07). Runner and model artifact
-now both use K=60, H=100, TP=3%, SL=1.5%, FEE=0.05%, 10-symbol universe
-(+ZECUSDT).
+now both use K=60, H=100, TP=3%, SL=1.5%, FEE=0.05%, 33-symbol universe
+(10-asset base + majors/mids expansion 2026-09-11; model sha 1091b967,
+threshold 0.61 (user decision 2026-09-12), OOF AUC 0.572 on 854k samples (48 assets)).
 """
 import joblib
 
@@ -44,9 +45,10 @@ def test_asset_universe_match():
 
 
 def test_threshold_default_matches():
-    # Set to 0.57 (user override 2026-09-07): in-sample prec 0.362 sel 10.6%.
+    # Set to 0.61 (user decision 2026-09-12): 33-asset sweep +0.156%/trade
+    # in-sample (N=83k); thin live flow (~p99.9+).
     # Model artifact, runner, and config must agree; flag if they drift.
     model_data = joblib.load(R.META_LABELER_PATH)
-    assert model_data["threshold"] == 0.57
-    assert R.META_THRESHOLD == 0.57
-    assert MC.PROB_THRESHOLD_DEFAULT == 0.57
+    assert model_data["threshold"] == 0.61
+    assert R.META_THRESHOLD == 0.61
+    assert MC.PROB_THRESHOLD_DEFAULT == 0.61
