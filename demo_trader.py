@@ -701,7 +701,8 @@ def place_testnet_market_order(symbol, side, quantity, reduce_only=False):
                     qty_str = get_testnet_symbol_filters(symbol)['stepSize']
             except:
                 pass
-            ts = int(time.time() * 1000)
+            from binance_config import server_timestamp_testnet
+            ts = server_timestamp_testnet()
             params = {'symbol': symbol, 'side': side.upper(), 'type': 'MARKET', 'quantity': qty_str, 'timestamp': ts}
             if reduce_only:
                 params['reduceOnly'] = 'true'
@@ -716,7 +717,8 @@ def place_testnet_market_order(symbol, side, quantity, reduce_only=False):
                 if code == -2027:
                     try:
                         # lower leverage to 10x for this symbol and retry
-                        ts2 = int(time.time() * 1000)
+                        from binance_config import server_timestamp_testnet
+                        ts2 = server_timestamp_testnet()
                         p2 = _sign_testnet({'symbol': symbol, 'leverage': 10, 'timestamp': ts2})
                         requests.post(f"{TESTNET_FAPI_BASE}/fapi/v1/leverage", params=p2, headers=_headers_testnet(), timeout=10)
                         print(f"[testnet] retry {symbol} with 10x leverage after -2027")
@@ -735,7 +737,8 @@ def set_testnet_leverage_all(symbols, leverage=20):
     results = {}
     for sym in symbols:
         try:
-            ts = int(time.time() * 1000)
+            from binance_config import server_timestamp_testnet
+            ts = server_timestamp_testnet()
             params = {'symbol': sym, 'leverage': int(leverage), 'timestamp': ts}
             signed = _sign_testnet(params)
             r = requests.post(f"{TESTNET_FAPI_BASE}/fapi/v1/leverage", params=signed, headers=_headers_testnet(), timeout=10)

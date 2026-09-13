@@ -1205,9 +1205,9 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
 
 def _signed_get(path, params=''):
     import hmac, hashlib
-    from binance_config import ACTIVE_API_KEY, ACTIVE_API_SECRET
-    ts = int(time.time() * 1000)
-    q = f"timestamp={ts}&recvWindow=10000"
+    from binance_config import ACTIVE_API_KEY, ACTIVE_API_SECRET, server_timestamp_testnet
+    ts = server_timestamp_testnet()
+    q = f"timestamp={ts}&recvWindow=50000"
     if params:
         q += "&" + params
     sig = hmac.new(ACTIVE_API_SECRET.encode(), q.encode(), hashlib.sha256).hexdigest()

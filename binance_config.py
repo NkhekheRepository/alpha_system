@@ -101,15 +101,21 @@ def get_demo_fapi_base():
 # and centralize signing so the signed string always equals the sent query.
 # ---------------------------------------------------------------------------
 _SERVER_TIME_OFFSET_MS = None
+_SERVER_TIME_SYNC_TS = 0  # epoch ms of last sync
+_SERVER_TIME_RESYNC_MS = 1800000  # re-sync every 30 minutes
+_TN_TIME_OFFSET_MS = None  # testnet server offset (separate server, separate clock)
+_TN_TIME_SYNC_TS = 0
+_TN_FAPI_BASE = 'https://testnet.binancefuture.com'
 
 
 def sync_binance_time():
-    """Fetch Binance server time once and cache the offset vs local clock."""
-    global _SERVER_TIME_OFFSET_MS
+    """Fetch Binance demo-fapi server time and cache the offset vs local clock."""
+    global _SERVER_TIME_OFFSET_MS, _SERVER_TIME_SYNC_TS
     try:
         r = requests.get(f"{BINANCE_DEMO_FAPI_BASE}/fapi/v1/time", timeout=5)
         if r.status_code == 200:
             _SERVER_TIME_OFFSET_MS = int(r.json()["serverTime"]) - int(time.time() * 1000)
+            _SERVER_TIME_SYNC_TS = int(time.time() * 1000)
             return True
     except Exception:
         pass
@@ -117,11 +123,45 @@ def sync_binance_time():
     return False
 
 
+def sync_testnet_time():
+    """Fetch Binance testnet server time and cache the offset vs local clock.
+
+    Testnet (testnet.binancefuture.com) is a separate server from demo-fapi
+    (demo-fapi.binance.com) with its own clock — the demo offset does NOT apply.
+    """
+    global _TN_TIME_OFFSET_MS, _TN_TIME_SYNC_TS
+    try:
+        r = requests.get(f"{_TN_FAPI_BASE}/fapi/v1/time", timeout=5)
+        if r.status_code == 200:
+            _TN_TIME_OFFSET_MS = int(r.json()["serverTime"]) - int(time.time() * 1000)
+            _TN_TIME_SYNC_TS = int(time.time() * 1000)
+            return True
+    except Exception:
+        pass
+    _TN_TIME_OFFSET_MS = None
+    return False
+
+
 def server_timestamp():
-    """Timestamp synced to Binance server clock (eliminates clock-skew -1022)."""
-    if _SERVER_TIME_OFFSET_MS is None:
+    """Timestamp synced to demo-fapi server clock (eliminates clock-skew -1022).
+
+    Re-syncs every 30 minutes to prevent drift accumulation past recvWindow.
+    """
+    now_ms = int(time.time() * 1000)
+    if _SERVER_TIME_OFFSET_MS is None or (now_ms - _SERVER_TIME_SYNC_TS) > _SERVER_TIME_RESYNC_MS:
         sync_binance_time()
-    return int(time.time() * 1000) + (_SERVER_TIME_OFFSET_MS or 0)
+    return now_ms + (_SERVER_TIME_OFFSET_MS or 0)
+
+
+def server_timestamp_testnet():
+    """Timestamp synced to testnet server clock.
+
+    Re-syncs every 30 minutes. Testnet has its own clock separate from demo-fapi.
+    """
+    now_ms = int(time.time() * 1000)
+    if _TN_TIME_OFFSET_MS is None or (now_ms - _TN_TIME_SYNC_TS) > _SERVER_TIME_RESYNC_MS:
+        sync_testnet_time()
+    return now_ms + (_TN_TIME_OFFSET_MS or 0)
 
 
 def sign_query(params, secret=None):
@@ -135,7 +175,7 @@ def sign_query(params, secret=None):
     if not p.get("timestamp"):
         p["timestamp"] = server_timestamp()
     if "recvWindow" not in p:
-        p["recvWindow"] = 10000
+        p["recvWindow"] = 50000
     # Sign the URL-ENCODED query string — exactly what requests sends on the
     # wire. Manual '&'.join mismatches whenever a value contains characters that
     # requests encodes (e.g. '+' in scientific-notation floats like 5.6e+20),
