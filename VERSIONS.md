@@ -5,7 +5,19 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
-## v5.1 — `a3-v5.1-halfkelly` (current)
+## v5.2 — `a3-v5.2-54asset` (current)
+
+**Identity**: universe 48 → 54. Added PAXGUSDT (XAU request), FILUSDT, MTLUSDT, ARKUSDT, AINUSDT, POWERUSDT — all verified `TRADING`/`PERPETUAL` on testnet exchangeInfo 2026-09-14.
+
+**Excluded after verification:** CVCUSDT, BNCUSDT, BRUUSDT, BTWUSDT (absent from testnet — BNCUBU request mapped to BNC, absent); LITUSDT (`SETTLING`, delist path — excluded).
+
+**Findings on boot:** all 6 new symbols bootstrapped + leverage set OK. ARKUSDT demo fapi silently caps 20x→10x → added `LEV_OVERRIDE={'ARKUSDT': 10}` so paper sizes at achievable leverage (paper/live sync). Updated `test_empty_override_map_uses_state_leverage` to pin the new contract. 200/200 green. Ledger preserved (36t, $11.28). Live price_history covers 49/54 (5 known sparse-skips: UAI/ANTHROPIC/ZEST/PONS/MARSCOIN).
+
+No model retrain (inference is symbol-agnostic, 36 shared features); threshold 0.61, K/H/TP/SL, A2 sizing, MAXPOS=3 unchanged.
+
+---
+
+## v5.1 — `a3-v5.1-halfkelly` (previous)
 
 **Identity**: A2 half-Kelly position sizing. Stake 20% → 12% (leverage stays 20x): notional 4.0x → 2.4x equity per trade.
 

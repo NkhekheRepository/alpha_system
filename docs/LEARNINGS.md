@@ -66,6 +66,26 @@ operational set.
     48-asset dataset takes ~40min for 5-fold purged CV + final fit. First
     OOM-kill was from running features + runner simultaneously.
 
+## 54-Asset Expansion (2026-09-14)
+
+26. **Verify requested tickers against the venue, not memory.** Of 11 requested
+    (XAU/CVC/FIL/BRU/AIN/BTW/POWER/MTL/ARK/LIT/BNCUBU), testnet exchangeInfo
+    confirmed only 6 TRADING perps: PAXG (XAU maps to PAXG, no XAUUSDT exists),
+    FIL, MTL, ARK, AIN, POWER. CVC/BNC/BRU/BTW are absent on testnet;
+    LIT is SETTLING (delist path — must exclude, not just skip). User
+    pre-approved "verify then add listings," so no re-ask was needed.
+27. **Silent leverage caps are worse than rejections.** ARKUSDT accepted the
+    20x request but returned `leverage: 10` — no error, so no LEV_OVERRIDE
+    trigger under the old "rejection" mental model. Paper would have sized at
+    20x against a 10x live leg. Rule: assert on the *returned* leverage, not
+    just absence of error; `LEV_OVERRIDE={'ARKUSDT': 10}` + test pins the new
+    contract (the old `== {}` assertion correctly failed and was updated, not
+    deleted).
+28. **Universe expansion needs no retrain here.** Inference uses 36 shared
+    features with no per-symbol parameters, so new assets trade under the same
+    model/threshold immediately after WARMUP. What they lack is per-symbol
+    sweep priors — acceptable, flagged, not blocking.
+
 ## A2 Half-Kelly Sizing Deploy (2026-09-14)
 
 23. **The deployed 4.0x was near-full-Kelly — optimal only on paper.** Kelly on

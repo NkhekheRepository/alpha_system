@@ -350,7 +350,7 @@ LEVERAGE = 20.0
 # Per-symbol leverage overrides. Demo futures rejects some symbols at high leverage
 # (e.g. BICOUSDT rejects 20x -> ERROR 400). Those symbols are capped here; all others
 # use --leverage.
-LEV_OVERRIDE = {}
+LEV_OVERRIDE = {'ARKUSDT': 10}  # ARK capped 20x->10x by demo fapi on 2026-09-14 (silently, not rejected); paper sizes at achievable lev to stay synced
 FEE_RATE = 0.0005  # 0.05% taker fee per fill (feeTier 0 LIVE USDⓈ-M) — fee = qty*(entry+exit)*FEE_RATE = 0.10% round-trip
 WIN_PCT = 0.03
 LOSS_PCT = -0.015

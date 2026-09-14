@@ -578,9 +578,10 @@ class TestSizingLeverage:
             pos["quantity"] * pos["entry_price"], rel=1e-9)
 
     def test_empty_override_map_uses_state_leverage(self, monkeypatch):
-        # LEV_OVERRIDE is empty (per-symbol caps removed): every symbol sizes
-        # at full state leverage. Pins the uniform-sizing contract.
-        assert R.LEV_OVERRIDE == {}
+        # Only venue-capped symbols sit in LEV_OVERRIDE (ARKUSDT 10x, demo fapi
+        # caps 20x->10x 2026-09-14): every other symbol sizes at full state
+        # leverage. Pins the uniform-sizing contract for non-capped symbols.
+        assert R.LEV_OVERRIDE == {'ARKUSDT': 10}
         pos = self._enter(monkeypatch, SINGLE)
         assert pos["notional"] == pytest.approx(100.0 * 0.03 * 20.0)
         assert pos["quantity"] == pytest.approx(pos["notional"] / 100.0)
