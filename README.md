@@ -74,11 +74,11 @@ Full detail in **[DEPLOY.md](DEPLOY.md)**.
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 4: TRIPLE-BARRIER EXIT                                          │
 │  TP/SL 3%/1.5% of entry | Vertical timeout at H=100                   │
-│  Live entry = MARKET order (real capital, 20% margin × 20x)          │
+│  Live entry = MARKET order (real capital, 12% margin × 20x)          │
 │  Live exit  = MARKET (TP/SL/TIMEOUT via runner-side barrier eval)     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ LAYER 5: RISK                                                         │
-│  Stake 20% margin × 20x = $40/trade (compounding on $10)             │
+│  Stake 12% margin × 20x = $27/trade (compounding on $11.28)         │
 │  Circuit breaker: 3 consecutive losses → 50-bar cooldown            │
 │  Per-cycle meta-filter re-evaluates entry                             │
 ├──────────────────────────────────────────────────────────────────────┤

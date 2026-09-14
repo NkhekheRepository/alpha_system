@@ -11,9 +11,9 @@ everything below. Tag: `alpha3-live-baseline-2026-09-12`.
 ## Strategy (alpha3_dry_runner.py)
 - Momentum K=60, H=100, WARMUP=110, 10s polls
 - TP +3% / SL -1.5% / TIMEOUT bar 100 (market exits)
-- 20% stake × 20x leverage, 0.05% taker fee per fill = 0.10% round-trip
+- 12% stake × 20x leverage (= 2.4x notional, A2 half-Kelly sizing 2026-09-14; was 20% × 20x), 0.05% taker fee per fill = 0.10% round-trip
 - Universe (48): TRIAUSDT, QUSDT, MAGMAUSDT, TRADOORUSDT, APRUSDT, UAIUSDT, DOODUSDT, BULLAUSDT, JCTUSDT, ZECUSDT, RAYSOLUSDT, XRPUSDT, BTCUSDT, ETHUSDT, SOLUSDT, KOMAUSDT, VTHOUSDT, IOSTUSDT, BEATUSDT, OPENAIUSDT, SNXUSDT, SUIUSDT, XLMUSDT, PUMPUSDT, 1000PEPEUSDT, BMTUSDT, EIGENUSDT, HEIUSDT, LINKUSDT, RENDERUSDT, ROSEUSDT, XVGUSDT, ANTHROPICUSDT, HYPEUSDT, CRVUSDT, DASHUSDT, ARBUSDT, INJUSDT, DOGEUSDT, UNIUSDT, JUPUSDT, XMRUSDT, TAOUSDT, REZUSDT, FLOCKUSDT, ZESTUSDT, PONSUSDT, MARSCOINUSDT
-- MAX_OPEN_POSITIONS = 3 (cap concurrent positions; 20% × 20x each)
+- MAX_OPEN_POSITIONS = 3 (cap concurrent positions; 12% × 20x each)
 - Circuit breaker: 3 consecutive losses → 50-bar entry-only cooldown
 - Meta-labeler: K60 artifact, threshold 0.61, **36-feature inference**
   (`features_to_model_array`; the 10 live-only orderbook keys are excluded)

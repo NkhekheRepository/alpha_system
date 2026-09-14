@@ -66,6 +66,28 @@ operational set.
     48-asset dataset takes ~40min for 5-fold purged CV + final fit. First
     OOM-kill was from running features + runner simultaneously.
 
+## A2 Half-Kelly Sizing Deploy (2026-09-14)
+
+23. **The deployed 4.0x was near-full-Kelly — optimal only on paper.** Kelly on
+    the 36-trade R-distribution (p=0.444, payoff 1.50R) gives f*=4.64x notional;
+    the running 0.20x20=4.0x was essentially full-Kelly sizing on an n=36
+    distribution whose WR CI (27-58%) spans breakeven. Full Kelly + uncertain
+    edge = 47% realized DD. Half-Kelly (2.32x, deployed as 0.12x20=2.4x) keeps
+    ~80% of the return (+11.1% vs +13.9% replay) for ~65% of the drawdown
+    (28.5% vs 43.7%) and cuts 100-trade P(DD>50%) from 50% to ~10%.
+24. **The installed systemd unit is a copy, not a symlink.** Editing
+    `systemd/alpha3-dry-runner.service` and restarting changes nothing — the
+    running unit is `~/.config/systemd/user/alpha3-dry-runner.service`
+    (installed Sep 10 by `deploy.sh cp`). The first restart silently ran the
+    OLD `--stake 0.20` (verified via `systemctl show -p ExecStart`). Deploy
+    rule: cp + daemon-reload + restart, then verify `ExecStart` + migrate log
+    + persisted `stake_pct` before declaring done.
+25. **Stake migration is safe but lazy.** `load_state` migrates stake/lev
+    in-memory (`stake 0.2->0.12, preserving DB 36t/$11.28`) while the old
+    process's shutdown save briefly re-persists old values; the file converges
+    on the new process's first full cycle save. Verify     the *file*, not just
+    the log line — and expect a multi-minute lag (48-asset bootstrap).
+
 ## Testnet recvWindow Timestamp Fix (2026-09-13)
 
 19. **Testnet and demo-fapi are different servers with different clocks.**

@@ -11,7 +11,7 @@ Environment=BINANCE_DEMO_LIVE=true
 Environment=TRADING_MODE=testnet
 Environment=BINANCE_USE_LIVE=false
 Environment=BINANCE_USE_TESTNET=true
-ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha3_dry_runner.py --stake 0.20 --leverage 20
+ExecStart=/usr/bin/python3 /home/nkhekhe/alpha_system/alpha3_dry_runner.py --stake 0.12 --leverage 20
 Restart=always
 RestartSec=30
 

@@ -213,7 +213,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Triple-barrier paper trading (TP/SL/TIMEOUT)\n"
         "Engine: momentum-K60, H100 hold, CB 3/50\n"
         "Exits: TP 3% / SL 1.5% market | TIMEOUT bar 100 at market price\n"
-        "Staking: 20% margin × 20x lev (compounds, $10 base)\n"
+        "Staking: 12% margin × 20x lev (compounds, $10 base)\n"
         "Commands:\n"
         "/status — Full dashboard\n"
         "/positions — Open positions with bar countdown\n"

@@ -5,7 +5,26 @@ tagged in git (`a3-vX.Y-name`) with the exact parameter set below.
 
 ---
 
-## v5.0 — `a3-v5.0-48asset` (current)
+## v5.1 — `a3-v5.1-halfkelly` (current)
+
+**Identity**: A2 half-Kelly position sizing. Stake 20% → 12% (leverage stays 20x): notional 4.0x → 2.4x equity per trade.
+
+**Evidence** (2026-09-14, 36-trade replay + Kelly + 100-trade bootstrap): full Kelly = 4.64x notional (current 4.0x was near-full-Kelly — optimal for log-growth only if the distribution were known; with n=36 it is reckless). Half-Kelly = 2.32x. At 2.4x: 36-trade replay final $11.11 (+11.1%) vs $11.39 (+13.9%) at 4.0x, while realized maxDD drops 43.7% → 28.5% and 100-trade P(DD>50%) drops 50% → ~10% at unchanged ~74% P(profit). Per-trade equity impact at $11: SL −$0.42 (−3.8%) / TP +$0.77 (+7.0%), was −$0.70/+$1.28.
+
+| Parameter | Value |
+|-----------|-------|
+| Base capital | $10 USDT (synthetic) |
+| Margin/trade | **12%** of equity, compounding |
+| Leverage | 20x |
+| Notional/trade | ~$27/trade (12% × 20x × $11.28, compounding) |
+
+Ledger: **continued** — stake migration preserves all 36 trades + $11.28 equity (verified `stake 0.2->0.12` migrate log, no reset). Live legs (demo + testnet) mirror 12% via `STAKE_PCT`/`STAKE_PCT_TESTNET`.
+
+**Deploy note:** the installed unit `~/.config/systemd/user/alpha3-dry-runner.service` is a *copy* of the repo file — editing `systemd/` alone does not redeploy. Must `cp` + `daemon-reload` + `restart` (per `deploy.sh`).
+
+---
+
+## v5.0 — `a3-v5.0-48asset` (previous)
 
 **Identity**: 48-asset universe expansion + latency optimization + model retrained on 48 assets.
 

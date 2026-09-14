@@ -344,8 +344,8 @@ MAX_CONSEC = 3
 COOLDOWN = 50
 MAX_OPEN_POSITIONS = 3  # cap concurrent positions (21-asset universe 2026-09-11; 20% x 20x each)
 CAP = 10.0
-STAKE_PCT = 0.20
-STAKE_PCT_TESTNET = 0.20  # testnet uses 20% staking as requested (identical to Telegram/demo)
+STAKE_PCT = 0.12
+STAKE_PCT_TESTNET = 0.12  # testnet mirrors paper staking (A2 half-Kelly: 0.12 x 20x = 2.4x notional; was 0.20/4x)
 LEVERAGE = 20.0
 # Per-symbol leverage overrides. Demo futures rejects some symbols at high leverage
 # (e.g. BICOUSDT rejects 20x -> ERROR 400). Those symbols are capped here; all others
@@ -1073,7 +1073,7 @@ def run_cycle(state, meta_model=None, meta_threshold=META_THRESHOLD, meta_featur
                     except Exception:
                         pass
                 qty = pos_val / prices[s]
-                # paper and live both use 20% staking (STAKE_PCT == STAKE_PCT_TESTNET) so Telegram and testnet identical
+                # paper and live both use 12% staking (STAKE_PCT == STAKE_PCT_TESTNET) so Telegram and testnet identical
                 actual_qty = qty
                 actual_notional = pos_val
                 demo_qty = testnet_qty = qty
